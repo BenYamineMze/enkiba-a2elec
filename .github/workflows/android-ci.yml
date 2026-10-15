@@ -1,0 +1,80 @@
+name: Android CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+# Annule les exécutions obsolètes si vous repoussez sur la même branche
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build, lint et tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Détecter le projet Android
+        id: detect
+        run: |
+          if [ -f gradlew ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Aucun gradlew trouvé : build ignoré (code pas encore importé)."
+          fi
+
+      - name: Installer Java 17
+        if: steps.detect.outputs.found == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Configurer Gradle (cache)
+        if: steps.detect.outputs.found == 'true'
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Créer un local.properties factice pour la CI
+        if: steps.detect.outputs.found == 'true'
+        run: |
+          echo "supabase.url=https://example.supabase.co" > local.properties
+          echo "supabase.anon.key=ci-dummy-key" >> local.properties
+
+      - name: Rendre gradlew exécutable
+        if: steps.detect.outputs.found == 'true'
+        run: chmod +x gradlew
+
+      - name: Build debug
+        if: steps.detect.outputs.found == 'true'
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Lint
+        if: steps.detect.outputs.found == 'true'
+        run: ./gradlew lintDebug --stacktrace
+
+      - name: Tests unitaires
+        if: steps.detect.outputs.found == 'true'
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Publier les rapports
+        if: always() && steps.detect.outputs.found == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapports-ci
+          path: |
+            **/build/reports/lint-results-*.html
+            **/build/reports/tests/
+          if-no-files-found: ignore
+          retention-days: 7
