@@ -13,12 +13,13 @@ import okhttp3.logging.HttpLoggingInterceptor;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
+import com.enkiba.app.BuildConfig;
+
 public class RetrofitClient {
 
     // URL de base racine (l'interface gère les sous-chemins 'auth/v1' et 'rest/v1')
-    private static final String BASE_URL = "https://brnlbtlhuamtvpwbwypm.supabase.co/";
-    private static final String SUPABASE_KEY = "sb_publishable_Q7w6vjWFs5S7Gm1_28FWlA_bwQroePU";
-
+    private static final String BASE_URL = BuildConfig.SUPABASE_URL;
+    private static final String SUPABASE_KEY = BuildConfig.SUPABASE_KEY;
     private static Retrofit retrofit = null;
 
     private static final Gson gson = new GsonBuilder()
@@ -31,7 +32,12 @@ public class RetrofitClient {
      */
     private static OkHttpClient buildOkHttpClient(Context context) {
         HttpLoggingInterceptor logging = new HttpLoggingInterceptor();
-        logging.setLevel(HttpLoggingInterceptor.Level.BODY);
+        logging.setLevel(BuildConfig.DEBUG
+                ? HttpLoggingInterceptor.Level.BODY
+                : HttpLoggingInterceptor.Level.NONE);
+
+        logging.redactHeader("Authorization");
+        logging.redactHeader("apikey");
 
         OkHttpClient.Builder httpClient = new OkHttpClient.Builder()
                 .connectTimeout(60, TimeUnit.SECONDS)
