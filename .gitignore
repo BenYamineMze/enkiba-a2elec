@@ -32,3 +32,5 @@ supabase/.env
 
 # Garder le wrapper Gradle
 !gradle/wrapper/gradle-wrapper.jar
+.vscode/
+.vscode/
