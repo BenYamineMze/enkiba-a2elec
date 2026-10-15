@@ -25,7 +25,7 @@ android {
     buildTypes {
         debug {
             buildConfigField("String", "SUPABASE_URL", "\"https://kjggrqklyptngpfyuuon.supabase.co/\"")
-            buildConfigField("String", "SUPABASE_KEY", "\"COLLEZ_ICI_LA_CLE_PUBLISHABLE_DEV\"")
+            buildConfigField("String", "SUPABASE_KEY", "\"sb_publishable__OvL970ysqZ_0qBlvtrrCg_hcH7uCe8\"")
         }
         release {
             buildConfigField("String", "SUPABASE_URL", "\"https://brnlbtlhuamtvpwbwypm.supabase.co/\"")
