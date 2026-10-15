@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <queries>
+        <package android:name="com.sec.spp.push" />
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.GStock">
+        <activity
+            android:name=".activities.LoginActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <activity android:name=".activities.AcceuilActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".activities.ProductListActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".activities.AddProductActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".activities.StatisticsActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".activities.SellProductActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".activities.UserManagementActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".activities.AddUserActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".activities.ShowUserActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".activities.EditUserActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".activities.SalesHistoryActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".activities.ProductDetailActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".activities.EditProductActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+
+        <activity android:name=".activities.HistoryActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".activities.ProductHistoryActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".activities.CartActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+
+        <activity android:name=".activities.SaleDetailsActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+
+        <activity android:name=".activities.QrListActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.enkiba.app.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+
+    </application>
+
+</manifest>

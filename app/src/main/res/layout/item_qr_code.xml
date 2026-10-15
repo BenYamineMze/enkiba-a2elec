@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="16dp"
+    android:layout_marginVertical="6dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="2dp"
+    app:strokeWidth="0dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?android:attr/selectableItemBackground"
+    app:cardBackgroundColor="@android:color/white">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="12dp">
+
+        <!-- Nom de l'article à gauche (prend toute la place disponible) -->
+        <TextView
+            android:id="@+id/tvArticleName"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            tools:text="Nom de l'Article"
+            android:textStyle="bold"
+            android:textColor="#1F1F1F"
+            android:textSize="16sp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/imgQrCode"
+            android:layout_marginEnd="16dp"/>
+
+        <!-- Miniature QR Code à droite -->
+        <!-- Cliquez dessus pour ouvrir en grand (logique à mettre dans l'adapter) -->
+        <ImageView
+            android:id="@+id/imgQrCode"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:src="@drawable/ic_qr_placeholder"
+            android:scaleType="fitCenter"
+            android:background="#F5F5F5"
+            android:padding="4dp"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            tools:src="@android:drawable/ic_menu_camera" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</com.google.android.material.card.MaterialCardView>
