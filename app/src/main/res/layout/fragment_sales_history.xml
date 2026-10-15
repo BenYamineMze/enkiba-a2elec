@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background_light_green"
+    tools:context=".fragments.SalesHistoryFragment">
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/saleSearch"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="@dimen/padding_default"
+        android:layout_marginTop="@dimen/padding_default"
+        android:hint="@string/hint_search_sale"
+        app:startIconDrawable="@drawable/ic_search"
+        app:boxStrokeColor="@color/primary_green_dark"
+        app:boxCornerRadiusTopStart="12dp"
+        app:boxCornerRadiusBottomEnd="12dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edtSearchSale"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_secondary"
+            android:inputType="text"/>
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerSalesHistory"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:padding="@dimen/margin_small"
+        android:clipToPadding="false"
+        app:layout_constraintTop_toBottomOf="@id/saleSearch"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:listitem="@layout/item_sale"
+        tools:itemCount="5"/>
+
+    <TextView
+        android:id="@+id/txtEmptyHistory"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="@string/message_empty_sales_history"
+        android:textAlignment="center"
+        android:textColor="@color/text_secondary"
+        android:textSize="16sp"
+        android:visibility="gone"
+        android:padding="@dimen/margin_fields"
+        app:layout_constraintTop_toBottomOf="@id/saleSearch"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintVertical_bias="0.4"
+        tools:visibility="gone"/>
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/btnExportPdf"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="@dimen/fab_margin_vertical"
+        android:layout_marginEnd="@dimen/padding_large"
+        android:src="@drawable/ic_pdf"
+        app:backgroundTint="@color/primary_green_dark"
+        app:tint="@color/white"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:contentDescription="@string/fab_export_pdf_desc"/>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

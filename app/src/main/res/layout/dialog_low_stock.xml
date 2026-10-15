@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="16dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="8dp"
+    app:cardBackgroundColor="@color/white">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- Titre avec icône d'alerte suggérée par la couleur -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⚠️ Alertes Stock Faible"
+            android:textColor="@color/red_dark"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Message affiché si la liste est vide -->
+        <TextView
+            android:id="@+id/tvEmptyAlert"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Aucun produit en rupture de stock pour le moment."
+            android:textAlignment="center"
+            android:textColor="@color/gray"
+            android:visibility="gone"
+            android:padding="20dp"/>
+
+        <!-- Liste des produits (hauteur max limitée pour éviter que le popup prenne tout l'écran) -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerLowStock"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxHeight="350dp"
+            android:minHeight="100dp"
+            android:scrollbars="vertical"
+            android:layout_marginBottom="8dp"/>
+
+        <!-- Bouton de fermeture -->
+        <Button
+            android:id="@+id/btnCloseDialog"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Fermer"
+            android:layout_marginTop="12dp"
+            android:backgroundTint="@color/gray_light"
+            android:textColor="@color/black"
+            android:textStyle="bold"
+            app:cornerRadius="8dp"/>
+    </LinearLayout>
+</androidx.cardview.widget.CardView>
