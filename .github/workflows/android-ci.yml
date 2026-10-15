@@ -44,7 +44,7 @@ jobs:
 
       - name: Configurer Gradle (cache)
         if: steps.detect.outputs.found == 'true'
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Créer un local.properties factice pour la CI
         if: steps.detect.outputs.found == 'true'
