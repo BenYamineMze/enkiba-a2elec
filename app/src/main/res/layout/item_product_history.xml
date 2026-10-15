@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="@dimen/margin_card_vertical_default"
+    android:layout_marginHorizontal="@dimen/margin_card_horizontal"
+    app:cardCornerRadius="@dimen/card_radius_default"
+    app:cardElevation="2dp"
+    app:strokeColor="@color/primary_green_dark"
+    app:strokeWidth="@dimen/stroke_width_default"
+    app:cardBackgroundColor="@color/white">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/margin_fields">
+
+        <TextView
+            android:id="@+id/txtProductName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            tools:text="Produit : Riz (ID 123)"
+            android:textStyle="bold"
+            android:textColor="@color/primary_green_dark"
+            android:textSize="16sp"
+            android:layout_marginBottom="@dimen/margin_extra_small"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="@dimen/margin_extra_small"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:layout_width="@dimen/icon_size_tiny"
+                android:layout_height="@dimen/icon_size_tiny"
+                android:src="@drawable/ic_edit"
+                app:tint="@color/primary_green_dark"
+                android:contentDescription="@string/content_desc_operation_type" />
+
+            <TextView
+                android:id="@+id/txtOperation"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/margin_extra_small"
+                tools:text="Opération : INSERT"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="@dimen/margin_extra_small"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:layout_width="@dimen/icon_size_tiny"
+                android:layout_height="@dimen/icon_size_tiny"
+                android:src="@drawable/ic_calendar"
+                app:tint="@color/primary_green_dark"
+                android:contentDescription="@string/content_desc_operation_date" />
+
+            <TextView
+                android:id="@+id/txtDate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/margin_extra_small"
+                tools:text="Date : 2025-11-09 15:00"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="@dimen/margin_extra_small"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:layout_width="@dimen/icon_size_tiny"
+                android:layout_height="@dimen/icon_size_tiny"
+                android:src="@drawable/ic_user"
+                app:tint="@color/primary_green_dark"
+                android:contentDescription="@string/content_desc_operation_user" />
+
+            <TextView
+                android:id="@+id/txtUser"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/margin_extra_small"
+                tools:text="Par : Admin"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/stroke_light"
+            android:layout_marginVertical="@dimen/margin_small"/>
+
+        <TextView
+            android:id="@+id/tvDetails"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            tools:text="Ancienne valeur : 100"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

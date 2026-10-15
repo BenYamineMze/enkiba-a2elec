@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="@dimen/margin_small"
+    android:layout_marginHorizontal="4dp"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="2dp"
+    app:cardBackgroundColor="@color/white">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="@dimen/padding_default"
+        android:gravity="center_vertical">
+
+        <!-- PARTIE GAUCHE : Infos Article -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvItemName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                tools:text="Pommes de terre (5kg)"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/primary_green_dark"/>
+
+            <TextView
+                android:id="@+id/tvItemDetails"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                tools:text="3 x 500 KMF"
+                android:textSize="14sp"
+                android:textColor="@color/text_secondary"
+                android:layout_marginTop="4dp"/>
+        </LinearLayout>
+
+        <!-- PARTIE DROITE : Prix & Bouton Retour -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="end"
+            android:layout_marginStart="@dimen/padding_default">
+
+            <TextView
+                android:id="@+id/tvItemTotal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                tools:text="1 500 KMF"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:textColor="@color/primary_green_dark"
+                android:layout_marginBottom="8dp"/>
+
+            <!-- Bouton Retour -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnReturnItem"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="Retourner"
+                android:textSize="11sp"
+                android:paddingVertical="0dp"
+                android:paddingHorizontal="12dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                app:strokeColor="@color/red_primary"
+                android:textColor="@color/red_primary"
+                app:cornerRadius="18dp"
+                app:rippleColor="#33FF0000"/>
+        </LinearLayout>
+
+    </LinearLayout>
+</androidx.cardview.widget.CardView>

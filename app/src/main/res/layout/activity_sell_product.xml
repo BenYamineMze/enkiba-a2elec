@@ -1,0 +1,545 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background_light_green"
+    tools:context=".activities.SellProductActivity">
+
+    <!-- HEADER -->
+    <include
+        layout="@layout/_header_user"
+        android:id="@+id/header"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <!-- CONTENU SCROLLABLE -->
+    <ScrollView
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toBottomOf="@id/header"
+        app:layout_constraintBottom_toTopOf="@id/bottom_nav"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:fillViewport="true"
+        android:clipToPadding="false"
+        android:paddingBottom="80dp"> <!-- Padding pour ne pas cacher le bas avec le FAB History -->
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="@dimen/padding_default">
+
+            <!-- CARTE 1 : SÉLECTION ARTICLE & PRIX -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="4dp"
+                app:strokeColor="@color/primary_green_dark"
+                app:strokeWidth="0dp"
+                android:layout_marginBottom="@dimen/margin_fields"
+                app:cardBackgroundColor="@color/white">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Nouvel Article"
+                        android:textColor="@color/primary_green_dark"
+                        android:textStyle="bold"
+                        android:textSize="16sp"
+                        android:layout_marginBottom="12dp"/>
+
+                    <!-- LIGNE 1 : PRODUIT + SCAN -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="top">
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/inputSelectProduct"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:hint="@string/hint_select_product"
+                            app:startIconDrawable="@drawable/ic_box"
+                            app:boxBackgroundColor="@android:color/white"
+                            app:boxStrokeColor="@color/primary_green_dark">
+
+                            <AutoCompleteTextView
+                                android:id="@+id/spinnerProducts"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:textColor="@color/text_primary"
+                                android:inputType="textAutoComplete|textCapSentences"
+                                android:imeOptions="actionDone"
+                                android:dropDownHeight="250dp"/>
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <ImageButton
+                            android:id="@+id/btnScan"
+                            android:layout_width="56dp"
+                            android:layout_height="56dp"
+                            android:layout_marginStart="8dp"
+                            android:layout_gravity="center_vertical"
+                            android:background="@drawable/rounded_bg_white_green_stroke"
+                            android:src="@drawable/ic_qr"
+                            app:tint="@color/primary_green_dark"
+                            android:padding="12dp"
+                            android:elevation="2dp"
+                            android:contentDescription="@string/content_desc_scan_qr"/>
+                    </LinearLayout>
+
+                    <!-- LIGNE 2 : QUANTITÉ ET PRIX CÔTE À CÔTE -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginTop="12dp"
+                        android:baselineAligned="false">
+
+                        <!-- Quantité -->
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="8dp"
+                            android:hint="@string/hint_quantity_sold"
+                            app:startIconDrawable="@drawable/ic_numbers"
+                            app:boxBackgroundColor="@android:color/white"
+                            app:boxStrokeColor="@color/primary_green_dark">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etQuantitySell"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="number"
+                                android:textColor="@color/text_primary"/>
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <!-- Prix Unitaire -->
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/layoutUnitPrice"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:hint="Prix Unit."
+                            app:startIconDrawable="@drawable/ic_money"
+                            app:boxBackgroundColor="@android:color/white"
+                            app:boxStrokeColor="@color/primary_green_dark">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etUnitPrice"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="numberDecimal"
+                                android:enabled="false"
+                                android:textColor="@color/text_primary"/>
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+
+                    <!-- LIGNE 3 : SWITCH NÉGOCIATION -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginTop="4dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Négocier le prix"
+                            android:textSize="12sp"
+                            android:textColor="@color/text_secondary"/>
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchNegotiatedPrice"
+                            android:layout_width="wrap_content"
+                            android:layout_height="30dp"
+                            app:thumbTint="@color/switch_thumb"
+                            app:trackTint="@color/switch_track"/>
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#E0E0E0"
+                        android:layout_marginVertical="12dp"/>
+
+                    <!-- LIGNE 4 : TOTAL & AJOUTER -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Sous-total :"
+                                android:textSize="12sp"
+                                android:textColor="@color/text_secondary"/>
+
+                            <TextView
+                                android:id="@+id/tvCalculatedTotal"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="0 KMF"
+                                android:textColor="@color/primary_green_dark"
+                                android:textStyle="bold"
+                                android:textSize="20sp"/>
+                        </LinearLayout>
+
+                        <com.google.android.material.floatingactionbutton.FloatingActionButton
+                            android:id="@+id/btnAddToCart"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            app:srcCompat="@drawable/ic_cart_plus"
+                            app:tint="@color/white"
+                            app:backgroundTint="@color/button_add"
+                            app:elevation="2dp"
+                            android:contentDescription="@string/fab_add_to_cart_desc"/>
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- CARTE 2 : PAIEMENT & OPTIONS -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="2dp"
+                app:strokeWidth="0dp"
+                android:layout_marginBottom="@dimen/margin_fields"
+                app:cardBackgroundColor="@color/white">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/section_title_payment"
+                        android:textColor="@color/text_primary"
+                        android:textStyle="bold"
+                        android:textSize="16sp"
+                        android:drawableStart="@drawable/ic_money"
+                        android:drawablePadding="8dp"
+                        app:drawableTint="@color/primary_green_dark"/>
+
+                    <RadioGroup
+                        android:id="@+id/radioGroupPayment"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginTop="8dp">
+
+                        <com.google.android.material.radiobutton.MaterialRadioButton
+                            android:id="@+id/radEspeces"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/radio_cash"
+                            android:layout_weight="1"
+                            app:buttonTint="@color/primary_green_dark"/>
+
+                        <com.google.android.material.radiobutton.MaterialRadioButton
+                            android:id="@+id/radVirement"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/radio_transfer"
+                            android:layout_weight="1"
+                            app:buttonTint="@color/primary_green_dark"/>
+                    </RadioGroup>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#F0F0F0"
+                        android:layout_marginVertical="8dp"/>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical">
+
+                        <com.google.android.material.checkbox.MaterialCheckBox
+                            android:id="@+id/checkEditInvoice"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/checkbox_edit_invoice"
+                            android:textSize="14sp"
+                            app:buttonTint="@color/primary_green_dark"/>
+
+                        <!-- BOUTON OUVRIR PANIER -->
+                        <FrameLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:clipChildren="false"
+                            android:clipToPadding="false">
+
+                            <com.google.android.material.imageview.ShapeableImageView
+                                android:id="@+id/btnOpenCart"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:padding="10dp"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:src="@drawable/ic_car"
+                                app:tint="@color/primary_green_dark" />
+
+                            <TextView
+                                android:id="@+id/txtCartBadge"
+                                android:layout_width="18dp"
+                                android:layout_height="18dp"
+                                android:background="@drawable/badge_circle"
+                                android:textColor="@color/red_dark"
+                                android:text="0"
+                                android:textSize="10sp"
+                                android:textStyle="bold"
+                                android:gravity="center"
+                                android:visibility="gone"
+                                android:layout_gravity="top|end"
+                                android:translationX="-4dp"
+                                android:translationY="4dp"
+                                android:elevation="4dp" />
+                        </FrameLayout>
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- CARTE 3 : INFO CLIENT (Visible sur demande) -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardInvoiceForm"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:layout_marginBottom="@dimen/margin_fields"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="4dp"
+                app:strokeColor="@color/primary_green_dark"
+                app:strokeWidth="1dp"
+                app:cardBackgroundColor="@color/white">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/title_client_info"
+                        android:textColor="@color/primary_green_dark"
+                        android:textStyle="bold"
+                        android:textSize="16sp"
+                        android:layout_marginBottom="12dp"/>
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="@string/hint_lastname"
+                        app:startIconDrawable="@drawable/ic_user"
+                        app:boxBackgroundColor="@android:color/white">
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etClientNom"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"/>
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:hint="@string/hint_firstname"
+                        app:startIconDrawable="@drawable/ic_user"
+                        app:boxBackgroundColor="@android:color/white">
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etClientPrenom"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"/>
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Autres champs client simplifiés pour l'exemple, ajoutez les autres ici si besoin -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:hint="@string/hint_address"
+                        app:startIconDrawable="@drawable/ic_location"
+                        app:boxBackgroundColor="@android:color/white">
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etClientAddress"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"/>
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginTop="8dp">
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="4dp"
+                            android:hint="@string/hint_phone"
+                            app:startIconDrawable="@drawable/ic_phone"
+                            app:boxBackgroundColor="@android:color/white">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etClientPhone"
+                                android:inputType="phone"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"/>
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="4dp"
+                            android:hint="@string/hint_email"
+                            app:startIconDrawable="@drawable/ic_email"
+                            app:boxBackgroundColor="@android:color/white">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etClientEmail"
+                                android:inputType="textEmailAddress"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"/>
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- FOOTER : VALIDATION -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/rounded_bg_white_green_stroke"
+                android:padding="12dp"
+                android:elevation="2dp"
+                android:layout_marginTop="16dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/label_confirm_sale"
+                    android:textSize="14sp"
+                    android:textColor="@color/primary_green_dark"
+                    android:textStyle="bold"/>
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switchConfirm"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:thumbTint="@color/switch_thumb"
+                    app:trackTint="@color/switch_track"/>
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="32dp"
+                android:weightSum="2">
+
+                <!-- BOUTON DEVIS (Contour Vert, Fond Blanc) -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnGenerateQuote"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="8dp"
+                    android:text="@string/button_devis_sell"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    app:strokeColor="@color/primary_green_dark"
+                    app:strokeWidth="2dp"
+                    android:textColor="@color/primary_green_dark"
+                    app:icon="@drawable/ic_pdf"
+                    app:iconTint="@color/primary_green_dark"
+                    app:cornerRadius="12dp"
+                    android:paddingVertical="12dp"/>
+
+                <!-- BOUTON VENDRE (Fond Vert, Texte Blanc) -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnValidateSell"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/button_validate_sell"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    app:backgroundTint="@color/primary_green_dark"
+                    android:textColor="@color/white"
+                    app:icon="@drawable/ic_check"
+                    app:iconTint="@color/white"
+                    app:cornerRadius="12dp"
+                    android:paddingVertical="12dp"/>
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- FAB HISTORIQUE -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/btnHistory"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        app:layout_constraintBottom_toTopOf="@id/bottom_nav"
+        app:layout_constraintStart_toStartOf="parent"
+        app:backgroundTint="@color/white"
+        app:tint="@color/primary_green_dark"
+        app:srcCompat="@drawable/ic_history"
+        android:contentDescription="@string/fab_history_desc"/>
+
+    <!-- NAVIGATION -->
+    <include
+        android:id="@+id/bottom_nav"
+        layout="@layout/_nav_menu"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+</androidx.constraintlayout.widget.ConstraintLayout>
