@@ -61,6 +61,8 @@ import com.enkiba.app.ui.components.SegmentedTabs
 import com.enkiba.app.ui.components.SquareIconButton
 import com.enkiba.app.ui.components.StatTile
 import com.enkiba.app.ui.components.StatusChip
+import com.enkiba.app.ui.components.SyncState
+import com.enkiba.app.ui.components.UserHeader
 import com.enkiba.app.ui.components.formatKmf
 import com.enkiba.app.ui.theme.EnkibaTheme
 import com.enkiba.app.ui.theme.Spacing
@@ -89,6 +91,7 @@ private fun Catalog(dark: Boolean, onDarkChange: (Boolean) -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var pill by remember { mutableIntStateOf(0) }
     var nav by remember { mutableIntStateOf(0) }
+    var sync by remember { mutableStateOf(SyncState.SYNCED) }
 
     Box(
         modifier = Modifier
@@ -105,13 +108,23 @@ private fun Catalog(dark: Boolean, onDarkChange: (Boolean) -> Unit) {
         ) {
             ScreenHeader(
                 title = "Catalogue design",
-                subtitle = "Charte v2 · données d'exemple",
+                subtitle = "Charte v2 · données d'exemple · navigation non branchée",
                 actions = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         Text("Sombre", style = MaterialTheme.typography.bodyMedium)
                         Switch(checked = dark, onCheckedChange = onDarkChange)
                     }
                 },
+            )
+
+            // En-tête de l'accueil (utilisateur, synchronisation) : touche le bouton pour changer d'état
+            UserHeader(
+                firstName = "Mze",
+                lastName = "Ben",
+                roleLabel = "Admin",
+                syncState = sync,
+                onSync = { sync = SyncState.entries[(sync.ordinal + 1) % SyncState.entries.size] },
+                onAvatarClick = {},
             )
 
             Column(Modifier.padding(horizontal = Spacing.screen), verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {

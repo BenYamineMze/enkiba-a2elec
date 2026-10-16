@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -33,8 +32,8 @@ import com.enkiba.app.ui.theme.Spacing
 data class NavDestination(val label: String, val icon: ImageVector)
 
 /**
- * Barre de navigation flottante (carte blanche) avec un bouton central « Nouvelle vente ».
- * Les destinations sont réparties de part et d'autre du bouton central.
+ * Barre de navigation flottante (carte blanche) avec un bouton central « Nouvelle vente »,
+ * centré verticalement dans la barre. Les destinations sont réparties de part et d'autre.
  */
 @Composable
 fun FloatingBottomBar(
@@ -60,18 +59,19 @@ fun FloatingBottomBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             destinations.forEachIndexed { index, d ->
-                if (index == half) Box(Modifier.size(58.dp)) // place du bouton central
+                if (index == half) {
+                    // Bouton central « Nouvelle vente », centré dans la barre
+                    SquareIconButton(
+                        icon = Icons.Rounded.Add,
+                        contentDescription = centerActionLabel,
+                        onClick = onCenterAction,
+                        filled = true,
+                        size = 52.dp,
+                    )
+                }
                 NavItem(d, selected = index == selectedIndex, onClick = { onSelect(index) })
             }
         }
-        SquareIconButton(
-            icon = Icons.Rounded.Add,
-            contentDescription = centerActionLabel,
-            onClick = onCenterAction,
-            filled = true,
-            size = 58.dp,
-            modifier = Modifier.align(Alignment.TopCenter).offset(y = (-22).dp),
-        )
     }
 }
 
