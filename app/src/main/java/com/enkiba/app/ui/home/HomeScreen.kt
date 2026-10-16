@@ -26,12 +26,14 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
@@ -57,6 +59,8 @@ import com.enkiba.app.ui.navigation.AppBottomBar
 import com.enkiba.app.ui.navigation.AppTab
 import com.enkiba.app.ui.theme.EnkibaTheme
 import com.enkiba.app.ui.theme.Spacing
+import com.enkiba.app.ui.theme.ThemeChoiceDialog
+import com.enkiba.app.ui.theme.ThemePreferences
 
 /** Actions de l'accueil, branchées par HomeActivity. */
 data class HomeActions(
@@ -131,6 +135,9 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions) {
 @Composable
 private fun Header(state: HomeUiState, actions: HomeActions) {
     var menuOpen by remember { mutableStateOf(false) }
+    var themeDialog by remember { mutableStateOf(false) }
+    val themeMode by ThemePreferences.mode(LocalContext.current).collectAsState()
+    if (themeDialog) ThemeChoiceDialog(onDismiss = { themeDialog = false })
     Box(Modifier.fillMaxWidth()) {
         UserHeader(
             firstName = state.firstName,
@@ -144,6 +151,10 @@ private fun Header(state: HomeUiState, actions: HomeActions) {
         Box(Modifier.align(Alignment.TopEnd).padding(end = Spacing.screen, top = 56.dp)) {
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 DropdownMenuItem(text = { Text("Mon profil") }, onClick = { menuOpen = false; actions.onProfile() })
+                DropdownMenuItem(
+                    text = { Text("Thème : ${themeMode.label}") },
+                    onClick = { menuOpen = false; themeDialog = true },
+                )
                 if (state.isAdmin) {
                     DropdownMenuItem(text = { Text("Gestion des utilisateurs") }, onClick = { menuOpen = false; actions.onManageUsers() })
                 }
