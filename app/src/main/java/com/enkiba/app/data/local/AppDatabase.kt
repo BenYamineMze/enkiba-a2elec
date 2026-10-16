@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.enkiba.app.data.local.dao.ClientRoomDao
 import com.enkiba.app.data.local.dao.HistoryRoomDao
@@ -29,8 +30,12 @@ import com.enkiba.app.utils.SynchronizationManager
  *
  * Version 11 = première version Room. Les versions 1 à 10 venaient de l'ancien
  * SQLiteOpenHelper (sans utilisateurs réels) : elles sont recréées une dernière fois.
- * À partir de maintenant, toute évolution du schéma passe par une vraie Migration
- * (ajoutée dans MIGRATIONS) et le schéma exporté dans app/schemas.
+ *
+ * Faire évoluer le schéma (plus jamais de recréation : elle perdrait les ventes non envoyées) :
+ * 1. modifier l'entité et incrémenter `version` ;
+ * 2. compiler : le nouveau schéma est exporté dans app/schemas (à committer) ;
+ * 3. écrire la Migration(ancienne, nouvelle) et l'ajouter à [MIGRATIONS] ;
+ * 4. la tester avec MigrationTestHelper (room-testing) à partir des schémas exportés.
  */
 @Database(
     entities = [
@@ -54,6 +59,10 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         const val DATABASE_NAME = "stock.db"
 
+        /** Migrations du schéma, dans l'ordre (aucune pour l'instant : version 11 = première). */
+        @JvmField
+        val MIGRATIONS: Array<Migration> = arrayOf()
+
         @Volatile
         private var instance: AppDatabase? = null
 
@@ -65,6 +74,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         private fun build(appContext: Context): AppDatabase =
             Room.databaseBuilder(appContext, AppDatabase::class.java, DATABASE_NAME)
+                .addMigrations(*MIGRATIONS)
                 // Anciennes versions SQLiteOpenHelper : recréation (aucune donnée réelle)
                 .fallbackToDestructiveMigrationFrom(true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
                 // TODO étape 6b : à retirer quand les écrans passeront par des ViewModel

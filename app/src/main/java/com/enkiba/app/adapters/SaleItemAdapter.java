@@ -10,7 +10,6 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.enkiba.app.R;
-// import com.enkiba.app.database.DatabaseHelper; // 🚨 SUPPRIMÉ 🚨
 import com.enkiba.app.models.SaleItemRow;
 
 import java.util.List;
@@ -20,7 +19,6 @@ public class SaleItemAdapter extends RecyclerView.Adapter<SaleItemAdapter.SaleIt
 
     private final Context context;
     private final List<SaleItemRow> list;
-    // private final DatabaseHelper db; // 🚨 SUPPRIMÉ 🚨
 
     // 🚨 CORRECTION 1 : Constructeur simplifié 🚨
     public SaleItemAdapter(Context context, List<SaleItemRow> list) {
