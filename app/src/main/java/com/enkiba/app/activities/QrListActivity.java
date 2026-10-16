@@ -15,7 +15,6 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.enkiba.app.R;
 import com.enkiba.app.adapters.QrListAdapter;
-// import com.enkiba.app.database.DatabaseHelper; // 🚨 SUPPRIMÉ 🚨
 import com.enkiba.app.models.Product;
 import com.enkiba.app.modelsDao.ProductDao; // 🚨 NOUVEAU 🚨
 import com.enkiba.app.utils.NavigationHelper;

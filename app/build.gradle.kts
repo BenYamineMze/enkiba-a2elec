@@ -1,5 +1,10 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.room)
 }
 
 android {
@@ -38,6 +43,11 @@ android {
         }
     }
 
+    // Tests unitaires Robolectric (base Room en mémoire)
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -47,6 +57,17 @@ android {
     tasks.withType<JavaCompile> {
         options.compilerArgs.add("-Xlint:deprecation")
     }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_11)
+    }
+}
+
+// Schéma Room exporté et versionné (base des migrations et de leurs tests)
+room {
+    schemaDirectory("$projectDir/schemas")
 }
 
 dependencies {
@@ -76,6 +97,13 @@ dependencies {
 
 
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // Base locale : Room (entités et DAO en Kotlin)
+    implementation(libs.room.runtime)
+    ksp(libs.room.compiler)
+    testImplementation(libs.room.testing)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.test.core)
     // Simplification des dépendances redondantes de Material
     // implementation ("com.google.android.material:material:1.12.0")
     // Note: 'material' est déjà inclus deux fois via libs.material et directement ci-dessus.

@@ -11,7 +11,6 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.enkiba.app.R;
-// import com.enkiba.app.database.DatabaseHelper; // 🚨 SUPPRIMÉ 🚨
 import com.enkiba.app.adapters.ProductHistoryAdapter;
 import com.enkiba.app.models.ProductHistory;
 import com.enkiba.app.modelsDao.HistoryDao; // 🚨 NOUVEAU 🚨
@@ -27,7 +26,6 @@ public class ProductHistoryActivity extends BaseActivity {
     RecyclerView recyclerProductHistory;
     TextView txtEmptyProduct;
 
-    // DatabaseHelper db; // 🚨 SUPPRIMÉ 🚨
     private HistoryDao historyDao; // 🚨 NOUVEAU 🚨
 
     private SessionManager sessionManager;

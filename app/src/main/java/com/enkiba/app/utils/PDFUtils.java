@@ -19,7 +19,6 @@ import android.util.Log;
 import androidx.core.content.FileProvider;
 
 import com.enkiba.app.R;
-import com.enkiba.app.database.DatabaseHelper;
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Product;
 import com.enkiba.app.models.Quote;
@@ -450,7 +449,6 @@ public class PDFUtils {
             cy += 25;
             canvas.drawText("Mode de paiement : " + header.getPaymentMethod(), x, cy, paint);
 
-            // 🚨 CORRECTION : Remplacement de DatabaseHelper par UserDao 🚨
             UserDao userDao = new UserDao(ctx);
             String vendeurName= "—";
             User vendeurUser = userDao.getUserById(header.getSellerId());
@@ -639,7 +637,6 @@ public class PDFUtils {
             cy += 25;
             canvas.drawText("Valable jusqu'au : " + (quote.getValidUntil() != null ? quote.getValidUntil() : "—"), x, cy, paint);
 
-            // 🚨 CORRECTION : Remplacement de DatabaseHelper par UserDao 🚨
             UserDao userDao = new UserDao(ctx);
             String vendeurName= "—";
             User vendeurUser = userDao.getUserById(quote.getSellerId());
