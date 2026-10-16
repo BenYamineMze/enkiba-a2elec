@@ -4,6 +4,8 @@ import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
+import com.enkiba.app.utils.SynchronizationManager;
+
 /**
  * Gère la création de la base de données locale (schéma) et sa mise à jour.
  */
@@ -39,12 +41,18 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String TABLE_SALE_RETURNS = "sale_returns";
 
 
+    private final Context appContext;
+
     public DatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
+        this.appContext = context.getApplicationContext();
     }
 
     @Override
     public void onCreate(SQLiteDatabase db) {
+        // Base neuve (installation ou onUpgrade) : les curseurs de pull doivent repartir
+        // de zéro, sinon les données déjà reçues ne seraient jamais re-téléchargées.
+        SynchronizationManager.resetPullCursors(appContext);
 
         // 1. TABLE PRODUCTS (id = UUID ; la quantité vendue se calcule depuis sale_items)
         String CREATE_PRODUCTS_TABLE = "CREATE TABLE " + TABLE_PRODUCTS + " (" +

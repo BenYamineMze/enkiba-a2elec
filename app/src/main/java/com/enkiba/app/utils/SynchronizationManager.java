@@ -477,6 +477,11 @@ public class SynchronizationManager {
 
     // --- Curseurs de pull (par boutique et par table) ---
 
+    /** Oublie tous les curseurs : le prochain pull retélécharge tout (base locale recréée). */
+    public static void resetPullCursors(Context context) {
+        context.getSharedPreferences(PREFS_SYNC, Context.MODE_PRIVATE).edit().clear().apply();
+    }
+
     private String getPullCursor(String shop, String table) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_SYNC, Context.MODE_PRIVATE);
         return prefs.getString("cursor_" + shop + "_" + table, EPOCH);
