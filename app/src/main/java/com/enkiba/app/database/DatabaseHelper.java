@@ -11,7 +11,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     public static final String DATABASE_NAME = "stock.db";
     // v7 : schéma aligné sur Supabase v2 (UUID TEXT, shop_id, deleted_at, plus d'archives)
-    private static final int DATABASE_VERSION = 7;
+    // v8 : table stock_movements (mouvements saisis localement, en attente d'envoi)
+    private static final int DATABASE_VERSION = 8;
 
     // --- CONSTANTES DE COLONNES INTERNES ---
     private static final String COL_ID = "id";
@@ -33,6 +34,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String TABLE_SALES = "sales";
     public static final String TABLE_SALE_ITEMS = "sale_items";
     public static final String TABLE_HISTORY = "history";
+    public static final String TABLE_STOCK_MOVEMENTS = "stock_movements";
 
 
     public DatabaseHelper(Context context) {
@@ -150,6 +152,20 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 ")";
         db.execSQL(CREATE_HISTORY_TABLE);
         db.execSQL("CREATE INDEX idx_history_timestamp ON " + TABLE_HISTORY + "(timestamp)");
+
+        // 7. TABLE STOCK_MOVEMENTS : seulement les mouvements saisis sur ce téléphone
+        // ('initial', 'restock', 'adjustment'). Les ventes et retours génèrent les leurs côté serveur.
+        String CREATE_STOCK_MOVEMENTS = "CREATE TABLE " + TABLE_STOCK_MOVEMENTS + " (" +
+                "id TEXT PRIMARY KEY, " +
+                COL_SHOP_ID + " TEXT, " +
+                "product_id TEXT NOT NULL, " +
+                "delta INTEGER NOT NULL, " +
+                "reason TEXT NOT NULL, " +
+                "created_by TEXT, " +
+                "created_at TEXT NOT NULL, " +
+                COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'pending'" +
+                ")";
+        db.execSQL(CREATE_STOCK_MOVEMENTS);
     }
 
     @Override
@@ -164,6 +180,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_HISTORY);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_CLIENTS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_SALE_ITEMS);
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_STOCK_MOVEMENTS);
         db.execSQL("DROP TABLE IF EXISTS sale_items_archive"); // table v1 obsolète
         db.execSQL("DROP TABLE IF EXISTS sale_archive"); // table v1 obsolète
 

@@ -7,6 +7,7 @@ import com.enkiba.app.models.Product;
 import com.enkiba.app.models.ProductHistory;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItem;
+import com.enkiba.app.models.StockMovement;
 
 import java.util.List;
 
@@ -21,6 +22,7 @@ public class SyncDao {
     private final SaleDao saleDao;
     private final SaleItemDao saleItemDao;
     private final HistoryDao historyDao;
+    private final StockMovementDao stockMovementDao;
 
     public SyncDao(Context context) {
         this.productDao = new ProductDao(context);
@@ -28,6 +30,7 @@ public class SyncDao {
         this.saleDao = new SaleDao(context);
         this.saleItemDao = new SaleItemDao(context);
         this.historyDao = new HistoryDao(context);
+        this.stockMovementDao = new StockMovementDao(context);
     }
 
     // ----------------------------------------------------------------------------------
@@ -39,6 +42,7 @@ public class SyncDao {
     public List<SaleHeader> getPendingSales() { return saleDao.getPendingSalesForSync(); }
     public List<SaleItem> getPendingSaleItems() { return saleItemDao.getPendingSaleItemsForSync(); }
     public List<ProductHistory> getPendingHistory() { return historyDao.getPendingHistoryForSync(); }
+    public List<StockMovement> getPendingStockMovements() { return stockMovementDao.getPendingMovementsForSync(); }
 
     // ----------------------------------------------------------------------------------
     // B. PULL : INSERTION/MISE À JOUR DEPUIS LE SERVEUR
@@ -59,4 +63,5 @@ public class SyncDao {
     public void markSaleAsSynced(String id) { saleDao.markSaleAsSynced(id); }
     public void markSaleItemAsSynced(String id) { saleItemDao.markSaleItemAsSynced(id); }
     public void markHistoryAsSynced(String id) { historyDao.markHistoryAsSynced(id); }
+    public void markStockMovementAsSynced(String id) { stockMovementDao.markMovementAsSynced(id); }
 }

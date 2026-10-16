@@ -18,7 +18,6 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.enkiba.app.R;
 import com.enkiba.app.models.Client;
-import com.enkiba.app.models.Product;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItemRow;
 import com.enkiba.app.models.User;
@@ -222,11 +221,7 @@ public class SaleDetailsActivity extends BaseActivity {
         }
 
         // 2. 📦 Mise à jour du stock produit
-        Product product = productDao.getProductById(item.getProductId());
-        if (product != null) {
-            product.setQuantity(product.getQuantity() + qtyToReturn);
-            productDao.updateProduct(product);
-        }
+        productDao.addLocalQuantity(item.getProductId(), qtyToReturn);
 
         // 3. 💰 Mise à jour du total de la vente
         double refundAmount = qtyToReturn * item.getUnitPrice();

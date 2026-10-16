@@ -11,6 +11,7 @@ import android.widget.Toast;
 
 import com.enkiba.app.R;
 import com.enkiba.app.models.Product;
+import com.enkiba.app.models.StockMovement;
 import com.enkiba.app.modelsDao.HistoryDao;
 import com.enkiba.app.modelsDao.ProductDao;
 import com.enkiba.app.utils.NavigationHelper;
@@ -193,9 +194,12 @@ public class EditProductActivity extends BaseActivity {
         product.setName(name);
         product.setCategory(category);
 
-        // 🚨 MODIFICATION IMPORTANTE ICI 🚨
-        // On met à jour la quantité actuelle
-        product.setQuantity(quantity);
+        // Le stock ne s'écrit pas directement : l'écart avec le stock actuel devient
+        // un mouvement de stock (réassort ou ajustement), envoyé au serveur.
+        // Le stock est relu en base au cas où une vente aurait eu lieu depuis l'ouverture de l'écran.
+        Product fresh = productDao.getProductById(product.getId());
+        int currentQuantity = (fresh != null) ? fresh.getQuantity() : product.getQuantity();
+        int delta = quantity - currentQuantity;
 
         // On met EGALEMENT à jour le stock initial pour réinitialiser la barre de progression (100%)
         // Cela évite les décalages statistiques lors d'une correction manuelle de stock
@@ -208,6 +212,10 @@ public class EditProductActivity extends BaseActivity {
         String userId = sessionManager.getUserId();
 
         boolean updated = productDao.updateProduct(product);
+        if (updated && delta != 0) {
+            String reason = delta > 0 ? StockMovement.REASON_RESTOCK : StockMovement.REASON_ADJUSTMENT;
+            updated = productDao.applyStockMovement(product.getId(), delta, reason, userId);
+        }
 
         if (updated) {
             // Enregistrement dans l'historique

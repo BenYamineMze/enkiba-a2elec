@@ -178,10 +178,11 @@ public class SaleDao {
                 }
                 if (!found[i]) continue; // produit supprimé entre-temps : la ligne reste
 
+                // Stock local seulement : le serveur décrémente le sien à la réception de la ligne
+                // (trigger stock_on_sale_item). Le produit n'est donc pas marqué 'pending'.
                 int newQty = oldQty[i] - row.getQuantity();
-                db.execSQL("UPDATE " + TABLE_PRODUCTS + " SET quantity = ?, "
-                                + DatabaseHelper.COL_UPDATED_AT + " = ?, " + DatabaseHelper.COL_SYNC_STATUS + " = 'pending' WHERE id = ?",
-                        new Object[]{newQty, now, row.getProductId()});
+                db.execSQL("UPDATE " + TABLE_PRODUCTS + " SET quantity = ? WHERE id = ?",
+                        new Object[]{newQty, row.getProductId()});
 
                 String op = "Vente";
                 if (listPrice[i] != row.getUnitPrice()) {

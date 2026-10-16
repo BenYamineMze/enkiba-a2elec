@@ -129,6 +129,10 @@ public interface SupabaseService {
     @POST("rest/v1/sale_items")
     Call<Void> upsertSaleItemMap(@Header("Prefer") String prefer, @Body Map<String, Object> itemMap);
 
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/stock_movements")
+    Call<Void> insertStockMovement(@Header("Prefer") String prefer, @Body Map<String, Object> movement);
+
     @GET("rest/v1/shop_members")
     Call<List<ShopMember>> getShopMember(
             @Query("shop_id") String shopIdFilter,

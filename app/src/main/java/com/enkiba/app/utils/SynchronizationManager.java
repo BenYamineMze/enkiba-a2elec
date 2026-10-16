@@ -11,6 +11,7 @@ import com.enkiba.app.models.Product;
 import com.enkiba.app.models.ProductHistory;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItem;
+import com.enkiba.app.models.StockMovement;
 import com.enkiba.app.modelsDao.ProductDao;
 import com.enkiba.app.modelsDao.SyncDao;
 
@@ -39,6 +40,10 @@ import retrofit2.Response;
 public class SynchronizationManager {
 
     private static final String TAG = "SyncManager";
+
+    // Insertion idempotente : une ligne déjà présente (même id) est ignorée sans erreur.
+    // Pour les données qu'on ne modifie jamais après création (ventes, mouvements, journal).
+    private static final String PREFER_IGNORE_DUPLICATES = "resolution=ignore-duplicates, return=minimal";
     private static final String PREFS_SYNC = "sync_prefs";
     private static final String KEY_LAST_SYNC = "last_sync_time";
 
@@ -182,6 +187,13 @@ public class SynchronizationManager {
             Log.e(TAG, "Erreur PUSH produits : " + e.getMessage(), e);
         }
 
+        // Mouvements de stock saisis localement (après les produits : clé étrangère)
+        try {
+            pushStockMovementsSync(syncDao.getPendingStockMovements());
+        } catch (Exception e) {
+            Log.e(TAG, "Erreur PUSH mouvements de stock : " + e.getMessage(), e);
+        }
+
         // Ventes : l'en-tête d'abord, puis les lignes
         try {
             pushSaleHeaderTableSync(syncDao.getPendingSales(), preferHeader);
@@ -277,7 +289,7 @@ public class SynchronizationManager {
             map.put("shop_id", p.getShopId() != null ? p.getShopId() : sessionManager.getShopId());
             map.put("name", p.getName());
             map.put("category", p.getCategory());
-            map.put("quantity", p.getQuantity());
+            // Pas de quantity : le serveur la calcule à partir des mouvements de stock
             map.put("price", p.getPrice());
             map.put("description", p.getDescription());
             map.put("qr_code", p.getQr_code());
@@ -290,6 +302,29 @@ public class SynchronizationManager {
                 syncDao.markProductAsSynced(p.getId());
             } else {
                 logFailure("produit " + p.getId(), res);
+            }
+        }
+    }
+
+    /**
+     * Envoie les mouvements de stock saisis par un admin.
+     * Rejouer un envoi est sans effet (même id, doublon ignoré).
+     */
+    private void pushStockMovementsSync(List<StockMovement> movements) throws Exception {
+        for (StockMovement m : movements) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", m.getId());
+            map.put("shop_id", m.getShopId() != null ? m.getShopId() : sessionManager.getShopId());
+            map.put("product_id", m.getProductId());
+            map.put("delta", m.getDelta());
+            map.put("reason", m.getReason());
+            map.put("created_by", m.getCreatedBy() != null ? m.getCreatedBy() : sessionManager.getUserId());
+
+            Response<Void> res = supabaseService.insertStockMovement(PREFER_IGNORE_DUPLICATES, map).execute();
+            if (res.isSuccessful()) {
+                syncDao.markStockMovementAsSynced(m.getId());
+            } else {
+                logFailure("mouvement de stock " + m.getId(), res);
             }
         }
     }
