@@ -9,7 +9,7 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.enkiba.app.activities.AcceuilActivity
+import com.enkiba.app.ui.home.HomeActivity
 import com.enkiba.app.ui.theme.EnkibaTheme
 
 /**
@@ -43,7 +43,7 @@ class LoginActivity : ComponentActivity() {
 
     // La synchronisation est lancée par l'accueil
     private fun openHome() {
-        startActivity(Intent(this, AcceuilActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+        startActivity(Intent(this, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
         finish()
     }
 }

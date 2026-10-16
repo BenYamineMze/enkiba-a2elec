@@ -36,6 +36,13 @@ interface QuoteRoomDao {
     @Query(SELECT_WITH_CLIENT + "WHERE q.id = :id")
     fun getById(id: String): QuoteWithClient?
 
+    /** Devis en cours : brouillon ou accepté, non supprimé, encore valable (today = yyyy-MM-dd). */
+    @Query(
+        "SELECT COUNT(*) FROM quotes WHERE deleted_at IS NULL AND status IN ('draft', 'accepted') " +
+            "AND (valid_until IS NULL OR valid_until >= :today) AND (:sellerId IS NULL OR seller_id = :sellerId)"
+    )
+    fun countOpen(today: String, sellerId: String?): Int
+
     @Query("SELECT * FROM quote_items WHERE quote_id = :quoteId ORDER BY rowid")
     fun getItems(quoteId: String): List<QuoteItemEntity>
 
