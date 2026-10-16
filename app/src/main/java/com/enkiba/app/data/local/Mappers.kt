@@ -210,6 +210,7 @@ object Mappers {
         quantity = net
         returnedQuantity = r.returned
         unitPrice = r.item.unitPrice
+        listPrice = r.item.listPrice
         total = net * r.item.unitPrice
     }
 
@@ -379,5 +380,5 @@ object Mappers {
     /** Ligne de devis au format des lignes de panier (PDF, conversion en vente). */
     @JvmStatic
     fun toRow(e: QuoteItemEntity): SaleItemRow =
-        SaleItemRow(e.productId, e.productName, e.unitPrice, e.quantity)
+        SaleItemRow(e.productId, e.productName, e.unitPrice, e.quantity).apply { listPrice = e.listPrice }
 }

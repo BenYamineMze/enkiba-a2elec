@@ -10,10 +10,10 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.enkiba.app.BuildConfig
 import com.enkiba.app.ui.history.HistoryActivity
-import com.enkiba.app.activities.SaleDetailsActivity
 import com.enkiba.app.activities.StatisticsActivity
 import com.enkiba.app.activities.UserManagementActivity
 import com.enkiba.app.ui.profile.ProfileActivity
+import com.enkiba.app.ui.sale.SaleDetailActivity
 import com.enkiba.app.ui.navigation.AppNavigator
 import com.enkiba.app.ui.products.ProductsActivity
 import com.enkiba.app.ui.products.StockTab
@@ -57,7 +57,7 @@ class HomeActivity : ComponentActivity() {
                         },
                         onAllSales = { openHistory(HistoryActivity.TAB_SALES) },
                         onOpenSale = { sale ->
-                            startActivity(Intent(this, SaleDetailsActivity::class.java).putExtra("sale_id", sale.id))
+                            startActivity(Intent(this, SaleDetailActivity::class.java).putExtra(SaleDetailActivity.EXTRA_SALE_ID, sale.id))
                         },
                         onManageUsers = { open(UserManagementActivity::class.java) },
                         onProfile = { open(ProfileActivity::class.java) },
