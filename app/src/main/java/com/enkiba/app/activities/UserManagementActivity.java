@@ -14,16 +14,13 @@ import com.enkiba.app.R;
 import com.enkiba.app.adapters.UserAdapter;
 import com.enkiba.app.api.RetrofitClient;
 import com.enkiba.app.api.SupabaseService;
-import com.enkiba.app.models.User;
-import com.enkiba.app.modelsDao.UserDao;
+import com.enkiba.app.models.ShopMember;
 import com.enkiba.app.utils.NavigationHelper;
-import com.enkiba.app.utils.SessionManager;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.gson.JsonObject;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -31,18 +28,16 @@ import retrofit2.Response;
 
 public class UserManagementActivity extends BaseActivity {
 
-    RecyclerView recyclerUsers;
-    private UserDao userDao;
+    private RecyclerView recyclerUsers;
     private SupabaseService supabaseService;
 
-    List<User> userList;
-    UserAdapter adapter;
+    private List<ShopMember> members = new ArrayList<>();
+    private UserAdapter adapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Vérification des droits Admin
         if (!"admin".equalsIgnoreCase(sessionManager.getRole())) {
             Toast.makeText(this, "Accès refusé. Réservé aux administrateurs.", Toast.LENGTH_LONG).show();
             finish();
@@ -51,9 +46,7 @@ public class UserManagementActivity extends BaseActivity {
 
         setContentView(R.layout.user_management);
 
-        // Initialisations
-        this.userDao = new UserDao(this);
-        this.supabaseService = RetrofitClient.getSupabaseService(this);
+        supabaseService = RetrofitClient.getSupabaseService(this);
 
         recyclerUsers = findViewById(R.id.recyclerUsers);
         recyclerUsers.setLayoutManager(new LinearLayoutManager(this));
@@ -61,24 +54,15 @@ public class UserManagementActivity extends BaseActivity {
         setupHeader();
 
         findViewById(R.id.btnAddUser).setOnClickListener(v ->
-                startActivity(new Intent(this, AddUserActivity.class))
-        );
+                startActivity(new Intent(this, AddUserActivity.class)));
 
-        // --- CORRECTION NAVIGATION ---
         BottomNavigationView bottomNav = findViewById(R.id.bottom_nav);
         if (bottomNav != null) {
             NavigationHelper.setupNavigation(bottomNav, this);
-            // Cette ligne force l'onglet "Utilisateurs" à être actif visuellement
-            // (Assurez-vous que l'ID dans votre menu xml est bien @id/nav_users)
             try {
                 bottomNav.getMenu().findItem(R.id.nav_personnel).setChecked(true);
-            } catch (Exception e) {
-                // Au cas où l'ID serait différent (ex: nav_personnels), on évite le crash
-                e.printStackTrace();
-            }
+            } catch (Exception ignored) { }
         }
-
-        loadUsers();
     }
 
     private void setupHeader() {
@@ -88,7 +72,6 @@ public class UserManagementActivity extends BaseActivity {
 
         tvHeaderTitle.setText("Gestion des utilisateurs");
         imgHeaderIcon.setImageResource(R.drawable.ic_users);
-
         imgUser.setOnClickListener(this::showUserMenu);
     }
 
@@ -106,75 +89,46 @@ public class UserManagementActivity extends BaseActivity {
     }
 
     private void loadUsers() {
-        userList = userDao.getAllUsers();
-        if (userList == null) userList = new ArrayList<>();
+        supabaseService.getShopMembers("eq." + sessionManager.getShopId(),
+                        "user_id,role,profiles(id,username,lastname,telephone,email,active)")
+                .enqueue(new Callback<List<ShopMember>>() {
+                    @Override
+                    public void onResponse(Call<List<ShopMember>> call, Response<List<ShopMember>> r) {
+                        if (!r.isSuccessful() || r.body() == null) {
+                            Toast.makeText(UserManagementActivity.this, "Chargement impossible", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        members = new ArrayList<>(r.body());
+                        adapter = new UserAdapter(UserManagementActivity.this, members,
+                                (m, active) -> toggleUserStatus(m, active));
+                        recyclerUsers.setAdapter(adapter);
+                    }
 
-        adapter = new UserAdapter(this, (ArrayList<User>) userList, new UserAdapter.UserActionListener() {
-            @Override
-            public void onDelete(User user) {
-                deleteUser(user);
-            }
-
-            @Override
-            public void onStatusChange(User user, boolean isActive) {
-                toggleUserStatus(user, isActive);
-            }
-        });
-
-        recyclerUsers.setAdapter(adapter);
+                    @Override
+                    public void onFailure(Call<List<ShopMember>> call, Throwable t) {
+                        Toast.makeText(UserManagementActivity.this, "Hors ligne : liste indisponible", Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
 
-    // --- Actions Serveur (Edge Functions) ---
-
-    private void deleteUser(User user) {
-        if (user == null || user.getId() == null) return;
-
-        Map<String, String> body = new HashMap<>();
-        body.put("id", user.getAuthId() != null ? user.getAuthId() : user.getId());
-
-        supabaseService.deleteUser(body).enqueue(new Callback<Void>() {
+    private void toggleUserStatus(ShopMember m, boolean active) {
+        JsonObject body = new JsonObject();
+        body.addProperty("shop_id", sessionManager.getShopId());
+        body.addProperty("user_id", m.getUserId());
+        body.addProperty("active", active);
+        supabaseService.setSellerStatus(body).enqueue(new Callback<JsonObject>() {
             @Override
-            public void onResponse(Call<Void> call, Response<Void> response) {
-                if (response.isSuccessful()) {
-                    userDao.deleteUserPhysically(user.getId());
-                    Toast.makeText(UserManagementActivity.this, "Utilisateur supprimé ✅", Toast.LENGTH_SHORT).show();
-                    loadUsers();
-                } else {
-                    Toast.makeText(UserManagementActivity.this, "Erreur serveur (Code " + response.code() + ")", Toast.LENGTH_SHORT).show();
+            public void onResponse(Call<JsonObject> c, Response<JsonObject> r) {
+                if (!r.isSuccessful()) {
+                    Toast.makeText(UserManagementActivity.this, "Échec (code " + r.code() + ")", Toast.LENGTH_SHORT).show();
                 }
+                loadUsers(); // l'écran reflète toujours l'état du serveur
             }
 
             @Override
-            public void onFailure(Call<Void> call, Throwable t) {
-                userDao.markUserForDeletion(user.getId());
-                Toast.makeText(UserManagementActivity.this, "Marqué pour suppression (Hors ligne)", Toast.LENGTH_SHORT).show();
+            public void onFailure(Call<JsonObject> c, Throwable t) {
+                Toast.makeText(UserManagementActivity.this, "Erreur réseau", Toast.LENGTH_SHORT).show();
                 loadUsers();
-            }
-        });
-    }
-
-    private void toggleUserStatus(User user, boolean isActive) {
-        // Préparation de l'appel pour l'Edge Function toggle-user-status
-        Map<String, Object> body = new HashMap<>();
-        // On utilise l'Auth ID s'il est disponible, sinon l'ID local (qui devrait être le même en mode synced)
-        String targetId = user.getAuthId() != null ? user.getAuthId() : user.getId();
-        body.put("id", targetId);
-        body.put("isActive", isActive);
-
-        // Appel décommenté
-        supabaseService.toggleUserStatus(body).enqueue(new Callback<Void>() {
-            @Override
-            public void onResponse(Call<Void> call, Response<Void> response) {
-                if (response.isSuccessful()) {
-                    // Optionnel : afficher un message de succès discret
-                    // Toast.makeText(UserManagementActivity.this, "Statut mis à jour", Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(UserManagementActivity.this, "Erreur synchro statut (Code " + response.code() + ")", Toast.LENGTH_SHORT).show();
-                }
-            }
-            @Override
-            public void onFailure(Call<Void> call, Throwable t) {
-                // Le SyncManager gérera la cohérence plus tard via le flag local
             }
         });
     }
@@ -182,6 +136,6 @@ public class UserManagementActivity extends BaseActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        loadUsers();
+        loadUsers(); // appelé aussi au premier affichage : pas de double appel dans onCreate
     }
 }

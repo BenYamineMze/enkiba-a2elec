@@ -17,6 +17,7 @@ import com.enkiba.app.models.User;
 import com.enkiba.app.modelsDao.UserDao;
 import com.enkiba.app.utils.DatabaseUtils;
 import com.enkiba.app.utils.NavigationHelper;
+import com.enkiba.app.utils.NetworkUtils;
 import com.enkiba.app.utils.PasswordUtils;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
@@ -101,59 +102,44 @@ public class AddUserActivity extends BaseActivity {
         String phone = txtTelephone.getText().toString().trim();
         String email = txtEmail.getText().toString().trim();
         String password = txtPassword.getText().toString().trim();
-        String role = roleDropdown.getText().toString().trim();
 
-        if (!isFormValid(username, lastname, phone, email, password, role)) return;
+        if (username.isEmpty() || lastname.isEmpty() || phone.isEmpty() || email.isEmpty() || password.isEmpty()) {
+            Toast.makeText(this, "Tous les champs sont obligatoires", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) { txtEmail.setError("Email invalide"); return; }
+        if (password.length() < 8) { txtPassword.setError("Minimum 8 caractères"); return; }
+        if (!NetworkUtils.isOnline(this)) {
+            Toast.makeText(this, "Connexion internet requise", Toast.LENGTH_LONG).show();
+            return;
+        }
 
         btnSave.setEnabled(false);
         btnSave.setText("Création en cours...");
 
-        // 1. Préparer les données pour le serveur
-        JsonObject jsonBody = new JsonObject();
-        jsonBody.addProperty("email", email);
-        jsonBody.addProperty("password", password);
-        jsonBody.addProperty("role", role);
-        jsonBody.addProperty("username", username);
-        jsonBody.addProperty("lastname", lastname);
-        jsonBody.addProperty("telephone", phone);
+        JsonObject body = new JsonObject();
+        body.addProperty("shop_id", sessionManager.getShopId());
+        body.addProperty("email", email);
+        body.addProperty("password", password);
+        body.addProperty("username", username);
+        body.addProperty("lastname", lastname);
+        body.addProperty("telephone", phone);
 
-        // 2. Appel à l'Edge Function
-        supabaseService.createUser(jsonBody).enqueue(new Callback<JsonObject>() {
-            @Override
-            public void onResponse(Call<JsonObject> call, Response<JsonObject> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    // SUCCÈS SERVEUR !
-                    // On récupère l'ID généré par Supabase (UUID)
-                    JsonObject userObj = response.body().getAsJsonObject("user");
-                    String serverId = userObj.get("id").getAsString();
-
-                    // 3. Sauvegarde Locale "Propre" (Marqué comme Synced)
-                    saveLocalUserSynced(serverId, username, lastname, phone, email, password, role);
-
-                    Toast.makeText(AddUserActivity.this, "Utilisateur créé et synchronisé !", Toast.LENGTH_SHORT).show();
+        supabaseService.createSeller(body).enqueue(new Callback<JsonObject>() {
+            @Override public void onResponse(Call<JsonObject> call, Response<JsonObject> response) {
+                if (response.isSuccessful()) {
+                    Toast.makeText(AddUserActivity.this, "Vendeur créé ✅", Toast.LENGTH_SHORT).show();
                     finish();
                 } else {
-                    // ÉCHEC SERVEUR (Ex: Email existe déjà)
-                    // On tente quand même une sauvegarde locale "Pending" pour réessayer plus tard ?
-                    // NON, pour un utilisateur (Auth), mieux vaut forcer l'erreur maintenant.
                     btnSave.setEnabled(true);
                     btnSave.setText("Enregistrer");
-                    try {
-                        String error = response.errorBody().string();
-                        Toast.makeText(AddUserActivity.this, "Erreur serveur: " + error, Toast.LENGTH_LONG).show();
-                    } catch (Exception e) {
-                        Toast.makeText(AddUserActivity.this, "Erreur création utilisateur", Toast.LENGTH_SHORT).show();
-                    }
+                    Toast.makeText(AddUserActivity.this, "Échec (code " + response.code() + ")", Toast.LENGTH_LONG).show();
                 }
             }
-
-            @Override
-            public void onFailure(Call<JsonObject> call, Throwable t) {
-                // ÉCHEC RÉSEAU (Pas d'internet)
-                // On sauvegarde en "Pending" pour que le SyncManager s'en charge quand internet reviendra
-                saveLocalUserPending(username, lastname, phone, email, password, role);
-                Toast.makeText(AddUserActivity.this, "Hors ligne : Sauvegardé localement", Toast.LENGTH_SHORT).show();
-                finish();
+            @Override public void onFailure(Call<JsonObject> call, Throwable t) {
+                btnSave.setEnabled(true);
+                btnSave.setText("Enregistrer");
+                Toast.makeText(AddUserActivity.this, "Erreur réseau", Toast.LENGTH_SHORT).show();
             }
         });
     }
