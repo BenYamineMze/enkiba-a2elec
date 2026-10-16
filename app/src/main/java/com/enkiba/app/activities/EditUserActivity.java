@@ -1,44 +1,41 @@
 package com.enkiba.app.activities;
 
-import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
-import android.widget.ArrayAdapter;
-import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
-import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.enkiba.app.R;
-import com.enkiba.app.models.User;
-import com.enkiba.app.modelsDao.UserDao;
+import com.enkiba.app.api.RetrofitClient;
+import com.enkiba.app.api.SupabaseService;
+import com.enkiba.app.models.Profile;
+import com.enkiba.app.models.ShopMember;
 import com.enkiba.app.utils.NavigationHelper;
-import com.enkiba.app.utils.SynchronizationManager;
+import com.enkiba.app.utils.NetworkUtils;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.gson.JsonObject;
 
+import java.util.List;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+/** Modification d'un vendeur : nom, prénom, téléphone et mot de passe (facultatif). */
 public class EditUserActivity extends BaseActivity {
 
-    EditText edtName, edtLastName, edtEmail, edtPhone;
-    AutoCompleteTextView edtRole;
-    Switch switchActive;
-    Button btnSaveUser;
-
-    private UserDao userDao;
-
-    // 🚨 CORRECTION : L'ID est maintenant un String (UUID)
-    String userId;
-    User currentUser;
-
-    // sessionManager est hérité de BaseActivity
+    private EditText edtName, edtLastName, edtEmail, edtPhone, edtPassword;
+    private Button btnSaveUser;
+    private SupabaseService supabaseService;
+    private String userId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Contrôle d'accès : Admin uniquement
         if (!"admin".equalsIgnoreCase(sessionManager.getRole())) {
             Toast.makeText(this, "Accès refusé. Réservé aux administrateurs.", Toast.LENGTH_LONG).show();
             finish();
@@ -46,120 +43,120 @@ public class EditUserActivity extends BaseActivity {
         }
 
         setContentView(R.layout.activity_edit_user);
+        supabaseService = RetrofitClient.getSupabaseService(this);
 
-        // Initialisation du DAO
-        this.userDao = new UserDao(this);
-
-        edtName = findViewById(R.id.edtName);
-        edtLastName = findViewById(R.id.edtLastName);
-        edtEmail = findViewById(R.id.edtEmail);
-        edtPhone = findViewById(R.id.edtPhone);
-        edtRole = findViewById(R.id.edtRole);
-        switchActive = findViewById(R.id.switchActive);
-        btnSaveUser = findViewById(R.id.btnSaveUser);
-
-        ImageView imgUser = findViewById(R.id.logout);
-        TextView tvHeaderTitle = findViewById(R.id.tvHeaderTitle);
-        ImageView imgHeaderIcon = findViewById(R.id.imgHeaderIcon);
-
-        tvHeaderTitle.setText("Modifier l'utilisateur");
-        imgHeaderIcon.setImageResource(R.drawable.ic_edit_user);
-
-        imgUser.setOnClickListener(this::showUserMenu);
-
-        // 🚨 CORRECTION : Récupération de l'ID en tant que String
-        if (getIntent().hasExtra("userId")) {
-            // On tente de récupérer en String d'abord
-            userId = getIntent().getStringExtra("userId");
-
-            // Fallback de sécurité si l'appelant passe encore un long
-            if (userId == null) {
-                long idLong = getIntent().getLongExtra("userId", -1L);
-                if (idLong != -1) {
-                    userId = String.valueOf(idLong);
-                }
-            }
-        }
-
+        userId = getIntent().getStringExtra("userId");
         if (userId == null) {
             Toast.makeText(this, "Utilisateur introuvable ❌", Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
 
-        loadUserData();
+        edtName = findViewById(R.id.edtName);
+        edtLastName = findViewById(R.id.edtLastName);
+        edtEmail = findViewById(R.id.edtEmail);
+        edtPhone = findViewById(R.id.edtPhone);
+        edtPassword = findViewById(R.id.edtPassword); // null si absent du layout
+        btnSaveUser = findViewById(R.id.btnSaveUser);
+
+        // E-mail = identifiant de connexion : lecture seule
+        edtEmail.setEnabled(false);
+
+        TextView tvHeaderTitle = findViewById(R.id.tvHeaderTitle);
+        ImageView imgHeaderIcon = findViewById(R.id.imgHeaderIcon);
+        ImageView imgUser = findViewById(R.id.logout);
+        tvHeaderTitle.setText("Modifier le vendeur");
+        imgHeaderIcon.setImageResource(R.drawable.ic_edit_user);
+        imgUser.setOnClickListener(this::showUserMenu);
 
         btnSaveUser.setOnClickListener(v -> saveUser());
+        NavigationHelper.setupNavigation((BottomNavigationView) findViewById(R.id.bottom_nav), this);
 
-        // Navigation
-        BottomNavigationView bottomNav = findViewById(R.id.bottom_nav);
-        NavigationHelper.setupNavigation(bottomNav, this);
+        loadMember();
     }
 
-    private void loadUserData() {
-        // Appel avec l'ID String
-        currentUser = userDao.getUserById(userId);
+    /** Masque une vue et son conteneur direct si c'est une enveloppe de champ. */
 
-        if (currentUser == null) {
-            Toast.makeText(this, "Erreur chargement utilisateur ❌", Toast.LENGTH_SHORT).show();
-            finish();
-            return;
-        }
+    private void loadMember() {
+        supabaseService.getShopMember(
+                        "eq." + sessionManager.getShopId(), "eq." + userId,
+                        "user_id,role,profiles(id,username,lastname,telephone,email,active)")
+                .enqueue(new Callback<List<ShopMember>>() {
+                    @Override
+                    public void onResponse(Call<List<ShopMember>> call, Response<List<ShopMember>> r) {
+                        if (!r.isSuccessful() || r.body() == null || r.body().isEmpty()) {
+                            Toast.makeText(EditUserActivity.this, "Utilisateur introuvable ❌", Toast.LENGTH_SHORT).show();
+                            finish();
+                            return;
+                        }
+                        Profile p = r.body().get(0).getProfile();
+                        if (p == null) { finish(); return; }
+                        edtName.setText(p.getUsername());
+                        edtLastName.setText(p.getLastname());
+                        edtEmail.setText(p.getEmail());
+                        edtPhone.setText(p.getTelephone());
+                    }
 
-        edtName.setText(currentUser.getUsername());
-        edtLastName.setText(currentUser.getLastname());
-        edtEmail.setText(currentUser.getEmail());
-        edtPhone.setText(currentUser.getTelephone());
-        edtRole.setText(currentUser.getRole(), false);
-
-        switchActive.setChecked(currentUser.getActive() == 1);
-
-        String[] roles = {"admin", "user", "vendeur"};
-        // Utilisation d'un layout standard pour éviter les erreurs de ressource
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, roles);
-        edtRole.setAdapter(adapter);
+                    @Override
+                    public void onFailure(Call<List<ShopMember>> call, Throwable t) {
+                        Toast.makeText(EditUserActivity.this, "Hors ligne : modification impossible", Toast.LENGTH_SHORT).show();
+                        finish();
+                    }
+                });
     }
 
     private void saveUser() {
         String name = edtName.getText().toString().trim();
         String lastname = edtLastName.getText().toString().trim();
-        String email = edtEmail.getText().toString().trim();
         String phone = edtPhone.getText().toString().trim();
-        String role = edtRole.getText().toString().trim();
-        int active = switchActive.isChecked() ? 1 : 0;
+        String password = edtPassword != null ? edtPassword.getText().toString().trim() : "";
 
-        if (name.isEmpty() || lastname.isEmpty() || email.isEmpty() || phone.isEmpty() || role.isEmpty()) {
+        if (name.isEmpty() || lastname.isEmpty() || phone.isEmpty()) {
             Toast.makeText(this, "Veuillez remplir tous les champs ⚠️", Toast.LENGTH_SHORT).show();
             return;
         }
-
-        // Mise à jour de l'objet local
-        currentUser.setUsername(name);
-        currentUser.setLastname(lastname);
-        currentUser.setEmail(email);
-        currentUser.setTelephone(phone);
-        currentUser.setRole(role);
-        currentUser.setActive(active);
-
-        // 🚨 CORRECTION : insertOrUpdateUserLocally retourne maintenant un String (ou null si erreur)
-        String result = userDao.insertOrUpdateUserLocally(currentUser);
-
-        if (result != null) {
-            Toast.makeText(this, "Modifications enregistrées ✅", Toast.LENGTH_SHORT).show();
-
-            // Lancer la synchronisation pour mettre à jour Supabase
-            new SynchronizationManager(this).startSynchronization();
-
-            finish();
-        } else {
-            Toast.makeText(this, "Erreur lors de la mise à jour ❌", Toast.LENGTH_SHORT).show();
+        if (!password.isEmpty() && password.length() < 8) {
+            edtPassword.setError("Minimum 8 caractères");
+            return;
         }
+        if (!NetworkUtils.isOnline(this)) {
+            Toast.makeText(this, "Connexion internet requise", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        btnSaveUser.setEnabled(false);
+
+        JsonObject body = new JsonObject();
+        body.addProperty("shop_id", sessionManager.getShopId());
+        body.addProperty("user_id", userId);
+        body.addProperty("username", name);
+        body.addProperty("lastname", lastname);
+        body.addProperty("telephone", phone);
+        if (!password.isEmpty()) body.addProperty("password", password);
+
+        supabaseService.updateSeller(body).enqueue(new Callback<JsonObject>() {
+            @Override
+            public void onResponse(Call<JsonObject> call, Response<JsonObject> r) {
+                if (r.isSuccessful()) {
+                    Toast.makeText(EditUserActivity.this, "Modifications enregistrées ✅", Toast.LENGTH_SHORT).show();
+                    finish();
+                } else {
+                    btnSaveUser.setEnabled(true);
+                    Toast.makeText(EditUserActivity.this, "Échec (code " + r.code() + ")", Toast.LENGTH_LONG).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<JsonObject> call, Throwable t) {
+                btnSaveUser.setEnabled(true);
+                Toast.makeText(EditUserActivity.this, "Erreur réseau", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
-    private void showUserMenu(android.view.View view) {
+    private void showUserMenu(View view) {
         androidx.appcompat.widget.PopupMenu popupMenu = new androidx.appcompat.widget.PopupMenu(this, view);
         popupMenu.getMenuInflater().inflate(R.menu.user_menu, popupMenu.getMenu());
-
         popupMenu.setOnMenuItemClickListener(item -> {
             if (item.getItemId() == R.id.action_logout) {
                 sessionManager.logout();
@@ -167,7 +164,6 @@ public class EditUserActivity extends BaseActivity {
             }
             return false;
         });
-
         popupMenu.show();
     }
 }

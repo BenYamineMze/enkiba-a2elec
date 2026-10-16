@@ -9,11 +9,9 @@ import android.util.Log;
 import com.enkiba.app.database.DatabaseHelper;
 import com.enkiba.app.models.User;
 import com.enkiba.app.utils.DatabaseUtils;
-import com.enkiba.app.utils.PasswordUtils;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 public class UserDao {
 
@@ -24,94 +22,6 @@ public class UserDao {
     }
 
     // --- CRÉATION / INSERTION CORRIGÉE ---
-
-    public String addUser(String username,
-                          String lastname,
-                          String phone,
-                          String email,
-                          String plainPassword,
-                          String role) {
-
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
-        String cleanEmail = email.trim();
-
-        // 1. Vérification : On cherche si l'email existe DÉJÀ (peu importe le statut)
-        Cursor cursor = db.query(
-                DatabaseHelper.TABLE_USERS,
-                new String[]{"id"},
-                "email = ?",
-                new String[]{cleanEmail},
-                null, null, null
-        );
-
-        String existingId = null;
-        if (cursor.moveToFirst()) {
-            existingId = cursor.getString(0);
-        }
-        cursor.close();
-
-        // 2. Préparation des données
-        String hashedPassword = PasswordUtils.hashPassword(plainPassword);
-        ContentValues values = new ContentValues();
-
-        values.put("username", username);
-        values.put("lastname", lastname);
-        values.put("telephone", phone);
-        values.put("email", cleanEmail);
-        values.put("password", hashedPassword);
-        values.put("role", role);
-        values.put("active", 1);
-        values.put("updated_at", DatabaseUtils.getCurrentIsoTime());
-
-        // Force le statut 'pending_create' pour que la synchro l'envoie
-        values.put("sync_status", "pending_create");
-
-        long result;
-        String finalId;
-
-        if (existingId != null) {
-            // 🔄 CAS MISE À JOUR (Si l'utilisateur existe déjà localement)
-            Log.d("UserDao", "Utilisateur existant (" + existingId + "). Mise à jour.");
-            finalId = existingId;
-            // On met à jour au lieu d'insérer (évite l'erreur UNIQUE)
-            int rows = db.update(DatabaseHelper.TABLE_USERS, values, "id = ?", new String[]{existingId});
-            result = rows > 0 ? 1 : -1;
-        } else {
-            // ✨ CAS CRÉATION (Nouveau)
-            finalId = UUID.randomUUID().toString();
-            values.put("id", finalId);
-            values.put("auth_id", (String) null);
-
-            // 🚨 CORRECTION : Une seule insertion simple !
-            try {
-                result = db.insertOrThrow(DatabaseHelper.TABLE_USERS, null, values);
-            } catch (Exception e) {
-                Log.e("UserDao", "Erreur insertion SQLite", e);
-                result = -1;
-            }
-        }
-
-        db.close();
-        return result > 0 ? finalId : null;
-    }
-
-    public User loginOffline(String email, String plainPassword) {
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        Cursor c = null;
-        try {
-            c = db.query(DatabaseHelper.TABLE_USERS, null, "email=? AND active=1", new String[]{email}, null, null, null);
-            if (c.moveToFirst()) {
-                User user = cursorToUser(c);
-                if (user.getPassword() != null && !user.getPassword().isEmpty()) {
-                    if (PasswordUtils.checkPassword(plainPassword, user.getPassword())) return user;
-                }
-            }
-            return null;
-        } finally {
-            if (c != null) c.close();
-            db.close();
-        }
-    }
 
     public String insertOrUpdateUserFromRemote(User user) {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
@@ -213,14 +123,6 @@ public class UserDao {
             }
         } finally { if (cursor != null) cursor.close(); db.close(); }
         return list;
-    }
-
-    public void updateUserPassword(String userId, String hashedPassword) {
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put("password", hashedPassword);
-        db.update(DatabaseHelper.TABLE_USERS, values, "id=?", new String[]{userId});
-        db.close();
     }
 
     public void updateUserAuthId(String userId, String authId) {
