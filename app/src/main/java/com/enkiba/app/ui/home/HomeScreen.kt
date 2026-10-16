@@ -45,6 +45,7 @@ import com.enkiba.app.ui.components.EnkibaCard
 import com.enkiba.app.ui.components.IconBadge
 import com.enkiba.app.ui.components.ListRow
 import com.enkiba.app.ui.components.ProgressRing
+import com.enkiba.app.ui.components.SaleListRow
 import com.enkiba.app.ui.components.SectionHeader
 import com.enkiba.app.ui.components.StatTile
 import com.enkiba.app.ui.components.StatusChip
@@ -111,7 +112,7 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions) {
                     item { EmptyState("Aucune vente pour l'instant.", actionLabel = "Nouvelle vente", onAction = actions.onNewSale) }
                 } else {
                     items(data.recentSales, key = { it.id }) { sale ->
-                        SaleRow(sale, onClick = { actions.onOpenSale(sale) }, modifier = Modifier.padding(horizontal = Spacing.screen))
+                        SaleListRow(sale, onClick = { actions.onOpenSale(sale) }, modifier = Modifier.padding(horizontal = Spacing.screen), showSeller = state.isAdmin)
                     }
                 }
             }
@@ -221,31 +222,6 @@ private fun Tiles(data: HomeData, isAdmin: Boolean, actions: HomeActions, modifi
             }
         }
     }
-}
-
-@Composable
-private fun SaleRow(sale: SaleHeader, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val colors = EnkibaTheme.colors
-    val isCash = sale.paymentMethod == "espece"
-    val payment = when (sale.paymentMethod) {
-        "espece" -> "Espèces"
-        "virement" -> "Virement"
-        else -> sale.paymentMethod ?: ""
-    }
-    ListRow(
-        title = "Vente #${sale.shortRef}",
-        subtitle = buildString {
-            append(payment).append(" · ").append(formatSaleMoment(sale.saleDate))
-            if (sale.isHasNegotiatedPrice) append(" · négocié")
-        },
-        onClick = onClick,
-        modifier = modifier,
-        leading = {
-            if (isCash) IconBadge(Icons.Rounded.Payments, colors.mint.container, colors.link)
-            else IconBadge(Icons.Rounded.AccountBalance, colors.sky.container, colors.sky.content)
-        },
-        trailing = { Text(formatKmf(sale.netTotal), style = MaterialTheme.typography.bodyLarge) },
-    )
 }
 
 @Preview(showBackground = true, heightDp = 900)

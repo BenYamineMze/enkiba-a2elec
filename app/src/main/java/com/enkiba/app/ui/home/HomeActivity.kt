@@ -9,7 +9,7 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.enkiba.app.BuildConfig
-import com.enkiba.app.activities.HistoryActivity
+import com.enkiba.app.ui.history.HistoryActivity
 import com.enkiba.app.activities.SaleDetailsActivity
 import com.enkiba.app.activities.StatisticsActivity
 import com.enkiba.app.activities.UserManagementActivity
