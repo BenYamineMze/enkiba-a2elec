@@ -12,9 +12,9 @@ import com.enkiba.app.BuildConfig
 import com.enkiba.app.activities.HistoryActivity
 import com.enkiba.app.activities.ProductListActivity
 import com.enkiba.app.activities.SaleDetailsActivity
-import com.enkiba.app.activities.SellProductActivity
 import com.enkiba.app.activities.StatisticsActivity
 import com.enkiba.app.activities.UserManagementActivity
+import com.enkiba.app.ui.sale.SaleActivity
 import com.enkiba.app.ui.theme.EnkibaTheme
 import com.enkiba.app.utils.SessionManager
 
@@ -46,7 +46,7 @@ class HomeActivity : ComponentActivity() {
                     actions = HomeActions(
                         onSync = viewModel::sync,
                         onOpenTab = ::openTab,
-                        onNewSale = { open(SellProductActivity::class.java) },
+                        onNewSale = { open(SaleActivity::class.java) },
                         onTodaySales = { openHistory(HistoryActivity.TAB_SALES) },
                         onLowStock = { open(ProductListActivity::class.java) },
                         onOpenQuotes = { openHistory(HistoryActivity.TAB_QUOTES) },

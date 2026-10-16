@@ -36,8 +36,8 @@
             android:windowSoftInputMode="adjustNothing|stateHidden"/>
         <activity android:name=".activities.StatisticsActivity"
             android:windowSoftInputMode="adjustNothing|stateHidden"/>
-        <activity android:name=".activities.SellProductActivity"
-            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".ui.sale.SaleActivity"
+            android:windowSoftInputMode="adjustResize"/>
         <activity android:name=".activities.UserManagementActivity"
             android:windowSoftInputMode="adjustNothing|stateHidden"/>
         <activity android:name=".activities.AddUserActivity"
