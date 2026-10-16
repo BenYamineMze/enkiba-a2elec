@@ -8,6 +8,7 @@
     android:background="@color/background_light"
     tools:context=".activities.EditUserActivity">
 
+    <!-- En-tête -->
     <include
         android:id="@+id/header"
         layout="@layout/_header_user"
@@ -33,42 +34,45 @@
             android:padding="@dimen/padding_large"
             android:gravity="center_horizontal">
 
+            <!-- Avatar -->
             <ImageView
                 android:id="@+id/imgEditUser"
                 android:layout_width="100dp"
                 android:layout_height="100dp"
-                android:src="@drawable/ic_person"
                 android:layout_marginTop="24dp"
                 android:background="@drawable/circle_bg_light"
+                android:contentDescription="@string/user_avatar_desc"
                 android:padding="16dp"
                 android:scaleType="centerInside"
-                android:contentDescription="@string/user_avatar_desc"/>
+                android:src="@drawable/ic_person" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/padding_default"
+                android:layout_marginBottom="24dp"
                 android:text="@string/title_edit_user"
                 android:textColor="@color/text_primary"
-                android:textStyle="bold"
                 android:textSize="24sp"
-                android:layout_marginTop="@dimen/padding_default"
-                android:layout_marginBottom="24dp"/>
+                android:textStyle="bold" />
 
+            <!-- Formulaire -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
+                app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="4dp"
-                app:strokeWidth="0dp"
-                app:cardBackgroundColor="@color/white">
+                app:strokeWidth="0dp">
 
                 <LinearLayout
-                    android:orientation="vertical"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:orientation="vertical"
                     android:padding="@dimen/padding_large">
 
+                    <!-- Nom -->
                     <com.google.android.material.textfield.TextInputLayout
                         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
@@ -78,12 +82,13 @@
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/edtName"
-                            android:hint="@string/hint_lastname"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="textPersonName"/>
+                            android:hint="@string/hint_lastname"
+                            android:inputType="textPersonName" />
                     </com.google.android.material.textfield.TextInputLayout>
 
+                    <!-- Prénom -->
                     <com.google.android.material.textfield.TextInputLayout
                         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
@@ -93,12 +98,13 @@
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/edtLastName"
-                            android:hint="@string/hint_firstname"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="textPersonName"/>
+                            android:hint="@string/hint_firstname"
+                            android:inputType="textPersonName" />
                     </com.google.android.material.textfield.TextInputLayout>
 
+                    <!-- E-mail : identifiant de connexion, lecture seule (désactivé dans le code) -->
                     <com.google.android.material.textfield.TextInputLayout
                         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
@@ -108,12 +114,13 @@
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/edtEmail"
-                            android:hint="@string/hint_email"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="textEmailAddress"/>
+                            android:hint="@string/hint_email"
+                            android:inputType="textEmailAddress" />
                     </com.google.android.material.textfield.TextInputLayout>
 
+                    <!-- Téléphone -->
                     <com.google.android.material.textfield.TextInputLayout
                         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
@@ -123,60 +130,50 @@
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/edtPhone"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
                             android:hint="@string/hint_phone"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="phone"/>
+                            android:inputType="phone" />
                     </com.google.android.material.textfield.TextInputLayout>
 
+                    <!-- Nouveau mot de passe (facultatif, 8 caractères minimum) -->
                     <com.google.android.material.textfield.TextInputLayout
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        app:startIconDrawable="@drawable/ic_role">
+                        app:endIconMode="password_toggle"
+                        app:startIconDrawable="@drawable/ic_lock">
 
-                        <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                            android:id="@+id/edtRole"
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/edtPassword"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:hint="@string/hint_role"
-                            android:inputType="none"/>
+                            android:hint="Nouveau mot de passe (facultatif)"
+                            android:inputType="textPassword" />
                     </com.google.android.material.textfield.TextInputLayout>
-
-                    <Switch
-                        android:id="@+id/switchActive"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/switch_activate_user"
-                        android:checked="true"
-                        android:layout_marginTop="20dp"
-                        android:paddingVertical="8dp"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/text_primary"
-                        android:trackTint="@color/switch_track"
-                        android:thumbTint="@color/switch_thumb"/>
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Bouton d'enregistrement -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSaveUser"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/padding_default"
+                android:paddingVertical="14dp"
                 android:text="@string/button_save"
+                android:textColor="@color/white"
                 android:textSize="16sp"
                 android:textStyle="bold"
-                android:paddingVertical="14dp"
-                app:icon="@drawable/ic_save"
-                app:iconGravity="textStart"
                 app:backgroundTint="@color/button_save"
-                android:textColor="@color/white"
                 app:cornerRadius="12dp"
-                android:layout_marginTop="@dimen/padding_default"/>
+                app:icon="@drawable/ic_save"
+                app:iconGravity="textStart" />
         </LinearLayout>
     </ScrollView>
 
+    <!-- Navigation du bas -->
     <include
         android:id="@+id/bottom_nav"
         layout="@layout/_nav_menu"
@@ -184,5 +181,5 @@
         android:layout_height="wrap_content"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        app:layout_constraintEnd_toEndOf="parent" />
 </androidx.constraintlayout.widget.ConstraintLayout>

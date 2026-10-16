@@ -157,4 +157,10 @@ public interface SupabaseService {
 
     @POST("rest/v1/rpc/delete_product_by_id")
     Call<Void> deleteProductRemote(@Body Map<String, Object> body);
+
+    @GET("rest/v1/shop_members")
+    Call<List<ShopMember>> getShopMember(
+            @Query("shop_id") String shopIdFilter,
+            @Query("user_id") String userIdFilter,
+            @Query("select") String select);
 }

@@ -3,7 +3,6 @@ package com.enkiba.app.activities;
 import android.os.Bundle;
 import android.util.Patterns;
 import android.view.View;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -13,41 +12,25 @@ import android.widget.Toast;
 import com.enkiba.app.R;
 import com.enkiba.app.api.RetrofitClient;
 import com.enkiba.app.api.SupabaseService;
-import com.enkiba.app.models.User;
-import com.enkiba.app.modelsDao.UserDao;
-import com.enkiba.app.utils.DatabaseUtils;
 import com.enkiba.app.utils.NavigationHelper;
 import com.enkiba.app.utils.NetworkUtils;
-import com.enkiba.app.utils.PasswordUtils;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
-import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-
-import java.io.IOException;
 
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
+/** Création d'un vendeur par un administrateur (via l'Edge Function create-seller). */
 public class AddUserActivity extends BaseActivity {
 
     private EditText txtUsername, txtLastname, txtTelephone, txtEmail, txtPassword;
-    private MaterialAutoCompleteTextView roleDropdown;
     private Button btnSave;
-
-    private UserDao userDao;
     private SupabaseService supabaseService;
-
-    private static final String[] ROLES = {"admin","user"};
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_add_user);
-
-        userDao = new UserDao(this);
-        supabaseService = RetrofitClient.getSupabaseService(this);
 
         if (!"admin".equalsIgnoreCase(sessionManager.getRole())) {
             Toast.makeText(this, "Accès réservé aux administrateurs", Toast.LENGTH_LONG).show();
@@ -55,11 +38,13 @@ public class AddUserActivity extends BaseActivity {
             return;
         }
 
+        setContentView(R.layout.activity_add_user);
+        supabaseService = RetrofitClient.getSupabaseService(this);
+
         initViews();
         setupHeader();
-        setupRoleDropdown();
-        setupActions();
-        setupNavigation();
+        btnSave.setOnClickListener(v -> saveUser());
+        NavigationHelper.setupNavigation((BottomNavigationView) findViewById(R.id.bottom_nav), this);
     }
 
     private void initViews() {
@@ -68,32 +53,25 @@ public class AddUserActivity extends BaseActivity {
         txtTelephone = findViewById(R.id.edtTelephone);
         txtEmail = findViewById(R.id.edtEmail);
         txtPassword = findViewById(R.id.edtPassword);
-        roleDropdown = findViewById(R.id.roleDropdown);
         btnSave = findViewById(R.id.btnSaveUser);
+
+        // Tout compte créé ici est un vendeur : le choix du rôle est masqué
+        View roleDropdown = findViewById(R.id.roleDropdown);
+        if (roleDropdown != null) {
+            View parent = (View) roleDropdown.getParent();
+            // Le champ est souvent enveloppé (TextInputLayout) : on masque l'enveloppe
+            (parent instanceof android.view.ViewGroup && parent.getId() != android.R.id.content
+                    ? parent : roleDropdown).setVisibility(View.GONE);
+        }
     }
 
     private void setupHeader() {
         TextView tvHeaderTitle = findViewById(R.id.tvHeaderTitle);
         ImageView imgHeaderIcon = findViewById(R.id.imgHeaderIcon);
         ImageView imgUser = findViewById(R.id.logout);
-        tvHeaderTitle.setText("Ajouter un utilisateur");
+        tvHeaderTitle.setText("Ajouter un vendeur");
         imgHeaderIcon.setImageResource(R.drawable.ic_add_user);
         imgUser.setOnClickListener(this::showUserMenu);
-    }
-
-    private void setupRoleDropdown() {
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, ROLES);
-        roleDropdown.setAdapter(adapter);
-        roleDropdown.setKeyListener(null);
-    }
-
-    private void setupActions() {
-        btnSave.setOnClickListener(v -> saveUser());
-    }
-
-    private void setupNavigation() {
-        BottomNavigationView bottomNav = findViewById(R.id.bottom_nav);
-        NavigationHelper.setupNavigation(bottomNav, this);
     }
 
     private void saveUser() {
@@ -114,8 +92,7 @@ public class AddUserActivity extends BaseActivity {
             return;
         }
 
-        btnSave.setEnabled(false);
-        btnSave.setText("Création en cours...");
+        setSaving(true);
 
         JsonObject body = new JsonObject();
         body.addProperty("shop_id", sessionManager.getShopId());
@@ -126,59 +103,28 @@ public class AddUserActivity extends BaseActivity {
         body.addProperty("telephone", phone);
 
         supabaseService.createSeller(body).enqueue(new Callback<JsonObject>() {
-            @Override public void onResponse(Call<JsonObject> call, Response<JsonObject> response) {
+            @Override
+            public void onResponse(Call<JsonObject> call, Response<JsonObject> response) {
                 if (response.isSuccessful()) {
                     Toast.makeText(AddUserActivity.this, "Vendeur créé ✅", Toast.LENGTH_SHORT).show();
                     finish();
                 } else {
-                    btnSave.setEnabled(true);
-                    btnSave.setText("Enregistrer");
+                    setSaving(false);
                     Toast.makeText(AddUserActivity.this, "Échec (code " + response.code() + ")", Toast.LENGTH_LONG).show();
                 }
             }
-            @Override public void onFailure(Call<JsonObject> call, Throwable t) {
-                btnSave.setEnabled(true);
-                btnSave.setText("Enregistrer");
+
+            @Override
+            public void onFailure(Call<JsonObject> call, Throwable t) {
+                setSaving(false);
                 Toast.makeText(AddUserActivity.this, "Erreur réseau", Toast.LENGTH_SHORT).show();
             }
         });
     }
 
-    private void saveLocalUserSynced(String uuid, String username, String lastname, String phone, String email, String password, String role) {
-        User u = new User();
-        u.setId(uuid); // On utilise l'ID final du serveur
-        u.setAuthId(uuid);
-        u.setUsername(username);
-        u.setLastname(lastname);
-        u.setTelephone(phone);
-        u.setEmail(email);
-        u.setPassword(PasswordUtils.hashPassword(password));
-        u.setRole(role);
-        u.setActive(1);
-        u.setUpdatedAt(DatabaseUtils.getCurrentIsoTime());
-        u.setSyncStatus("synced"); // ✅ IMPORTANT : Déjà bon !
-
-        userDao.insertOrUpdateUserLocally(u); // Méthode qui fait un insert ou update direct
-    }
-
-    private void saveLocalUserPending(String username, String lastname, String phone, String email, String password, String role) {
-        userDao.addUser(username, lastname, phone, email, password, role); // Utilise votre méthode existante qui met 'pending_create'
-    }
-
-    private boolean isFormValid(String username, String lastname, String phone, String email, String password, String role) {
-        if (username.isEmpty() || lastname.isEmpty() || phone.isEmpty() || email.isEmpty() || password.isEmpty() || role.isEmpty()) {
-            Toast.makeText(this, "Tous les champs sont obligatoires", Toast.LENGTH_SHORT).show();
-            return false;
-        }
-        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            txtEmail.setError("Email invalide");
-            return false;
-        }
-        if (password.length() < 6) {
-            txtPassword.setError("Mot de passe trop court (min 6)");
-            return false;
-        }
-        return true;
+    private void setSaving(boolean saving) {
+        btnSave.setEnabled(!saving);
+        btnSave.setText(saving ? "Création en cours..." : "Enregistrer");
     }
 
     private void showUserMenu(View view) {

@@ -1,6 +1,5 @@
 package com.enkiba.app.activities;
 
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
@@ -10,119 +9,119 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.enkiba.app.R;
-import com.enkiba.app.models.User;
-import com.enkiba.app.modelsDao.UserDao;
+import com.enkiba.app.api.RetrofitClient;
+import com.enkiba.app.api.SupabaseService;
+import com.enkiba.app.models.Profile;
+import com.enkiba.app.models.ShopMember;
 import com.enkiba.app.utils.NavigationHelper;
-import com.enkiba.app.utils.SessionManager;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
+import java.util.List;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+/** Fiche d'un membre de la boutique (lecture seule, données du serveur). */
 public class ShowUserActivity extends BaseActivity {
 
-    TextView txtName, txtEmail, txtPhone, txtRole, txtActive;
-
-    private UserDao userDao;
-    // sessionManager is inherited from BaseActivity
-
-    // 🚨 CHANGED: userId is now a String (UUID)
-    String userId;
-    User currentUser;
+    private TextView txtName, txtEmail, txtPhone, txtRole, txtActive;
+    private Button btnEditUser;
+    private SupabaseService supabaseService;
+    private String userId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_show_user);
 
-        // DAO Initialization
-        this.userDao = new UserDao(this);
-
-        // ID Extraction (String UUID)
-        if (getIntent().hasExtra("userId")) {
-            userId = getIntent().getStringExtra("userId");
-            // Safety fallback if a long was passed
-            if (userId == null) {
-                long idLong = getIntent().getLongExtra("userId", -1L);
-                if (idLong != -1) {
-                    userId = String.valueOf(idLong);
-                }
-            }
-        }
-
-        // Correction 1: Read user via UserDao with String ID
-        if (userId != null) {
-            currentUser = userDao.getUserById(userId);
-        }
-
-        if (currentUser == null) {
-            Toast.makeText(this, "Utilisateur introuvable ou ID manquant ❌", Toast.LENGTH_LONG).show();
+        if (!"admin".equalsIgnoreCase(sessionManager.getRole())) {
+            Toast.makeText(this, "Accès réservé aux administrateurs", Toast.LENGTH_LONG).show();
             finish();
             return;
         }
 
-        // --- UI Header Setup ---
-        ImageView imgUser = findViewById(R.id.logout);
+        setContentView(R.layout.activity_show_user);
+        supabaseService = RetrofitClient.getSupabaseService(this);
+
+        userId = getIntent().getStringExtra("userId");
+        if (userId == null) {
+            Toast.makeText(this, "Utilisateur introuvable ❌", Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
+
         TextView tvHeaderTitle = findViewById(R.id.tvHeaderTitle);
         ImageView imgHeaderIcon = findViewById(R.id.imgHeaderIcon);
-
-        if (tvHeaderTitle != null) tvHeaderTitle.setText("Profil Utilisateur");
-        if (imgHeaderIcon != null) imgHeaderIcon.setImageResource(R.drawable.ic_user); // Assuming you have an icon
-
+        ImageView imgUser = findViewById(R.id.logout);
+        if (tvHeaderTitle != null) tvHeaderTitle.setText("Profil utilisateur");
+        if (imgHeaderIcon != null) imgHeaderIcon.setImageResource(R.drawable.ic_user);
         if (imgUser != null) imgUser.setOnClickListener(this::showUserMenu);
 
-        // --- UI Content ---
         txtName = findViewById(R.id.txtName);
         txtEmail = findViewById(R.id.txtEmail);
         txtPhone = findViewById(R.id.txtPhone);
         txtRole = findViewById(R.id.txtRole);
         txtActive = findViewById(R.id.txtActive);
+        btnEditUser = findViewById(R.id.btnEditUser);
 
-        txtName.setText(currentUser.getUsername() + " " + currentUser.getLastname());
-        txtEmail.setText(currentUser.getEmail());
-        txtPhone.setText(currentUser.getTelephone());
-        txtRole.setText(currentUser.getRole());
-        txtActive.setText(currentUser.getActive() == 1 ? "Actif ✅" : "Désactivé ❌");
+        // La suppression n'existe plus : on désactive depuis la liste
+        View btnDelete = findViewById(R.id.btnDeleteUser);
+        if (btnDelete != null) btnDelete.setVisibility(View.GONE);
 
-        Button btnEditUser = findViewById(R.id.btnEditUser);
-        Button btnDeleteUser = findViewById(R.id.btnDeleteUser);
+        btnEditUser.setVisibility(View.GONE); // affiché seulement pour un vendeur (voir display)
+        btnEditUser.setOnClickListener(v -> startActivity(
+                new Intent(this, EditUserActivity.class).putExtra("userId", userId)));
 
-        btnEditUser.setOnClickListener(v -> {
-            Intent intent = new Intent(this, EditUserActivity.class);
-            intent.putExtra("userId", userId); // Passes String ID
-            startActivity(intent);
-        });
-
-        btnDeleteUser.setOnClickListener(v -> confirmDeleteUser());
-
-        // Navigation bar
         BottomNavigationView bottomNav = findViewById(R.id.bottom_nav);
         if (bottomNav != null) {
             NavigationHelper.setupNavigation(bottomNav, this);
-            bottomNav.getMenu().findItem(R.id.nav_personnel).setChecked(true);
+            try { bottomNav.getMenu().findItem(R.id.nav_personnel).setChecked(true); } catch (Exception ignored) { }
         }
     }
 
-    private void confirmDeleteUser() {
-        new AlertDialog.Builder(this)
-                .setTitle("Confirmation de suppression")
-                .setMessage("Voulez-vous vraiment supprimer " + currentUser.getUsername() + " ? Cette action sera synchronisée (Soft Delete).")
-                .setPositiveButton("Oui, Supprimer", (dialog, which) -> {
-                    // Correction 2: Mark for deletion via UserDao (Soft Delete)
-                    boolean marked = userDao.markUserForDeletion(userId);
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (userId != null) loadMember(); // recharge aussi après une modification
+    }
 
-                    if (marked) {
-                        Toast.makeText(this, "Utilisateur marqué pour suppression ✅", Toast.LENGTH_SHORT).show();
-                        finish();
-                    } else {
-                        Toast.makeText(this, "Erreur de suppression ❌", Toast.LENGTH_SHORT).show();
+    private void loadMember() {
+        supabaseService.getShopMember(
+                        "eq." + sessionManager.getShopId(), "eq." + userId,
+                        "user_id,role,profiles(id,username,lastname,telephone,email,active)")
+                .enqueue(new Callback<List<ShopMember>>() {
+                    @Override
+                    public void onResponse(Call<List<ShopMember>> call, Response<List<ShopMember>> r) {
+                        if (!r.isSuccessful() || r.body() == null || r.body().isEmpty()) {
+                            Toast.makeText(ShowUserActivity.this, "Utilisateur introuvable ❌", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        display(r.body().get(0));
                     }
-                })
-                .setNegativeButton("Annuler", null)
-                .show();
+
+                    @Override
+                    public void onFailure(Call<List<ShopMember>> call, Throwable t) {
+                        Toast.makeText(ShowUserActivity.this, "Hors ligne : fiche indisponible", Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+
+    private void display(ShopMember m) {
+        Profile p = m.getProfile();
+        if (p == null) return;
+        boolean isSeller = "seller".equals(m.getRole());
+
+        txtName.setText((p.getUsername() + " " + p.getLastname()).trim());
+        txtEmail.setText(p.getEmail());
+        txtPhone.setText(p.getTelephone());
+        txtRole.setText(isSeller ? "Vendeur" : "Administrateur");
+        txtActive.setText(p.isActive() ? "Actif ✅" : "Désactivé ❌");
+        btnEditUser.setVisibility(isSeller ? View.VISIBLE : View.GONE);
     }
 
     private void showUserMenu(View view) {
         androidx.appcompat.widget.PopupMenu popupMenu = new androidx.appcompat.widget.PopupMenu(this, view);
         popupMenu.getMenuInflater().inflate(R.menu.user_menu, popupMenu.getMenu());
-
         popupMenu.setOnMenuItemClickListener(item -> {
             if (item.getItemId() == R.id.action_logout) {
                 sessionManager.logout();
@@ -130,24 +129,6 @@ public class ShowUserActivity extends BaseActivity {
             }
             return false;
         });
-
         popupMenu.show();
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        // Reload data if edited
-        if (userId != null) {
-            User updatedUser = userDao.getUserById(userId);
-            if (updatedUser != null) {
-                currentUser = updatedUser;
-                txtName.setText(currentUser.getUsername() + " " + currentUser.getLastname());
-                txtEmail.setText(currentUser.getEmail());
-                txtPhone.setText(currentUser.getTelephone());
-                txtRole.setText(currentUser.getRole());
-                txtActive.setText(currentUser.getActive() == 1 ? "Actif ✅" : "Désactivé ❌");
-            }
-        }
     }
 }
