@@ -5,10 +5,10 @@ import android.content.Intent;
 import com.enkiba.app.R;
 import com.enkiba.app.activities.HistoryActivity;
 import com.enkiba.app.activities.ProductListActivity;
-import com.enkiba.app.activities.SellProductActivity;
 import com.enkiba.app.activities.StatisticsActivity;
 import com.enkiba.app.activities.UserManagementActivity;
 import com.enkiba.app.ui.home.HomeActivity;
+import com.enkiba.app.ui.sale.SaleActivity;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 public class NavigationHelper {
@@ -63,8 +63,8 @@ public class NavigationHelper {
                 return true;
             }
             else if (id == R.id.nav_sale) {
-                if (!(activity instanceof SellProductActivity))
-                    activity.startActivity(new Intent(activity, SellProductActivity.class));
+                if (!(activity instanceof SaleActivity))
+                    activity.startActivity(new Intent(activity, SaleActivity.class));
                 return true;
             }
             else if (id == R.id.nav_stats) {

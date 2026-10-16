@@ -12,6 +12,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.enkiba.app.R;
+import com.enkiba.app.ui.sale.SaleActivity;
 import com.enkiba.app.models.Product;
 import com.enkiba.app.modelsDao.ProductDao;
 import com.enkiba.app.utils.NavigationHelper;
@@ -91,8 +92,9 @@ public class ProductDetailActivity extends BaseActivity {
         }
 
         btnSell.setOnClickListener(v -> {
-            Intent intent = new Intent(this, SellProductActivity.class);
-            intent.putExtra("id", productId); // Envoi de l'UUID
+            // Caisse Compose : la saisie de cet article s'ouvre directement
+            Intent intent = new Intent(this, SaleActivity.class);
+            intent.putExtra(SaleActivity.EXTRA_PRODUCT_ID, productId);
             startActivity(intent);
         });
 
