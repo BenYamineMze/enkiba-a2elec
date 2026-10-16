@@ -74,6 +74,7 @@ data class HomeActions(
     val onAllSales: () -> Unit = {},
     val onOpenSale: (SaleHeader) -> Unit = {},
     val onManageUsers: () -> Unit = {},
+    val onProfile: () -> Unit = {},
     /** Build debug seulement (null en release) : ouvre le catalogue du système de design. */
     val onOpenDesignCatalog: (() -> Unit)? = null,
     val onLogout: () -> Unit = {},
@@ -153,6 +154,7 @@ private fun Header(state: HomeUiState, actions: HomeActions) {
         )
         Box(Modifier.align(Alignment.TopEnd).padding(end = Spacing.screen, top = 56.dp)) {
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(text = { Text("Mon profil") }, onClick = { menuOpen = false; actions.onProfile() })
                 if (state.isAdmin) {
                     DropdownMenuItem(text = { Text("Gestion des utilisateurs") }, onClick = { menuOpen = false; actions.onManageUsers() })
                 }

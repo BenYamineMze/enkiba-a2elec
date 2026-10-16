@@ -64,7 +64,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 val email = _state.value.email.ifEmpty {
                     withContext(Dispatchers.IO) { UserDao(getApplication()).getUserById(session.userId)?.email }.orEmpty()
                 }
-                _state.update { it.copy(data = data, email = email, online = NetworkUtils.isOnline(getApplication())) }
+                _state.update {
+                    it.copy(
+                        data = data, email = email, online = NetworkUtils.isOnline(getApplication()),
+                        firstName = session.firstName, lastName = session.lastName,
+                    )
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Chargement de l'accueil : ${e.message}", e)
             }

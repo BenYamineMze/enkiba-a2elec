@@ -90,6 +90,14 @@ public class SessionManager {
     public String getFirstName() { return prefs.getString(KEY_USER, ""); }
     /** Nom de famille (profiles.lastname). */
     public String getLastName() { return prefs.getString(KEY_USER_LASTNAME, ""); }
+    /** Met à jour le prénom et le nom affichés (après « Mon profil »). */
+    public void updateNames(String username, String lastname) {
+        prefs.edit()
+                .putString(KEY_USER, username != null ? username : "")
+                .putString(KEY_USER_LASTNAME, lastname != null ? lastname : "")
+                .apply();
+    }
+
     /** E-mail de connexion (repli d'affichage quand le profil n'a pas de nom). */
     public String getEmail() { return prefs.getString(KEY_EMAIL, ""); }
     public boolean isAdmin() { return "admin".equalsIgnoreCase(getRole()); }
