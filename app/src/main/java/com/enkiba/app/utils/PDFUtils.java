@@ -692,11 +692,12 @@ public class PDFUtils {
         }
     }
 
-    public static void generateQrListPdf(Context context, List<Product> products) {
-
-        String pdfPath = Environment.getExternalStoragePublicDirectory(
-                Environment.DIRECTORY_DOWNLOADS
-        ) + "/qr_codes_produits.pdf";
+    /**
+     * Planche des codes QR (nom de l'article + code), enregistrée dans le dossier
+     * de l'app puis ouverte. Le contexte doit être une activité.
+     * @return false si la génération a échoué
+     */
+    public static boolean generateQrListPdf(Context context, List<Product> products) {
 
         try {
 
@@ -756,15 +757,22 @@ public class PDFUtils {
 
             doc.finishPage(page);
 
-            File file = new File(pdfPath);
-            FileOutputStream out = new FileOutputStream(file);
-            doc.writeTo(out);
+            // Dossier de l'app (l'écriture directe dans Téléchargements échoue depuis Android 10)
+            File folder = new File(context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "GStock");
+            if (!folder.exists()) folder.mkdirs();
+            File file = new File(folder, "QR_codes_" +
+                    new SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(new Date()) + ".pdf");
 
+            try (FileOutputStream out = new FileOutputStream(file)) {
+                doc.writeTo(out);
+            }
             doc.close();
-            out.close();
+            openPdf(context, file);
+            return true;
 
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e(TAG, "PDF des codes QR impossible", e);
+            return false;
         }
     }
 
