@@ -120,7 +120,7 @@ public class SaleDetailsActivity extends BaseActivity {
         }
 
         // --- Remplissage Header ---
-        tvSaleId.setText("Vente #" + currentSale.getId());
+        tvSaleId.setText("Vente #" + currentSale.getShortRef());
         tvSaleDate.setText("Date : " + CurrencyUtils.formatSaleDate(currentSale.getSaleDate()));
         tvPayment.setText("Paiement : " + currentSale.getPaymentMethod());
         tvTotal.setText("Total : " + CurrencyUtils.formatKMF(currentSale.getTotalPrice()));
