@@ -39,3 +39,6 @@
 -dontwarn okhttp3.**
 -dontwarn javax.annotation.**
 -keepnames class com.fasterxml.jackson.** { *; }
+# Tink (security-crypto, chiffrement de la session) référence des annotations Error Prone
+# utilisées seulement à la compilation : absentes de l'APK, on ignore l'avertissement.
+-dontwarn com.google.errorprone.annotations.**
