@@ -14,6 +14,7 @@ import com.enkiba.app.activities.ProductListActivity
 import com.enkiba.app.activities.SaleDetailsActivity
 import com.enkiba.app.activities.StatisticsActivity
 import com.enkiba.app.activities.UserManagementActivity
+import com.enkiba.app.ui.profile.ProfileActivity
 import com.enkiba.app.ui.sale.SaleActivity
 import com.enkiba.app.ui.theme.EnkibaTheme
 import com.enkiba.app.utils.SessionManager
@@ -58,6 +59,7 @@ class HomeActivity : ComponentActivity() {
                             startActivity(Intent(this, SaleDetailsActivity::class.java).putExtra("sale_id", sale.id))
                         },
                         onManageUsers = { open(UserManagementActivity::class.java) },
+                        onProfile = { open(ProfileActivity::class.java) },
                         // Le catalogue n'existe que dans le build debug (src/debug)
                         onOpenDesignCatalog = if (BuildConfig.DEBUG) {
                             { startActivity(Intent().setClassName(this, "com.enkiba.app.ui.catalog.DesignCatalogActivity")) }

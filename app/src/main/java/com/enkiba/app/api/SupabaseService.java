@@ -41,6 +41,11 @@ public interface SupabaseService {
     @GET("rest/v1/shop_members")
     Call<List<Membership>> getMemberships(@Query("user_id") String userIdFilter, @Query("select") String select);
 
+    /** « Mon profil » : prénom, nom, téléphone (la policy limite à son propre profil). */
+    @Headers({"Content-Type: application/json", "Prefer: return=representation"})
+    @PATCH("rest/v1/profiles")
+    Call<List<Profile>> updateMyProfile(@Query("id") String idFilter, @Body Map<String, Object> fields);
+
     // ======================================================================
     // 2. GESTION DES UTILISATEURS (Edge Functions)
     // ======================================================================
