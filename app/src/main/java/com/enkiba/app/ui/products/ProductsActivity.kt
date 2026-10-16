@@ -8,18 +8,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.enkiba.app.activities.AddProductActivity
-import com.enkiba.app.activities.EditProductActivity
-import com.enkiba.app.activities.ProductDetailActivity
 import com.enkiba.app.activities.QrListActivity
 import com.enkiba.app.ui.navigation.AppNavigator
 import com.enkiba.app.ui.theme.EnkibaTheme
 import com.enkiba.app.utils.SessionManager
 
-/**
- * Liste des produits (Compose). Fiche, ajout et modification s'ouvrent encore
- * dans leur version XML. Extra facultatif [EXTRA_TAB] : onglet à ouvrir.
- */
+/** Liste des produits (Compose). Extra facultatif [EXTRA_TAB] : onglet à ouvrir. */
 class ProductsActivity : ComponentActivity() {
 
     private val viewModel: ProductsViewModel by viewModels()
@@ -46,12 +40,12 @@ class ProductsActivity : ComponentActivity() {
                         onQueryChange = viewModel::onQueryChange,
                         onTabChange = viewModel::onTabChange,
                         onRefresh = viewModel::refresh,
-                        onOpen = { p -> startActivity(Intent(this, ProductDetailActivity::class.java).putExtra("id", p.id)) },
-                        onEdit = { p -> startActivity(Intent(this, EditProductActivity::class.java).putExtra("PRODUCT_ID", p.id)) },
+                        onOpen = { p -> startActivity(Intent(this, ProductDetailActivity::class.java).putExtra(ProductDetailActivity.EXTRA_PRODUCT_ID, p.id)) },
+                        onEdit = { p -> startActivity(Intent(this, ProductFormActivity::class.java).putExtra(ProductFormActivity.EXTRA_PRODUCT_ID, p.id)) },
                         onAskDelete = viewModel::askDelete,
                         onConfirmDelete = viewModel::confirmDelete,
                         onCancelDelete = viewModel::cancelDelete,
-                        onAdd = { startActivity(Intent(this, AddProductActivity::class.java)) },
+                        onAdd = { startActivity(Intent(this, ProductFormActivity::class.java)) },
                         onQrList = { startActivity(Intent(this, QrListActivity::class.java)) },
                         onNavigate = { tab -> AppNavigator.open(this, tab, session.isAdmin) },
                         onNewSale = { AppNavigator.newSale(this) },

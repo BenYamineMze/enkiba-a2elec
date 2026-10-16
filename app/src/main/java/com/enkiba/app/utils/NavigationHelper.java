@@ -42,14 +42,6 @@ public class NavigationHelper {
                     activity.startActivity(new Intent(activity, ProductsActivity.class));
                 return true;
             }
-            /*
-            else if (id == R.id.nav_add) {
-                if ("admin".equalsIgnoreCase(role)) { // ✅ Sécurité anti contournement
-                    if (!(activity instanceof AddProductActivity))
-                        activity.startActivity(new Intent(activity, AddProductActivity.class));
-                }
-                return true;
-            }*/
             else if (id == R.id.nav_personnel) {
                 if ("admin".equalsIgnoreCase(role)) {
                     if (!(activity instanceof UserManagementActivity))

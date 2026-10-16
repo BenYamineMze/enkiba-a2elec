@@ -33,8 +33,9 @@
         <activity android:name=".ui.profile.ProfileActivity"
             android:windowSoftInputMode="adjustResize"/>
         <activity android:name=".ui.products.ProductsActivity"/>
-        <activity android:name=".activities.AddProductActivity"
-            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".ui.products.ProductDetailActivity"/>
+        <activity android:name=".ui.products.ProductFormActivity"
+            android:windowSoftInputMode="adjustResize"/>
         <activity android:name=".activities.StatisticsActivity"
             android:windowSoftInputMode="adjustNothing|stateHidden"/>
         <activity android:name=".ui.sale.SaleActivity"
@@ -48,10 +49,6 @@
         <activity android:name=".activities.EditUserActivity"
             android:windowSoftInputMode="adjustNothing|stateHidden"/>
         <activity android:name=".activities.SalesHistoryActivity"
-            android:windowSoftInputMode="adjustNothing|stateHidden"/>
-        <activity android:name=".activities.ProductDetailActivity"
-            android:windowSoftInputMode="adjustNothing|stateHidden"/>
-        <activity android:name=".activities.EditProductActivity"
             android:windowSoftInputMode="adjustNothing|stateHidden"/>
 
         <activity android:name=".activities.HistoryActivity"
