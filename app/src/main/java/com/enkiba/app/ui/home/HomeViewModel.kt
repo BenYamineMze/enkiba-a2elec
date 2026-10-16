@@ -6,20 +6,24 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.enkiba.app.data.repository.HomeData
 import com.enkiba.app.data.repository.HomeRepository
+import com.enkiba.app.modelsDao.UserDao
 import com.enkiba.app.ui.components.SyncState
 import com.enkiba.app.utils.NetworkUtils
 import com.enkiba.app.utils.SessionManager
 import com.enkiba.app.utils.SynchronizationManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** État de l'accueil. `data` est null tant que le premier chargement n'est pas fini. */
 data class HomeUiState(
     val firstName: String = "",
     val lastName: String = "",
+    val email: String = "",
     val isAdmin: Boolean = false,
     val data: HomeData? = null,
     val syncing: Boolean = false,
@@ -44,6 +48,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         HomeUiState(
             firstName = session.firstName,
             lastName = session.lastName,
+            email = session.email,
             isAdmin = session.isAdmin,
         )
     )
@@ -55,7 +60,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 // Un vendeur ne voit que ses propres ventes et devis
                 val data = repository.load(sellerId = if (session.isAdmin) null else session.userId)
-                _state.update { it.copy(data = data, online = NetworkUtils.isOnline(getApplication())) }
+                // Session ouverte avant l'enregistrement de l'e-mail : repli sur le cache local
+                val email = _state.value.email.ifEmpty {
+                    withContext(Dispatchers.IO) { UserDao(getApplication()).getUserById(session.userId)?.email }.orEmpty()
+                }
+                _state.update { it.copy(data = data, email = email, online = NetworkUtils.isOnline(getApplication())) }
             } catch (e: Exception) {
                 Log.e(TAG, "Chargement de l'accueil : ${e.message}", e)
             }

@@ -55,7 +55,7 @@ class AuthRepository(context: Context) {
 
             // Le local garde 'admin' / 'user' : seller → user
             val localRole = if (membership.role == "admin") "admin" else "user"
-            session.saveSession(userId, profile.username, profile.lastname, localRole, membership.shopId)
+            session.saveSession(userId, profile.username, profile.lastname, profile.email ?: email, localRole, membership.shopId)
 
             // Cache local des noms (affichage des vendeurs) : aucun mot de passe
             userDao.insertOrUpdateUserFromRemote(User().apply {

@@ -43,6 +43,17 @@ enum class SyncState(val label: String) {
 fun todayLabel(date: Date = Date()): String =
     SimpleDateFormat("EEEE d MMMM", Locale.FRENCH).format(date).replaceFirstChar { it.titlecase(Locale.FRENCH) }
 
+/**
+ * Prénom à afficher : celui du profil, sinon tiré de l'e-mail
+ * (« mze.ben.km@gmail.com » → « Mze »), sinon null.
+ */
+fun displayFirstName(firstName: String?, email: String?): String? {
+    firstName?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+    val local = email?.substringBefore('@')?.trim().orEmpty()
+    val first = local.split('.', '_', '-', '+').firstOrNull { it.any(Char::isLetter) } ?: return null
+    return first.lowercase(Locale.FRENCH).replaceFirstChar { it.titlecase(Locale.FRENCH) }
+}
+
 /** Initiales pour l'avatar : « Mze Ben » → « MB ». */
 fun initialsOf(firstName: String?, lastName: String?): String {
     val f = firstName?.trim()?.firstOrNull()?.uppercaseChar()
@@ -58,6 +69,7 @@ fun initialsOf(firstName: String?, lastName: String?): String {
 fun UserHeader(
     firstName: String?,
     lastName: String?,
+    email: String? = null,
     roleLabel: String?,
     syncState: SyncState,
     onSync: () -> Unit,
@@ -73,8 +85,9 @@ fun UserHeader(
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(dateLabel, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val shownName = displayFirstName(firstName, email)
             Text(
-                text = if (firstName.isNullOrBlank()) "Bonjour" else "Bonjour, ${firstName.trim()}",
+                text = if (shownName == null) "Bonjour" else "Bonjour, $shownName",
                 style = MaterialTheme.typography.headlineSmall,
             )
             if (!roleLabel.isNullOrBlank()) StatusChip(roleLabel, colors.mint)
@@ -100,7 +113,10 @@ fun UserHeader(
         }
 
         // Avatar : initiales, ouvre le menu (profil, déconnexion)
-        val initials = initialsOf(firstName, lastName)
+        // Sans nom au profil : initiales tirées de l'e-mail (« mze.ben… » → « MB »)
+        val initials = if (!firstName.isNullOrBlank() || !lastName.isNullOrBlank()) initialsOf(firstName, lastName)
+        else email?.substringBefore('@')?.split('.', '_', '-', '+')?.filter { p -> p.any(Char::isLetter) }
+            ?.let { parts -> initialsOf(parts.getOrNull(0), parts.getOrNull(1)) } ?: "?"
         Box(
             modifier = Modifier
                 .size(Spacing.touch)

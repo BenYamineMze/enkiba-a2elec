@@ -145,6 +145,7 @@ private fun Header(state: HomeUiState, actions: HomeActions) {
         UserHeader(
             firstName = state.firstName,
             lastName = state.lastName,
+            email = state.email,
             roleLabel = if (state.isAdmin) "Admin" else "Vendeur",
             syncState = state.syncState,
             onSync = actions.onSync,
