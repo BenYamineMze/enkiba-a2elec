@@ -43,6 +43,11 @@ android {
         }
     }
 
+    // Tests unitaires Robolectric (base Room en mémoire)
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -97,6 +102,8 @@ dependencies {
     implementation(libs.room.runtime)
     ksp(libs.room.compiler)
     testImplementation(libs.room.testing)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.test.core)
     // Simplification des dépendances redondantes de Material
     // implementation ("com.google.android.material:material:1.12.0")
     // Note: 'material' est déjà inclus deux fois via libs.material et directement ci-dessus.
