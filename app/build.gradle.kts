@@ -38,6 +38,8 @@ android {
             buildConfigField("String", "SUPABASE_URL", "\"https://brnlbtlhuamtvpwbwypm.supabase.co/\"")
             buildConfigField("String", "SUPABASE_KEY", "\"sb_publishable_Q7w6vjWFs5S7Gm1_28FWlA_bwQroePU\"")
             isMinifyEnabled = true
+            // Retire les ressources que R8 a rendues inutiles (vérifié sur émulateur avec un build release branché sur dev)
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
