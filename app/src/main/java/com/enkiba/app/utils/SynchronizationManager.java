@@ -27,14 +27,17 @@ import retrofit2.Response;
 /**
  * Synchronise la base locale (SQLite) avec Supabase.
  *
- * Fonctionnement : PUSH (envoi des modifications locales "pending")
- * puis PULL (récupération des changements du serveur).
+ * Fonctionnement : PUSH (envoi des modifications locales "pending") puis PULL
+ * (récupération des changements du serveur). Une seule synchronisation à la fois.
  *
- * NOTE : les utilisateurs ne sont plus synchronisés ici. Ils sont gérés
- * directement par le serveur (écrans de gestion des utilisateurs + Edge Functions).
+ * - Les ids sont des UUID générés par le téléphone : un renvoi est idempotent.
+ * - Le stock n'est jamais envoyé : le serveur le calcule à partir des mouvements de stock
+ *   (saisis par un admin, ou générés par trigger pour les ventes et les retours).
+ * - Le pull est incrémental, table par table, sur l'horodatage du serveur.
+ * - Les suppressions passent par deleted_at, jamais par un DELETE.
  *
- * TODO étape 4 : réécriture complète (UUID, stock_movements, pull incrémental
- * basé sur le updated_at serveur).
+ * Les utilisateurs ne sont pas synchronisés ici : ils sont gérés directement par le
+ * serveur (écrans de gestion des utilisateurs + Edge Functions).
  */
 public class SynchronizationManager {
 
@@ -215,7 +218,7 @@ public class SynchronizationManager {
             map.put("has_negotiation", s.isHasNegotiatedPrice()); // vente à prix négocié
             map.put("sale_date", s.getSaleDate());
 
-            Response<Void> res = supabaseService.upsertSaleMap(prefer, map).execute();
+            Response<Void> res = supabaseService.insertSale(prefer, map).execute();
             if (res.isSuccessful()) {
                 syncDao.markSaleAsSynced(s.getId());
             } else {
@@ -238,7 +241,7 @@ public class SynchronizationManager {
             map.put("unit_price", i.getUnitPrice());
             map.put("total_price", i.getTotalPrice());
 
-            Response<Void> res = supabaseService.upsertSaleItemMap(prefer, map).execute();
+            Response<Void> res = supabaseService.insertSaleItem(prefer, map).execute();
             if (res.isSuccessful()) {
                 syncDao.markSaleItemAsSynced(i.getId());
             } else {
@@ -259,7 +262,7 @@ public class SynchronizationManager {
             map.put("id", c.getId());
             map.put("shop_id", c.getShopId() != null ? c.getShopId() : sessionManager.getShopId());
 
-            Response<Void> res = supabaseService.upsertClientMap(prefer, map).execute();
+            Response<Void> res = supabaseService.upsertClient(prefer, map).execute();
             if (res.isSuccessful()) {
                 syncDao.markClientAsSynced(c.getId());
             } else {

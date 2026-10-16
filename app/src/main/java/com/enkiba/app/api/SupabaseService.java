@@ -5,7 +5,6 @@ import com.enkiba.app.models.AuthResponse;
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Membership;
 import com.enkiba.app.models.Product;
-import com.enkiba.app.models.ProductHistory;
 import com.enkiba.app.models.Profile;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItem;
@@ -18,7 +17,6 @@ import java.util.Map;
 
 import retrofit2.Call;
 import retrofit2.http.Body;
-import retrofit2.http.DELETE;
 import retrofit2.http.GET;
 import retrofit2.http.Header;
 import retrofit2.http.Headers;
@@ -90,48 +88,16 @@ public interface SupabaseService {
                                                   @Query("order") String order, @Query("limit") int limit);
 
     // ======================================================================
-    // 4. SYNCHRONISATION ASCENDANTE (PUSH) : à réécrire à l'étape 4
+    // 4. SYNCHRONISATION ASCENDANTE (PUSH)
+    // Le header Prefer est choisi par le SynchronizationManager :
+    // - resolution=ignore-duplicates pour ce qui n'est jamais modifié après création
+    //   (ventes, lignes, retours, mouvements de stock, journal) : un renvoi est sans effet ;
+    // - resolution=merge-duplicates pour les clients (modifiables par tous les membres).
     // ======================================================================
 
     @Headers("Content-Type: application/json")
-    @POST("rest/v1/products")
-    Call<List<Product>> upsertProduct(@Header("Prefer") String prefer, @Body Product product);
-
-    @Headers("Content-Type: application/json")
-    @POST("rest/v1/products")
-    Call<List<Product>> upsertProductAsMap(@Header("Prefer") String prefer, @Body Map<String, Object> productMap);
-
-    @Headers({"Content-Type: application/json", "Prefer: resolution=merge-duplicates"})
     @POST("rest/v1/clients")
-    Call<Void> upsertClient(@Body Client client);
-
-    @Headers({"Content-Type: application/json", "Prefer: resolution=merge-duplicates"})
-    @POST("rest/v1/sales")
-    Call<Void> upsertSale(@Body SaleHeader sale);
-
-    @Headers({"Content-Type: application/json", "Prefer: resolution=merge-duplicates"})
-    @POST("rest/v1/sale_items")
-    Call<Void> upsertSaleItem(@Body SaleItem saleItem);
-
-    @Headers({"Content-Type: application/json", "Prefer: resolution=merge-duplicates"})
-    @POST("rest/v1/history")
-    Call<Void> upsertHistory(@Body ProductHistory history);
-
-    @Headers("Content-Type: application/json")
-    @POST("rest/v1/clients")
-    Call<Void> upsertClientMap(@Header("Prefer") String prefer, @Body Map<String, Object> clientMap);
-
-    @Headers("Content-Type: application/json")
-    @POST("rest/v1/sales")
-    Call<Void> upsertSaleMap(@Header("Prefer") String prefer, @Body Map<String, Object> saleMap);
-
-    @Headers("Content-Type: application/json")
-    @POST("rest/v1/sales")
-    Call<List<SaleHeader>> upsertSaleAsMap(@Header("Prefer") String prefer, @Body Map<String, Object> saleMap);
-
-    @Headers("Content-Type: application/json")
-    @POST("rest/v1/sale_items")
-    Call<Void> upsertSaleItemMap(@Header("Prefer") String prefer, @Body Map<String, Object> itemMap);
+    Call<Void> upsertClient(@Header("Prefer") String prefer, @Body Map<String, Object> client);
 
     // Produit : modification (PATCH) puis création si absent. Un upsert réécrirait id et
     // shop_id, que le rôle authenticated n'a pas le droit de modifier.
@@ -145,16 +111,28 @@ public interface SupabaseService {
     Call<Void> insertProduct(@Header("Prefer") String prefer, @Body Map<String, Object> product);
 
     @Headers("Content-Type: application/json")
-    @POST("rest/v1/audit_log")
-    Call<Void> insertAuditLog(@Header("Prefer") String prefer, @Body Map<String, Object> entry);
+    @POST("rest/v1/stock_movements")
+    Call<Void> insertStockMovement(@Header("Prefer") String prefer, @Body Map<String, Object> movement);
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/sales")
+    Call<Void> insertSale(@Header("Prefer") String prefer, @Body Map<String, Object> sale);
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/sale_items")
+    Call<Void> insertSaleItem(@Header("Prefer") String prefer, @Body Map<String, Object> item);
 
     @Headers("Content-Type: application/json")
     @POST("rest/v1/sale_returns")
     Call<Void> insertSaleReturn(@Header("Prefer") String prefer, @Body Map<String, Object> saleReturn);
 
     @Headers("Content-Type: application/json")
-    @POST("rest/v1/stock_movements")
-    Call<Void> insertStockMovement(@Header("Prefer") String prefer, @Body Map<String, Object> movement);
+    @POST("rest/v1/audit_log")
+    Call<Void> insertAuditLog(@Header("Prefer") String prefer, @Body Map<String, Object> entry);
+
+    // ======================================================================
+    // 5. DIVERS
+    // ======================================================================
 
     @GET("rest/v1/shop_members")
     Call<List<ShopMember>> getShopMember(
