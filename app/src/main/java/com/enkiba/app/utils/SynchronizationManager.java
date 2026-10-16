@@ -15,6 +15,7 @@ import com.enkiba.app.modelsDao.ProductDao;
 import com.enkiba.app.modelsDao.SyncDao;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -82,9 +83,18 @@ public class SynchronizationManager {
         startSynchronization(null);
     }
 
+    // Une seule synchronisation à la fois pour tout le processus (plusieurs écrans en créent).
+    // Une demande reçue pendant une synchro en cours relance un tour juste après,
+    // pour que la dernière modification locale soit toujours envoyée.
+    private static final Object LOCK = new Object();
+    private static boolean running = false;
+    private static boolean rerunRequested = false;
+    private static final List<SyncCallback> waitingCallbacks = new ArrayList<>();
+
     /**
      * Lance la synchronisation dans un thread séparé.
      * Ne fait rien si l'appareil est hors ligne ou si aucun utilisateur n'est connecté.
+     * Le callback est appelé sur le thread principal à la fin du tour qui inclut cette demande.
      */
     public void startSynchronization(SyncCallback callback) {
         if (!NetworkUtils.isOnline(context)) {
@@ -99,28 +109,54 @@ public class SynchronizationManager {
             return;
         }
 
-        final String lastSyncTimestamp = getLastSyncTime();
-        final String currentSyncTime = DatabaseUtils.getCurrentIsoTime();
+        synchronized (LOCK) {
+            if (callback != null) waitingCallbacks.add(callback);
+            if (running) {
+                rerunRequested = true;
+                Log.d(TAG, "Sync déjà en cours : un nouveau tour suivra.");
+                return;
+            }
+            running = true;
+        }
 
         new Thread(() -> {
-            try {
-                // 1. PUSH : envoi des modifications locales
-                pushLocalChangesSync();
-
-                // 2. PULL : récupération des changements du serveur
-                pullRemoteChangesSynchronous(lastSyncTimestamp);
-
-                setLastSyncTime(currentSyncTime);
-                Log.d(TAG, "--- SYNCHRO TERMINÉE ---");
-
-            } catch (Exception e) {
-                Log.e(TAG, "Erreur critique synchro : " + e.getMessage(), e);
-            } finally {
-                if (callback != null) {
-                    new android.os.Handler(android.os.Looper.getMainLooper()).post(callback::onFinish);
+            while (true) {
+                synchronized (LOCK) {
+                    rerunRequested = false;
                 }
+                runOnce();
+                List<SyncCallback> toNotify;
+                synchronized (LOCK) {
+                    if (rerunRequested) continue;
+                    running = false;
+                    toNotify = new ArrayList<>(waitingCallbacks);
+                    waitingCallbacks.clear();
+                }
+                if (!toNotify.isEmpty()) {
+                    android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+                    for (SyncCallback cb : toNotify) main.post(cb::onFinish);
+                }
+                break;
             }
-        }).start();
+        }, "sync").start();
+    }
+
+    /** Un tour complet : PUSH puis PULL. Ne lève jamais d'exception. */
+    private void runOnce() {
+        final String lastSyncTimestamp = getLastSyncTime();
+        final String currentSyncTime = DatabaseUtils.getCurrentIsoTime();
+        try {
+            // 1. PUSH : envoi des modifications locales
+            pushLocalChangesSync();
+
+            // 2. PULL : récupération des changements du serveur
+            pullRemoteChangesSynchronous(lastSyncTimestamp);
+
+            setLastSyncTime(currentSyncTime);
+            Log.d(TAG, "--- SYNCHRO TERMINÉE ---");
+        } catch (Exception e) {
+            Log.e(TAG, "Erreur critique synchro : " + e.getMessage(), e);
+        }
     }
 
     // ----------------------------------------------------------------------------------

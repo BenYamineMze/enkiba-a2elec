@@ -19,7 +19,6 @@ import com.enkiba.app.models.User;
 import com.enkiba.app.modelsDao.UserDao;
 import com.enkiba.app.utils.NetworkUtils;
 import com.enkiba.app.utils.SessionManager;
-import com.enkiba.app.utils.SynchronizationManager;
 
 import java.util.HashMap;
 import java.util.List;
@@ -38,7 +37,6 @@ public class LoginActivity extends AppCompatActivity {
 
     private UserDao userDao;
     private SessionManager sessionManager;
-    private SynchronizationManager synchronizationManager;
     private SupabaseService api;
 
     @Override
@@ -47,12 +45,11 @@ public class LoginActivity extends AppCompatActivity {
 
         sessionManager = new SessionManager(this);
         userDao = new UserDao(this);
-        synchronizationManager = new SynchronizationManager(this);
         api = RetrofitClient.getSupabaseService(this);
 
         // Session persistante : l'app s'ouvre même hors-ligne
+        // (la synchronisation est lancée par l'accueil)
         if (sessionManager.isLoggedIn()) {
-            if (NetworkUtils.isOnline(this)) synchronizationManager.startSynchronization();
             navigateToHome();
             return;
         }
@@ -157,7 +154,7 @@ public class LoginActivity extends AppCompatActivity {
                 local.setUpdatedAt(profile.getUpdatedAt());
                 userDao.insertOrUpdateUserFromRemote(local); // aucun mot de passe stocké
 
-                synchronizationManager.startSynchronization();
+                // La synchronisation est lancée par l'accueil
                 navigateToHome();
             }
 
