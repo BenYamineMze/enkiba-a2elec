@@ -9,7 +9,7 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.enkiba.app.activities.HistoryActivity
+import com.enkiba.app.ui.history.HistoryActivity
 import com.enkiba.app.activities.StatisticsActivity
 import com.enkiba.app.ui.components.FloatingBottomBar
 import com.enkiba.app.ui.components.NavDestination

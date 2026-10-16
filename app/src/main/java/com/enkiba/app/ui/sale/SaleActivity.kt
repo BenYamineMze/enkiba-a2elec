@@ -10,7 +10,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
-import com.enkiba.app.activities.HistoryActivity
+import com.enkiba.app.ui.history.HistoryActivity
 import com.enkiba.app.ui.theme.EnkibaTheme
 import com.enkiba.app.utils.SessionManager
 import com.journeyapps.barcodescanner.ScanContract
