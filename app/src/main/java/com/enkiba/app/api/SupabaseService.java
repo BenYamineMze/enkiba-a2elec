@@ -21,6 +21,7 @@ import retrofit2.http.DELETE;
 import retrofit2.http.GET;
 import retrofit2.http.Header;
 import retrofit2.http.Headers;
+import retrofit2.http.PATCH;
 import retrofit2.http.POST;
 import retrofit2.http.Query;
 
@@ -134,6 +135,21 @@ public interface SupabaseService {
     @Headers("Content-Type: application/json")
     @POST("rest/v1/sale_items")
     Call<Void> upsertSaleItemMap(@Header("Prefer") String prefer, @Body Map<String, Object> itemMap);
+
+    // Produit : modification (PATCH) puis création si absent. Un upsert réécrirait id et
+    // shop_id, que le rôle authenticated n'a pas le droit de modifier.
+    @Headers("Content-Type: application/json")
+    @PATCH("rest/v1/products")
+    Call<List<Product>> patchProduct(@Header("Prefer") String prefer, @Query("id") String idFilter,
+                                     @Body Map<String, Object> product);
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/products")
+    Call<Void> insertProduct(@Header("Prefer") String prefer, @Body Map<String, Object> product);
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/audit_log")
+    Call<Void> insertAuditLog(@Header("Prefer") String prefer, @Body Map<String, Object> entry);
 
     @Headers("Content-Type: application/json")
     @POST("rest/v1/sale_returns")
