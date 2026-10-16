@@ -10,10 +10,10 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.enkiba.app.BuildConfig
 import com.enkiba.app.ui.history.HistoryActivity
-import com.enkiba.app.activities.UserManagementActivity
 import com.enkiba.app.ui.profile.ProfileActivity
 import com.enkiba.app.ui.sale.SaleDetailActivity
 import com.enkiba.app.ui.stats.StatsActivity
+import com.enkiba.app.ui.users.TeamActivity
 import com.enkiba.app.ui.navigation.AppNavigator
 import com.enkiba.app.ui.products.ProductsActivity
 import com.enkiba.app.ui.products.StockTab
@@ -59,7 +59,7 @@ class HomeActivity : ComponentActivity() {
                         onOpenSale = { sale ->
                             startActivity(Intent(this, SaleDetailActivity::class.java).putExtra(SaleDetailActivity.EXTRA_SALE_ID, sale.id))
                         },
-                        onManageUsers = { open(UserManagementActivity::class.java) },
+                        onManageUsers = { open(TeamActivity::class.java) },
                         onProfile = { open(ProfileActivity::class.java) },
                         // Le catalogue n'existe que dans le build debug (src/debug)
                         onOpenDesignCatalog = if (BuildConfig.DEBUG) {
