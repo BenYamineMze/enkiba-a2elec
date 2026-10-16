@@ -18,6 +18,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -125,5 +129,59 @@ fun FilterPill(
             .selectable(selected = selected, role = Role.Checkbox, onClick = onClick)
             .heightIn(min = 36.dp)
             .padding(horizontal = Spacing.lg, vertical = 9.dp),
+    )
+}
+
+/**
+ * Champ de saisie de la charte (étiquette, coins arrondis, fond blanc).
+ * `isPassword` masque le texte et ajoute le bouton afficher/masquer.
+ */
+@Composable
+fun EnkibaTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    isPassword: Boolean = false,
+    keyboardOptions: androidx.compose.foundation.text.KeyboardOptions = androidx.compose.foundation.text.KeyboardOptions.Default,
+    keyboardActions: androidx.compose.foundation.text.KeyboardActions = androidx.compose.foundation.text.KeyboardActions.Default,
+    isError: Boolean = false,
+    enabled: Boolean = true,
+) {
+    var visible by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    androidx.compose.material3.OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        singleLine = true,
+        enabled = enabled,
+        isError = isError,
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        textStyle = MaterialTheme.typography.bodyLarge,
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        visualTransformation = if (isPassword && !visible) androidx.compose.ui.text.input.PasswordVisualTransformation()
+        else androidx.compose.ui.text.input.VisualTransformation.None,
+        trailingIcon = if (isPassword) {
+            {
+                androidx.compose.material3.IconButton(onClick = { visible = !visible }) {
+                    Icon(
+                        if (visible) androidx.compose.material.icons.Icons.Rounded.VisibilityOff
+                        else androidx.compose.material.icons.Icons.Rounded.Visibility,
+                        contentDescription = if (visible) "Masquer le mot de passe" else "Afficher le mot de passe",
+                    )
+                }
+            }
+        } else null,
+        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            disabledContainerColor = MaterialTheme.colorScheme.surface,
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+            focusedLabelColor = com.enkiba.app.ui.theme.EnkibaTheme.colors.link,
+            cursorColor = MaterialTheme.colorScheme.primary,
+        ),
     )
 }

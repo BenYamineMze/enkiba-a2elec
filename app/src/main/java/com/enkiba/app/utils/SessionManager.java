@@ -8,7 +8,7 @@ import android.util.Log;
 import androidx.security.crypto.EncryptedSharedPreferences;
 import androidx.security.crypto.MasterKey;
 
-import com.enkiba.app.activities.LoginActivity;
+import com.enkiba.app.ui.login.LoginActivity;
 
 /** Session chiffrée : JWT, refresh token, boutique et rôle. Aucun mot de passe stocké. */
 public class SessionManager {
@@ -83,6 +83,12 @@ public class SessionManager {
     public String getUserId() { return prefs.getString(KEY_USER_ID, null); }
     public String getAuthId() { return getUserId(); } // v2 : profiles.id = auth.users.id
     public String getRole() { return prefs.getString(KEY_ROLE, "user"); }
+
+    /** Prénom (profiles.username). */
+    public String getFirstName() { return prefs.getString(KEY_USER, ""); }
+    /** Nom de famille (profiles.lastname). */
+    public String getLastName() { return prefs.getString(KEY_USER_LASTNAME, ""); }
+    public boolean isAdmin() { return "admin".equalsIgnoreCase(getRole()); }
 
     public String getUsername() {
         String u = prefs.getString(KEY_USER, "");
