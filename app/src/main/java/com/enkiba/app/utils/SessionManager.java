@@ -8,7 +8,7 @@ import android.util.Log;
 import androidx.security.crypto.EncryptedSharedPreferences;
 import androidx.security.crypto.MasterKey;
 
-import com.enkiba.app.activities.LoginActivity;
+import com.enkiba.app.ui.login.LoginActivity;
 
 /** Session chiffrée : JWT, refresh token, boutique et rôle. Aucun mot de passe stocké. */
 public class SessionManager {
@@ -19,6 +19,7 @@ public class SessionManager {
     private static final String KEY_USER_ID = "user_id";
     private static final String KEY_USER = "username";
     private static final String KEY_USER_LASTNAME = "lastname";
+    private static final String KEY_EMAIL = "email";
     private static final String KEY_ROLE = "role";
     private static final String KEY_SHOP_ID = "shop_id";
     private static final String KEY_JWT_TOKEN = "jwt_token";
@@ -64,9 +65,10 @@ public class SessionManager {
     }
 
     /** Finalise la session une fois le profil et la boutique connus. */
-    public void saveSession(String userId, String username, String lastname,
+    public void saveSession(String userId, String username, String lastname, String email,
                             String role, String shopId) {
         prefs.edit()
+                .putString(KEY_EMAIL, email != null ? email : "")
                 .putBoolean(KEY_IS_LOGGED_IN, true)
                 .putString(KEY_USER_ID, userId)
                 .putString(KEY_USER, username != null ? username : "")
@@ -83,6 +85,14 @@ public class SessionManager {
     public String getUserId() { return prefs.getString(KEY_USER_ID, null); }
     public String getAuthId() { return getUserId(); } // v2 : profiles.id = auth.users.id
     public String getRole() { return prefs.getString(KEY_ROLE, "user"); }
+
+    /** Prénom (profiles.username). */
+    public String getFirstName() { return prefs.getString(KEY_USER, ""); }
+    /** Nom de famille (profiles.lastname). */
+    public String getLastName() { return prefs.getString(KEY_USER_LASTNAME, ""); }
+    /** E-mail de connexion (repli d'affichage quand le profil n'a pas de nom). */
+    public String getEmail() { return prefs.getString(KEY_EMAIL, ""); }
+    public boolean isAdmin() { return "admin".equalsIgnoreCase(getRole()); }
 
     public String getUsername() {
         String u = prefs.getString(KEY_USER, "");

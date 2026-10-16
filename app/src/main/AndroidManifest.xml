@@ -19,7 +19,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.GStock">
         <activity
-            android:name=".activities.LoginActivity"
+            android:name=".ui.login.LoginActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -29,8 +29,7 @@
 
         </activity>
 
-        <activity android:name=".activities.AcceuilActivity"
-            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".ui.home.HomeActivity"/>
         <activity android:name=".activities.ProductListActivity"
             android:windowSoftInputMode="adjustNothing|stateHidden"/>
         <activity android:name=".activities.AddProductActivity"

@@ -53,6 +53,30 @@ interface SaleRoomDao {
     )
     fun netTotal(paymentMethod: String?): Double
 
+    // --- Accueil : période [start, end[ en horodatage UTC « yyyy-MM-ddTHH:mm » (comparaison de chaînes)
+    //     sellerId null = tous les vendeurs, paymentMethod null = tous les modes
+
+    @Query(
+        "SELECT COALESCE(SUM(s.total_price - COALESCE((SELECT SUM(r.refund_amount) FROM sale_returns r " +
+            "WHERE r.sale_id = s.id), 0)), 0) FROM sales s " +
+            "WHERE s.deleted_at IS NULL AND s.sale_date >= :start AND s.sale_date < :end " +
+            "AND (:sellerId IS NULL OR s.seller_id = :sellerId) " +
+            "AND (:paymentMethod IS NULL OR s.payment_method = :paymentMethod)"
+    )
+    fun netTotalBetween(start: String, end: String, sellerId: String?, paymentMethod: String?): Double
+
+    @Query(
+        "SELECT COUNT(*) FROM sales s WHERE s.deleted_at IS NULL AND s.sale_date >= :start AND s.sale_date < :end " +
+            "AND (:sellerId IS NULL OR s.seller_id = :sellerId)"
+    )
+    fun countBetween(start: String, end: String, sellerId: String?): Int
+
+    @Query(
+        SELECT_WITH_EXTRAS + "WHERE s.deleted_at IS NULL AND (:sellerId IS NULL OR s.seller_id = :sellerId) " +
+            "ORDER BY s.sale_date DESC LIMIT :limit"
+    )
+    fun getRecent(sellerId: String?, limit: Int): List<SaleWithExtras>
+
     @Query(
         "SELECT si.*, COALESCE((SELECT SUM(r.quantity) FROM sale_returns r WHERE r.sale_item_id = si.id), 0) " +
             "AS returned FROM sale_items si WHERE si.sale_id = :saleId ORDER BY si.rowid"

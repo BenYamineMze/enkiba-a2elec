@@ -78,14 +78,14 @@ class DesignCatalogActivity : ComponentActivity() {
         setContent {
             var dark by rememberSaveable { mutableStateOf(false) }
             EnkibaTheme(darkTheme = dark) {
-                Catalog(dark = dark, onDarkChange = { dark = it })
+                Catalog(dark = dark, onDarkChange = { dark = it }, onBack = { finish() })
             }
         }
     }
 }
 
 @Composable
-private fun Catalog(dark: Boolean, onDarkChange: (Boolean) -> Unit) {
+private fun Catalog(dark: Boolean, onDarkChange: (Boolean) -> Unit, onBack: () -> Unit) {
     val colors = EnkibaTheme.colors
     var search by remember { mutableStateOf("") }
     var tab by remember { mutableIntStateOf(0) }
@@ -108,7 +108,8 @@ private fun Catalog(dark: Boolean, onDarkChange: (Boolean) -> Unit) {
         ) {
             ScreenHeader(
                 title = "Catalogue design",
-                subtitle = "Charte v2 · données d'exemple · navigation non branchée",
+                subtitle = "Démo (dev) · données d'exemple · boutons inactifs",
+                onBack = onBack,
                 actions = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         Text("Sombre", style = MaterialTheme.typography.bodyMedium)

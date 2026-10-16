@@ -1,16 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Build debug uniquement : catalogue du système de design (icône « Catalogue design ») -->
+<!-- Build debug uniquement : catalogue du système de design.
+     Pas d'icône de lancement (confusion avec l'application) : il s'ouvre depuis le menu
+     de l'avatar de l'accueil, entrée « Catalogue design (dev) », visible en debug seulement. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
         <activity
             android:name=".ui.catalog.DesignCatalogActivity"
-            android:exported="true"
-            android:label="Catalogue design"
-            android:taskAffinity="com.enkiba.app.catalog">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:exported="false"
+            android:label="Catalogue design" />
     </application>
 </manifest>

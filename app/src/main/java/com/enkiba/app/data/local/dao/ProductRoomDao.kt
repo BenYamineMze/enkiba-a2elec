@@ -66,6 +66,9 @@ interface ProductRoomDao {
     @Query("SELECT COALESCE(SUM(price * quantity), 0) FROM products WHERE deleted_at IS NULL")
     fun totalStockValue(): Double
 
+    @Query("SELECT COUNT(*) FROM products WHERE deleted_at IS NULL")
+    fun countActive(): Int
+
     @Query("SELECT COUNT(*) FROM products WHERE quantity <= low_stock_threshold AND deleted_at IS NULL")
     fun lowStockCount(): Int
 

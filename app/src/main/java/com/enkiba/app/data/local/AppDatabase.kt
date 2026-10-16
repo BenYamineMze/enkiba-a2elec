@@ -12,6 +12,7 @@ import com.enkiba.app.data.local.dao.ProductRoomDao
 import com.enkiba.app.data.local.dao.QuoteRoomDao
 import com.enkiba.app.data.local.dao.SaleRoomDao
 import com.enkiba.app.data.local.dao.StockRoomDao
+import com.enkiba.app.data.local.dao.SyncRoomDao
 import com.enkiba.app.data.local.dao.UserRoomDao
 import com.enkiba.app.data.local.entity.ClientEntity
 import com.enkiba.app.data.local.entity.HistoryEntity
@@ -55,6 +56,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun historyDao(): HistoryRoomDao
     abstract fun stockDao(): StockRoomDao
     abstract fun quoteDao(): QuoteRoomDao
+    abstract fun syncDao(): SyncRoomDao
 
     companion object {
         const val DATABASE_NAME = "stock.db"

@@ -19,6 +19,13 @@ import com.google.android.material.tabs.TabLayoutMediator;
 // L'activité hérite de BaseActivity pour la vérification de session et le délai d'inactivité
 public class HistoryActivity extends BaseActivity {
 
+    /** Onglet à ouvrir (extra int) : ventes, devis ou opérations sur les articles. */
+    public static final String EXTRA_TAB = "tab";
+    public static final int TAB_SALES = 0;
+    public static final int TAB_QUOTES = 1;
+    public static final int TAB_OPERATIONS = 2;
+
+
     private TabLayout tabLayout;
     private ViewPager2 viewPager;
 
@@ -60,6 +67,7 @@ public class HistoryActivity extends BaseActivity {
             else if (position == 1) tab.setText(R.string.tab_quotes);
             else tab.setText("Operations des articles ");
         }).attach();
+        viewPager.setCurrentItem(getIntent().getIntExtra(EXTRA_TAB, TAB_SALES), false);
 
         // ✅ Navigation bar
         BottomNavigationView bottomNav = findViewById(R.id.bottom_nav);
