@@ -74,6 +74,8 @@ dependencies {
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 
+
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
     // Simplification des dépendances redondantes de Material
     // implementation ("com.google.android.material:material:1.12.0")
     // Note: 'material' est déjà inclus deux fois via libs.material et directement ci-dessus.

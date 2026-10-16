@@ -13,11 +13,11 @@ import com.enkiba.app.R;
 import com.enkiba.app.api.RetrofitClient;
 import com.enkiba.app.api.SupabaseService;
 import com.enkiba.app.models.AuthResponse;
+import com.enkiba.app.models.Membership;
+import com.enkiba.app.models.Profile;
 import com.enkiba.app.models.User;
-import com.enkiba.app.models.UserData;
 import com.enkiba.app.modelsDao.UserDao;
 import com.enkiba.app.utils.NetworkUtils;
-import com.enkiba.app.utils.PasswordUtils;
 import com.enkiba.app.utils.SessionManager;
 import com.enkiba.app.utils.SynchronizationManager;
 
@@ -39,95 +39,47 @@ public class LoginActivity extends AppCompatActivity {
     private UserDao userDao;
     private SessionManager sessionManager;
     private SynchronizationManager synchronizationManager;
-
     private SupabaseService api;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Initialisation des outils
         sessionManager = new SessionManager(this);
         userDao = new UserDao(this);
         synchronizationManager = new SynchronizationManager(this);
-
-        // Initialisation API
         api = RetrofitClient.getSupabaseService(this);
 
-        // 1. Vérification session
+        // Session persistante : l'app s'ouvre même hors-ligne
         if (sessionManager.isLoggedIn()) {
-            Log.d(TAG, "Session déjà active. Redirection.");
-            // On lance une synchro en tâche de fond si possible
-            if (NetworkUtils.isOnline(this)) {
-                synchronizationManager.startSynchronization();
-            }
+            if (NetworkUtils.isOnline(this)) synchronizationManager.startSynchronization();
             navigateToHome();
             return;
         }
 
         setContentView(R.layout.page_login);
-
         edtIdentifier = findViewById(R.id.edt_username);
         edtPass = findViewById(R.id.edt_password);
         btnLogin = findViewById(R.id.btn_login);
-
-        // 2. Synchro préventive pour récupérer les rôles à jour
-        if (NetworkUtils.isOnline(this)) {
-            syncRemoteUsers();
-        }
-
         btnLogin.setOnClickListener(v -> handleLoginAttempt());
     }
 
-    private void syncRemoteUsers() {
-        Log.d(TAG, "Tentative de synchronisation users...");
-        api.getUsers("*").enqueue(new Callback<List<User>>() {
-            @Override
-            public void onResponse(Call<List<User>> call, Response<List<User>> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    for (User remoteUser : response.body()) {
-                        userDao.insertOrUpdateUserFromRemote(remoteUser);
-                    }
-                    Log.d(TAG, "Utilisateurs synchronisés : " + response.body().size());
-                } else {
-                    Log.w(TAG, "Erreur API Users : " + response.code());
-                }
-            }
-
-            @Override
-            public void onFailure(Call<List<User>> call, Throwable t) {
-                Log.e(TAG, "Échec réseau synchro users", t);
-            }
-        });
-    }
-
-
     private void handleLoginAttempt() {
-        String identifier = edtIdentifier.getText().toString().trim();
+        String email = edtIdentifier.getText().toString().trim();
         String password = edtPass.getText().toString().trim();
 
-        if (identifier.isEmpty() || password.isEmpty()) {
+        if (email.isEmpty() || password.isEmpty()) {
             Toast.makeText(this, "Champs vides", Toast.LENGTH_SHORT).show();
             return;
         }
-
         if (!NetworkUtils.isOnline(this)) {
-            User offlineUser = userDao.loginOffline(identifier, password);
-            if (offlineUser != null) {
-                loginLocally(offlineUser);
-            } else {
-                Toast.makeText(this, "Connexion hors ligne impossible", Toast.LENGTH_SHORT).show();
-            }
+            Toast.makeText(this, "Une connexion internet est nécessaire pour se connecter", Toast.LENGTH_LONG).show();
             return;
         }
-
-        performSupabaseLogin(identifier, password);
+        performLogin(email, password);
     }
 
-
-
-    private void performSupabaseLogin(String email, String password) {
-
+    private void performLogin(String email, String password) {
         btnLogin.setEnabled(false);
 
         Map<String, String> credentials = new HashMap<>();
@@ -137,119 +89,91 @@ public class LoginActivity extends AppCompatActivity {
         api.login(credentials).enqueue(new Callback<AuthResponse>() {
             @Override
             public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
-
-                btnLogin.setEnabled(true);
-
-                if (!response.isSuccessful() || response.body() == null) {
-                    Toast.makeText(LoginActivity.this, "Identifiants incorrects", Toast.LENGTH_SHORT).show();
+                AuthResponse auth = response.body();
+                if (!response.isSuccessful() || auth == null || auth.getUser() == null) {
+                    fail("Identifiants incorrects");
                     return;
                 }
-
-                AuthResponse auth = response.body();
-                String authId = auth.getUser().getId();
-                String token = auth.getAccessToken();
-
-                // 🔹 1. Récupérer le user depuis Supabase table users
-                api.getUserByAuthId("eq." + authId).enqueue(new Callback<List<User>>() {
-                    @Override
-                    public void onResponse(Call<List<User>> call, Response<List<User>> response) {
-
-                        if (!response.isSuccessful() || response.body() == null || response.body().isEmpty()) {
-                            Toast.makeText(LoginActivity.this, "Utilisateur introuvable (table users)", Toast.LENGTH_LONG).show();
-                            return;
-                        }
-
-                        User remoteUser = response.body().get(0);
-
-                        // 🔐 IMPORTANT POUR LE OFFLINE
-                        remoteUser.setPassword(PasswordUtils.hashPassword(password));
-
-                        // 💾 Sauvegarde locale
-                        userDao.insertOrUpdateUserFromRemote(remoteUser);
-
-                        // 💾 Session
-                        sessionManager.saveUser(
-                                remoteUser.getId(),
-                                remoteUser.getUsername(),
-                                remoteUser.getLastname(),
-                                remoteUser.getRole(),
-                                token,
-                                authId
-                        );
-
-                        synchronizationManager.startSynchronization();
-                        navigateToHome();
-                    }
-
-                    @Override
-                    public void onFailure(Call<List<User>> call, Throwable t) {
-                        Toast.makeText(LoginActivity.this, "Erreur récupération utilisateur", Toast.LENGTH_SHORT).show();
-                    }
-                });
+                // Les jetons doivent exister avant les appels suivants (intercepteur)
+                sessionManager.saveTokens(auth.getAccessToken(), auth.getRefreshToken(), auth.computeExpiresAt());
+                loadProfile(auth.getUser().getId());
             }
 
             @Override
             public void onFailure(Call<AuthResponse> call, Throwable t) {
-                btnLogin.setEnabled(true);
-                Toast.makeText(LoginActivity.this, "Erreur réseau", Toast.LENGTH_SHORT).show();
+                fail("Erreur réseau");
             }
         });
     }
 
-    private void loginLocally(User user) {
-        sessionManager.saveUser(
-                user.getId(),
-                user.getUsername(),
-                user.getLastname(),
-                user.getRole(),
-                null,               // 🔴 PAS de JWT offline
-                user.getAuthId()    // peut être null
-        );
-        navigateToHome();
-    }
-
-
-    private void fetchAndStoreUserByAuthId(String authId, String password, String token) {
-
-        api.getUserByAuthId("eq." + authId).enqueue(new Callback<List<User>>() {
+    private void loadProfile(String userId) {
+        api.getProfile("eq." + userId, "*").enqueue(new Callback<List<Profile>>() {
             @Override
-            public void onResponse(Call<List<User>> call, Response<List<User>> response) {
-
+            public void onResponse(Call<List<Profile>> call, Response<List<Profile>> response) {
                 if (!response.isSuccessful() || response.body() == null || response.body().isEmpty()) {
-                    Toast.makeText(LoginActivity.this, "Utilisateur métier introuvable", Toast.LENGTH_LONG).show();
+                    fail("Profil introuvable");
                     return;
                 }
+                Profile profile = response.body().get(0);
+                if (!profile.isActive()) {
+                    fail("Ce compte est désactivé");
+                    return;
+                }
+                loadMembership(userId, profile);
+            }
 
-                User remoteUser = response.body().get(0);
+            @Override
+            public void onFailure(Call<List<Profile>> call, Throwable t) {
+                fail("Erreur réseau");
+            }
+        });
+    }
 
-                // 🔐 Hash du mot de passe pour le hors ligne
-                remoteUser.setPassword(PasswordUtils.hashPassword(password));
-                remoteUser.setSyncStatus("synced");
+    private void loadMembership(String userId, Profile profile) {
+        api.getMemberships("eq." + userId, "shop_id,role").enqueue(new Callback<List<Membership>>() {
+            @Override
+            public void onResponse(Call<List<Membership>> call, Response<List<Membership>> response) {
+                if (!response.isSuccessful() || response.body() == null || response.body().isEmpty()) {
+                    fail("Compte non rattaché à une boutique");
+                    return;
+                }
+                Membership m = response.body().get(0); // une seule boutique pour l'instant
 
-                userDao.insertOrUpdateUserFromRemote(remoteUser);
+                // Le local garde 'admin' / 'user' (CHECK de la table) : seller -> user
+                String localRole = "admin".equals(m.getRole()) ? "admin" : "user";
 
-                // 💾 SESSION
-                sessionManager.saveUser(
-                        remoteUser.getId(),
-                        remoteUser.getUsername(),
-                        remoteUser.getLastname(),
-                        remoteUser.getRole(),
-                        token,
-                        remoteUser.getAuthId()
-                );
+                sessionManager.saveSession(userId, profile.getUsername(), profile.getLastname(),
+                        localRole, m.getShopId());
+
+                User local = new User();
+                local.setId(userId);
+                local.setAuthId(userId);
+                local.setUsername(profile.getUsername());
+                local.setLastname(profile.getLastname());
+                local.setTelephone(profile.getTelephone() != null ? profile.getTelephone() : "");
+                local.setEmail(profile.getEmail());
+                local.setRole(localRole);
+                local.setActive(1);
+                local.setUpdatedAt(profile.getUpdatedAt());
+                userDao.insertOrUpdateUserFromRemote(local); // aucun mot de passe stocké
 
                 synchronizationManager.startSynchronization();
                 navigateToHome();
             }
 
             @Override
-            public void onFailure(Call<List<User>> call, Throwable t) {
-                Toast.makeText(LoginActivity.this, "Erreur récupération utilisateur", Toast.LENGTH_SHORT).show();
+            public void onFailure(Call<List<Membership>> call, Throwable t) {
+                fail("Erreur réseau");
             }
         });
     }
 
-
+    private void fail(String message) {
+        sessionManager.clearSession();
+        btnLogin.setEnabled(true);
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        Log.w(TAG, message);
+    }
 
     private void navigateToHome() {
         Intent intent = new Intent(this, AcceuilActivity.class);
