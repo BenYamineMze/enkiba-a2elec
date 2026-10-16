@@ -38,6 +38,10 @@ public class SaleHeader implements Serializable {
     @Expose @SerializedName("has_negotiation")
     private boolean hasNegotiatedPrice;
 
+    // Devis converti en cette vente (au plus une vente par devis, imposé par le serveur)
+    @Expose @SerializedName("source_quote_id")
+    private String sourceQuoteId;
+
     // --- Champs de synchronisation ---
     @Expose @SerializedName("updated_at")
     private String updatedAt;
@@ -94,6 +98,9 @@ public class SaleHeader implements Serializable {
 
     public boolean isHasNegotiatedPrice() { return hasNegotiatedPrice; }
     public void setHasNegotiatedPrice(boolean hasNegotiatedPrice) { this.hasNegotiatedPrice = hasNegotiatedPrice; }
+
+    public String getSourceQuoteId() { return sourceQuoteId; }
+    public void setSourceQuoteId(String sourceQuoteId) { this.sourceQuoteId = sourceQuoteId; }
 
     public String getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }

@@ -69,6 +69,7 @@ public class SaleDao {
         s.setPaymentMethod(cursor.getString(cursor.getColumnIndexOrThrow("payment_method")));
         s.setSaleDate(cursor.getString(cursor.getColumnIndexOrThrow("sale_date")));
         s.setHasNegotiatedPrice(cursor.getInt(cursor.getColumnIndexOrThrow(COL_HAS_NEGOTIATION)) == 1);
+        s.setSourceQuoteId(cursor.getString(cursor.getColumnIndexOrThrow("source_quote_id")));
         s.setUpdatedAt(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_UPDATED_AT)));
         s.setDeletedAt(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_DELETED_AT)));
         s.setSyncStatus(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_SYNC_STATUS)));
@@ -108,6 +109,7 @@ public class SaleDao {
         values.put("payment_method", sale.getPaymentMethod());
         values.put("sale_date", sale.getSaleDate() != null ? sale.getSaleDate() : now);
         values.put(COL_HAS_NEGOTIATION, sale.isHasNegotiatedPrice() ? 1 : 0);
+        values.put("source_quote_id", sale.getSourceQuoteId());
         values.put(DatabaseHelper.COL_UPDATED_AT, now);
         values.put(DatabaseHelper.COL_SYNC_STATUS, "pending");
         return db.insert(TABLE_SALES, null, values);
@@ -428,6 +430,7 @@ public class SaleDao {
         values.put("payment_method", remoteSale.getPaymentMethod());
         values.put("sale_date", remoteSale.getSaleDate());
         values.put(COL_HAS_NEGOTIATION, remoteSale.isHasNegotiatedPrice() ? 1 : 0);
+        values.put("source_quote_id", remoteSale.getSourceQuoteId());
         values.put(DatabaseHelper.COL_UPDATED_AT, remoteSale.getUpdatedAt());
         values.put(DatabaseHelper.COL_DELETED_AT, remoteSale.getDeletedAt());
         values.put(DatabaseHelper.COL_SYNC_STATUS, "synced");

@@ -15,7 +15,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     // v7 : schéma aligné sur Supabase v2 (UUID TEXT, shop_id, deleted_at, plus d'archives)
     // v8 : table stock_movements (mouvements saisis localement, en attente d'envoi)
     // v9 : table sale_returns ; sale_items n'a plus de initial_quantity (lignes immuables)
-    private static final int DATABASE_VERSION = 9;
+    // v10 : devis (quotes, quote_items) ; sales.source_quote_id (vente issue d'un devis)
+    private static final int DATABASE_VERSION = 10;
 
     // --- CONSTANTES DE COLONNES INTERNES ---
     private static final String COL_ID = "id";
@@ -39,6 +40,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String TABLE_HISTORY = "history";
     public static final String TABLE_STOCK_MOVEMENTS = "stock_movements";
     public static final String TABLE_SALE_RETURNS = "sale_returns";
+    public static final String TABLE_QUOTES = "quotes";
+    public static final String TABLE_QUOTE_ITEMS = "quote_items";
 
 
     private final Context appContext;
@@ -120,6 +123,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 "payment_method TEXT NOT NULL, " +
                 "has_negotiation INTEGER NOT NULL DEFAULT 0, " +
                 "sale_date TEXT NOT NULL, " +
+                "source_quote_id TEXT, " +
                 COL_UPDATED_AT + " TEXT NOT NULL, " +
                 COL_DELETED_AT + " TEXT, " +
                 COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'" +
@@ -193,6 +197,42 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL(CREATE_SALE_RETURNS);
         db.execSQL("CREATE INDEX idx_sale_returns_item ON " + TABLE_SALE_RETURNS + "(sale_item_id)");
         db.execSQL("CREATE INDEX idx_sale_returns_sale ON " + TABLE_SALE_RETURNS + "(sale_id)");
+
+        // 9. TABLES QUOTES / QUOTE_ITEMS : devis ; seules le statut et la vente issue
+        // de la conversion changent après la création
+        String CREATE_QUOTES = "CREATE TABLE " + TABLE_QUOTES + " (" +
+                "id TEXT PRIMARY KEY, " +
+                COL_SHOP_ID + " TEXT, " +
+                "seller_id TEXT NOT NULL, " +
+                "client_id TEXT, " +
+                "status TEXT NOT NULL DEFAULT 'draft', " +
+                "total_price REAL NOT NULL, " +
+                "valid_until TEXT, " +
+                "notes TEXT, " +
+                "converted_sale_id TEXT, " +
+                "created_at TEXT NOT NULL, " +
+                COL_UPDATED_AT + " TEXT NOT NULL, " +
+                COL_DELETED_AT + " TEXT, " +
+                COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'" +
+                ")";
+        db.execSQL(CREATE_QUOTES);
+        db.execSQL("CREATE INDEX idx_quotes_created ON " + TABLE_QUOTES + "(created_at)");
+
+        String CREATE_QUOTE_ITEMS = "CREATE TABLE " + TABLE_QUOTE_ITEMS + " (" +
+                "id TEXT PRIMARY KEY, " +
+                COL_SHOP_ID + " TEXT, " +
+                "quote_id TEXT NOT NULL, " +
+                "product_id TEXT NOT NULL, " +
+                "product_name TEXT NOT NULL, " +
+                "quantity INTEGER NOT NULL, " +
+                "list_price REAL NOT NULL, " +
+                "unit_price REAL NOT NULL, " +
+                "total_price REAL NOT NULL, " +
+                COL_UPDATED_AT + " TEXT NOT NULL, " +
+                COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'" +
+                ")";
+        db.execSQL(CREATE_QUOTE_ITEMS);
+        db.execSQL("CREATE INDEX idx_quote_items_quote ON " + TABLE_QUOTE_ITEMS + "(quote_id)");
     }
 
     @Override
@@ -209,6 +249,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_SALE_ITEMS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_STOCK_MOVEMENTS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_SALE_RETURNS);
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_QUOTES);
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_QUOTE_ITEMS);
         db.execSQL("DROP TABLE IF EXISTS sale_items_archive"); // table v1 obsolète
         db.execSQL("DROP TABLE IF EXISTS sale_archive"); // table v1 obsolète
 
