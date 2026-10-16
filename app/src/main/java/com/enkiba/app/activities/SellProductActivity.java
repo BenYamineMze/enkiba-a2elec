@@ -1,10 +1,7 @@
 package com.enkiba.app.activities;
 
 import android.app.AlertDialog;
-import android.content.ContentValues;
 import android.content.Intent;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -25,19 +22,15 @@ import androidx.activity.result.ActivityResultLauncher;
 
 import com.enkiba.app.R;
 import com.enkiba.app.adapters.ProductAutoCompleteAdapter; // Import de l'adaptateur personnalisé
-import com.enkiba.app.database.DatabaseHelper;
-import com.enkiba.app.models.CartItem;
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Product;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItemRow;
-import com.enkiba.app.models.User;
 import com.enkiba.app.modelsDao.ClientDao;
 import com.enkiba.app.modelsDao.HistoryDao;
 import com.enkiba.app.modelsDao.ProductDao;
 import com.enkiba.app.modelsDao.SaleDao;
 import com.enkiba.app.modelsDao.SaleItemDao;
-import com.enkiba.app.modelsDao.UserDao;
 import com.enkiba.app.ui.CartBottomSheet;
 import com.enkiba.app.utils.DatabaseUtils;
 import com.enkiba.app.utils.NavigationHelper;
@@ -80,13 +73,11 @@ public class SellProductActivity extends BaseActivity {
     private RadioGroup radioGroupPayment;
 
     // Database & Logic
-    private DatabaseHelper dbHelper;
     private ProductDao productDao;
     private ClientDao clientDao;
     private SaleDao saleDao;
     private SaleItemDao saleItemDao;
     private HistoryDao historyDao;
-    private UserDao userDao;
     private SessionManager sessionManagerLocal;
     private SynchronizationManager syncManager;
 
@@ -102,12 +93,10 @@ public class SellProductActivity extends BaseActivity {
 
         sessionManagerLocal = new SessionManager(this);
         syncManager = new SynchronizationManager(this);
-        dbHelper = new DatabaseHelper(this);
         productDao = new ProductDao(this);
         clientDao = new ClientDao(this);
         saleDao = new SaleDao(this);
         saleItemDao = new SaleItemDao(this);
-        userDao = new UserDao(this);
         historyDao = new HistoryDao(this);
 
         initViews();
@@ -558,7 +547,8 @@ public class SellProductActivity extends BaseActivity {
             }
         }
 
-        String userId = getCorrectUserId();
+        // Le vendeur est toujours l'utilisateur de la session (profiles.id = auth.users.id)
+        String userId = sessionManagerLocal.getUserId();
         if (userId == null) {
             Toast.makeText(this, "Erreur session", Toast.LENGTH_LONG).show();
             return;
@@ -585,62 +575,7 @@ public class SellProductActivity extends BaseActivity {
         }
         header.setHasNegotiatedPrice(isNegotiated);
 
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
-        db.beginTransaction();
-
-        db.execSQL("PRAGMA foreign_keys = OFF;");
-
-        long saleId = -1;
-        String errorMsg = "";
-
-        try {
-            saleId = saleDao.insertSaleLocally(db, header);
-
-            if (saleId != -1) {
-                for (SaleItemRow row : cartRows) {
-                    saleDao.insertSaleItemLocally(db, row, saleId);
-                    Product p = getProductFromDb(db, row.getProductId());
-                    if (p != null) {
-                        int oldQty = p.getQuantity();
-                        int newQty = oldQty - row.getQuantity();
-
-                        ContentValues prodValues = new ContentValues();
-                        prodValues.put("quantity", newQty);
-                        prodValues.put("sold_quantity", p.getSoldQuantity() + row.getQuantity());
-                        prodValues.put("updated_at", DatabaseUtils.getCurrentIsoTime());
-                        prodValues.put("sync_status", "pending");
-
-                        db.update("products", prodValues, "id = ?", new String[]{String.valueOf(p.getId())});
-
-                        String op = "Vente";
-                        if (p.getPrice() != row.getUnitPrice()) {
-                            op += String.format(" (Négocié: %.0f -> %.0f)", p.getPrice(), row.getUnitPrice());
-                        }
-
-                        ContentValues histValues = new ContentValues();
-                        histValues.put("id", DatabaseUtils.generateTempId());
-                        histValues.put("product_id", p.getId());
-                        histValues.put("user_id", userId);
-                        histValues.put("operation", op);
-                        histValues.put("old_value", "Stock: " + oldQty);
-                        histValues.put("new_value", "Stock: " + newQty);
-                        histValues.put("timestamp", DatabaseUtils.getCurrentIsoTime());
-                        histValues.put("updated_at", DatabaseUtils.getCurrentIsoTime());
-                        histValues.put("sync_status", "pending");
-
-                        db.insert("history", null, histValues);
-                    }
-                }
-                db.setTransactionSuccessful();
-            }
-        } catch (Exception e) {
-            saleId = -1;
-            errorMsg = e.getMessage();
-            Log.e(TAG, "Transaction error: " + errorMsg, e);
-        } finally {
-            db.execSQL("PRAGMA foreign_keys = ON;");
-            db.endTransaction();
-        }
+        long saleId = saleDao.recordSale(header, cartRows);
 
         if (saleId != -1) {
             if (checkEditInvoice.isChecked() && clientObj != null) generateInvoice(saleId, clientObj);
@@ -650,37 +585,8 @@ public class SellProductActivity extends BaseActivity {
             syncManager.startSynchronization();
             reloadActivity();
         } else {
-            Toast.makeText(this, "Erreur: " + errorMsg, Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Erreur lors de l'enregistrement de la vente", Toast.LENGTH_LONG).show();
         }
-    }
-
-    private Product getProductFromDb(SQLiteDatabase db, String productId) {
-        Product p = null;
-        Cursor c = null;
-        try {
-            c = db.rawQuery("SELECT * FROM products WHERE id = ?", new String[]{productId});
-            if (c.moveToFirst()) {
-                p = new Product();
-                p.setId(c.getString(c.getColumnIndexOrThrow("id")));
-                p.setName(c.getString(c.getColumnIndexOrThrow("name")));
-                p.setPrice(c.getDouble(c.getColumnIndexOrThrow("price")));
-                p.setQuantity(c.getInt(c.getColumnIndexOrThrow("quantity")));
-                p.setSoldQuantity(c.getInt(c.getColumnIndexOrThrow("sold_quantity")));
-            }
-        } catch (Exception e) { Log.e(TAG, "Product DB error", e); } finally { if (c != null) c.close(); }
-        return p;
-    }
-
-    private String getCorrectUserId() {
-        String sessionUserId = sessionManagerLocal.getUserId();
-        try {
-            String username = sessionManagerLocal.getUsername();
-            if (username != null && !username.isEmpty()) {
-                User localUser = userDao.getUserByUsername(username);
-                if (localUser != null && localUser.getId() != null) return localUser.getId();
-            }
-        } catch (Exception e) {}
-        return sessionUserId;
     }
 
     private void generateInvoice(long saleId, Client client) {

@@ -131,6 +131,72 @@ public class SaleDao {
         return result;
     }
 
+    /**
+     * Enregistre une vente complète en une seule transaction :
+     * en-tête, lignes, décrément du stock local et entrée d'historique par produit.
+     * Le stock peut devenir négatif (vente hors ligne concurrente) : c'est voulu.
+     *
+     * @return l'id de la vente, ou -1 en cas d'échec (rien n'est écrit).
+     */
+    public long recordSale(SaleHeader header, List<SaleItemRow> rows) {
+        if (rows == null || rows.isEmpty()) return -1;
+
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        long saleId = -1;
+        db.beginTransaction();
+        try {
+            saleId = insertSaleLocally(db, header);
+            if (saleId == -1) throw new IllegalStateException("insertion de l'en-tête impossible");
+
+            String now = DatabaseUtils.getCurrentIsoTime();
+            for (SaleItemRow row : rows) {
+                if (insertSaleItemLocally(db, row, saleId) == -1) {
+                    throw new IllegalStateException("insertion de la ligne impossible : " + row.getProductName());
+                }
+
+                // Lecture du produit dans la transaction (stock avant vente, prix catalogue)
+                int oldQty = 0;
+                double listPrice = row.getUnitPrice();
+                try (Cursor c = db.rawQuery("SELECT quantity, price FROM " + TABLE_PRODUCTS + " WHERE id = ?",
+                        new String[]{row.getProductId()})) {
+                    if (!c.moveToFirst()) continue; // produit supprimé entre-temps : la ligne reste
+                    oldQty = c.getInt(0);
+                    listPrice = c.getDouble(1);
+                }
+                int newQty = oldQty - row.getQuantity();
+
+                db.execSQL("UPDATE " + TABLE_PRODUCTS + " SET quantity = ?, sold_quantity = sold_quantity + ?, "
+                                + DatabaseHelper.COL_UPDATED_AT + " = ?, " + DatabaseHelper.COL_SYNC_STATUS + " = 'pending' WHERE id = ?",
+                        new Object[]{newQty, row.getQuantity(), now, row.getProductId()});
+
+                String op = "Vente";
+                if (listPrice != row.getUnitPrice()) {
+                    op += String.format(java.util.Locale.US, " (Négocié: %.0f -> %.0f)", listPrice, row.getUnitPrice());
+                }
+                ContentValues hist = new ContentValues();
+                hist.put("id", DatabaseUtils.generateTempId());
+                hist.put("product_id", row.getProductId());
+                hist.put("user_id", header.getUserId());
+                hist.put("operation", op);
+                hist.put("old_value", "Stock: " + oldQty);
+                hist.put("new_value", "Stock: " + newQty);
+                hist.put("timestamp", now);
+                hist.put(DatabaseHelper.COL_UPDATED_AT, now);
+                hist.put(DatabaseHelper.COL_SYNC_STATUS, "pending");
+                if (db.insert(DatabaseHelper.TABLE_HISTORY, null, hist) == -1) {
+                    throw new IllegalStateException("insertion de l'historique impossible");
+                }
+            }
+            db.setTransactionSuccessful();
+        } catch (Exception e) {
+            Log.e(TAG, "recordSale : " + e.getMessage(), e);
+            saleId = -1;
+        } finally {
+            db.endTransaction();
+        }
+        return saleId;
+    }
+
     // ----------------------------------------------------------------------
     // --- GESTION DES RETOURS ET MISES À JOUR ---
     // ----------------------------------------------------------------------

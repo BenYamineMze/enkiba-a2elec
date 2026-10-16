@@ -58,8 +58,6 @@
             android:windowSoftInputMode="adjustNothing|stateHidden"/>
         <activity android:name=".activities.ProductHistoryActivity"
             android:windowSoftInputMode="adjustNothing|stateHidden"/>
-        <activity android:name=".activities.CartActivity"
-            android:windowSoftInputMode="adjustNothing|stateHidden"/>
 
         <activity android:name=".activities.SaleDetailsActivity"
             android:windowSoftInputMode="adjustNothing|stateHidden"/>
