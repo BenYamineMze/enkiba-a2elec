@@ -15,7 +15,6 @@ import com.enkiba.app.modelsDao.ProductDao;
 import com.enkiba.app.modelsDao.SyncDao;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -140,17 +139,9 @@ public class SynchronizationManager {
             Log.e(TAG, "Erreur PUSH clients : " + e.getMessage(), e);
         }
 
-        // Produits : on sépare les créations/modifications des suppressions
+        // Produits (les suppressions sont logiques : deleted_at est envoyé avec le reste)
         try {
-            List<Product> pendingProducts = syncDao.getPendingProducts();
-            List<Product> toUpsert = new ArrayList<>();
-            List<Product> toDelete = new ArrayList<>();
-            for (Product p : pendingProducts) {
-                if ("deleted".equalsIgnoreCase(p.getSyncStatus())) toDelete.add(p);
-                else toUpsert.add(p);
-            }
-            pushProductTableSync(toUpsert);
-            pushDeletedProductsSync(toDelete);
+            pushProductTableSync(syncDao.getPendingProducts());
         } catch (Exception e) {
             Log.e(TAG, "Erreur PUSH produits : " + e.getMessage(), e);
         }
@@ -246,41 +237,23 @@ public class SynchronizationManager {
         String prefer = "resolution=merge-duplicates, return=representation";
         for (Product p : products) {
             Map<String, Object> map = new HashMap<>();
-            if (p.getId() != null) map.put("id", p.getId());
+            map.put("id", p.getId());
+            map.put("shop_id", p.getShopId() != null ? p.getShopId() : sessionManager.getShopId());
             map.put("name", p.getName());
             map.put("category", p.getCategory());
             map.put("quantity", p.getQuantity());
-            map.put("sold_quantity", p.getSoldQuantity()); // n'existe plus en v2 (étape 4)
             map.put("price", p.getPrice());
             map.put("description", p.getDescription());
             map.put("qr_code", p.getQr_code());
             map.put("initial_stock", p.getInitial_stock());
             map.put("low_stock_threshold", p.getLowStockThreshold());
-            map.put("updated_at", p.getUpdatedAt());
+            map.put("deleted_at", p.getDeletedAt());
 
             Response<List<Product>> res = supabaseService.upsertProductAsMap(prefer, map).execute();
             if (res.isSuccessful()) {
                 syncDao.markProductAsSynced(p.getId());
             } else {
                 logFailure("produit " + p.getId(), res);
-            }
-        }
-    }
-
-    /** Supprime côté serveur les produits supprimés localement, puis les efface du téléphone. */
-    private void pushDeletedProductsSync(List<Product> products) {
-        for (Product p : products) {
-            Map<String, Object> body = new HashMap<>();
-            body.put("product_id_to_delete", p.getId());
-            try {
-                Response<Void> response = supabaseService.deleteProductRemote(body).execute();
-                if (response.isSuccessful()) {
-                    productDao.deleteProductPhysically(p.getId());
-                } else {
-                    logFailure("suppression produit " + p.getId(), response);
-                }
-            } catch (IOException e) {
-                Log.e(TAG, "Exception suppression produit : " + e.getMessage());
             }
         }
     }

@@ -129,13 +129,6 @@ public interface SupabaseService {
     @POST("rest/v1/sale_items")
     Call<Void> upsertSaleItemMap(@Header("Prefer") String prefer, @Body Map<String, Object> itemMap);
 
-    // ======================================================================
-    // 5. SUPPRESSION
-    // ======================================================================
-
-    @POST("rest/v1/rpc/delete_product_by_id")
-    Call<Void> deleteProductRemote(@Body Map<String, Object> body);
-
     @GET("rest/v1/shop_members")
     Call<List<ShopMember>> getShopMember(
             @Query("shop_id") String shopIdFilter,

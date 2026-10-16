@@ -42,19 +42,20 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     @Override
     public void onCreate(SQLiteDatabase db) {
 
-        // 1. TABLE PRODUCTS
+        // 1. TABLE PRODUCTS (id = UUID ; la quantité vendue se calcule depuis sale_items)
         String CREATE_PRODUCTS_TABLE = "CREATE TABLE " + TABLE_PRODUCTS + " (" +
                 COL_ID + " TEXT PRIMARY KEY, " +
+                COL_SHOP_ID + " TEXT, " +
                 COL_NAME + " TEXT NOT NULL, " +
                 "category TEXT NOT NULL, " +
                 "quantity INTEGER NOT NULL, " +
-                "sold_quantity INTEGER DEFAULT 0, " +
                 "price REAL NOT NULL, " +
                 "description TEXT, " +
                 QR_CODE + " TEXT, " +
-                INIT_QUANTITY + " TEXT, " +
-                COL_LOW_STOCK_THRESHOLD + " INTEGER DEFAULT 5," +
+                INIT_QUANTITY + " INTEGER NOT NULL DEFAULT 0, " +
+                COL_LOW_STOCK_THRESHOLD + " INTEGER NOT NULL DEFAULT 5, " +
                 COL_UPDATED_AT + " TEXT NOT NULL, " +
+                COL_DELETED_AT + " TEXT, " +
                 COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'" +
                 ")";
         db.execSQL(CREATE_PRODUCTS_TABLE);

@@ -179,9 +179,9 @@ public class SaleDao {
                 if (!found[i]) continue; // produit supprimé entre-temps : la ligne reste
 
                 int newQty = oldQty[i] - row.getQuantity();
-                db.execSQL("UPDATE " + TABLE_PRODUCTS + " SET quantity = ?, sold_quantity = sold_quantity + ?, "
+                db.execSQL("UPDATE " + TABLE_PRODUCTS + " SET quantity = ?, "
                                 + DatabaseHelper.COL_UPDATED_AT + " = ?, " + DatabaseHelper.COL_SYNC_STATUS + " = 'pending' WHERE id = ?",
-                        new Object[]{newQty, row.getQuantity(), now, row.getProductId()});
+                        new Object[]{newQty, now, row.getProductId()});
 
                 String op = "Vente";
                 if (listPrice[i] != row.getUnitPrice()) {

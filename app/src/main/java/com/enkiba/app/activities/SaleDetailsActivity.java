@@ -225,7 +225,6 @@ public class SaleDetailsActivity extends BaseActivity {
         Product product = productDao.getProductById(item.getProductId());
         if (product != null) {
             product.setQuantity(product.getQuantity() + qtyToReturn);
-            product.setSoldQuantity(Math.max(0, product.getSoldQuantity() - qtyToReturn));
             productDao.updateProduct(product);
         }
 

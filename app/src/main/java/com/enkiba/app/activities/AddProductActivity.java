@@ -123,7 +123,7 @@ public class AddProductActivity extends BaseActivity {
 
             // B. Création de l'objet Produit
             // [NOTE] Le constructeur de Product génère maintenant automatiquement l'ID (UUID)
-            Product product = new Product(name, category, quantity, price, description, 0, 5, quantity);
+            Product product = new Product(name, category, quantity, price, description, 5, quantity);
 
             // CORRECTION: On définit le QR Code sur l'objet avant insertion
             product.setQr_code(stableQrCode);
