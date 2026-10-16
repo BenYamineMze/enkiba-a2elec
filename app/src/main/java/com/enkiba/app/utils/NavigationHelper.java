@@ -4,10 +4,10 @@ import android.app.Activity;
 import android.content.Intent;
 import com.enkiba.app.R;
 import com.enkiba.app.activities.HistoryActivity;
-import com.enkiba.app.activities.ProductListActivity;
 import com.enkiba.app.activities.StatisticsActivity;
 import com.enkiba.app.activities.UserManagementActivity;
 import com.enkiba.app.ui.home.HomeActivity;
+import com.enkiba.app.ui.products.ProductsActivity;
 import com.enkiba.app.ui.sale.SaleActivity;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
@@ -38,8 +38,8 @@ public class NavigationHelper {
                 return true;
             }
             else if (id == R.id.nav_inventory) {
-                if (!(activity instanceof ProductListActivity))
-                    activity.startActivity(new Intent(activity, ProductListActivity.class));
+                if (!(activity instanceof ProductsActivity))
+                    activity.startActivity(new Intent(activity, ProductsActivity.class));
                 return true;
             }
             /*
