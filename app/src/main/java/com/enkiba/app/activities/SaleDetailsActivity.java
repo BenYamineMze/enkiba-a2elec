@@ -22,8 +22,6 @@ import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItemRow;
 import com.enkiba.app.models.User;
 import com.enkiba.app.modelsDao.ClientDao;
-import com.enkiba.app.modelsDao.HistoryDao;
-import com.enkiba.app.modelsDao.ProductDao;
 import com.enkiba.app.modelsDao.SaleDao;
 import com.enkiba.app.modelsDao.UserDao;
 import com.enkiba.app.utils.CurrencyUtils;
@@ -47,8 +45,6 @@ public class SaleDetailsActivity extends BaseActivity {
     private SaleDao saleDao;
     private ClientDao clientDao;
     private UserDao userDao;
-    private ProductDao productDao;
-    private HistoryDao historyDao;
 
     // Managers
     private SessionManager sessionManager;
@@ -69,8 +65,6 @@ public class SaleDetailsActivity extends BaseActivity {
         this.saleDao = new SaleDao(this);
         this.clientDao = new ClientDao(this);
         this.userDao = new UserDao(this);
-        this.productDao = new ProductDao(this);
-        this.historyDao = new HistoryDao(this);
         this.sessionManager = new SessionManager(this);
         this.syncManager = new SynchronizationManager(this);
 
@@ -122,7 +116,12 @@ public class SaleDetailsActivity extends BaseActivity {
         tvSaleId.setText("Vente #" + currentSale.getShortRef());
         tvSaleDate.setText("Date : " + CurrencyUtils.formatSaleDate(currentSale.getSaleDate()));
         tvPayment.setText("Paiement : " + currentSale.getPaymentMethod());
-        tvTotal.setText("Total : " + CurrencyUtils.formatKMF(currentSale.getTotalPrice()));
+        if (currentSale.getRefundedAmount() > 0) {
+            tvTotal.setText("Total : " + CurrencyUtils.formatKMF(currentSale.getNetTotal())
+                    + " (remboursé : " + CurrencyUtils.formatKMF(currentSale.getRefundedAmount()) + ")");
+        } else {
+            tvTotal.setText("Total : " + CurrencyUtils.formatKMF(currentSale.getTotalPrice()));
+        }
 
         // --- Info Client ---
         if (currentSale.getClientId() != null) {
@@ -181,7 +180,7 @@ public class SaleDetailsActivity extends BaseActivity {
         Button btnCancel = view.findViewById(R.id.btnCancel);
 
         tvName.setText(item.getProductName());
-        tvMax.setText("Quantité achetée : " + item.getQuantity());
+        tvMax.setText("Quantité retournable : " + item.getQuantity());
 
         btnConfirm.setOnClickListener(v -> {
             String qtyStr = edtQty.getText().toString().trim();
@@ -193,7 +192,7 @@ public class SaleDetailsActivity extends BaseActivity {
                 if (qtyToReturn <= 0) {
                     Toast.makeText(this, "Quantité invalide", Toast.LENGTH_SHORT).show();
                 } else if (qtyToReturn > item.getQuantity()) {
-                    Toast.makeText(this, "Impossible de retourner plus que la quantité achetée", Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, "Impossible de retourner plus que la quantité restante", Toast.LENGTH_LONG).show();
                 } else {
                     processProductReturn(item, qtyToReturn);
                     dialog.dismiss();
@@ -208,38 +207,15 @@ public class SaleDetailsActivity extends BaseActivity {
     }
 
     private void processProductReturn(SaleItemRow item, int qtyToReturn) {
-
-        // 1. 🔐 Retour sécurisé (RÈGLE MÉTIER)
-        boolean success = saleDao.processReturn(
-                item.getId(),      // ID sale_items
-                qtyToReturn        // quantité retournée
-        );
-
-        if (!success) {
+        // Retour, remise en stock locale et historique en une transaction ;
+        // la vente d'origine n'est pas modifiée (le remboursement est déduit à l'affichage)
+        double refund = saleDao.processReturn(item.getId(), qtyToReturn, sessionManager.getUserId());
+        if (refund < 0) {
             Toast.makeText(this, "Retour refusé (quantité invalide)", Toast.LENGTH_LONG).show();
             return;
         }
 
-        // 2. 📦 Mise à jour du stock produit
-        productDao.addLocalQuantity(item.getProductId(), qtyToReturn);
-
-        // 3. 💰 Mise à jour du total de la vente
-        double refundAmount = qtyToReturn * item.getUnitPrice();
-        currentSale.setTotalPrice(currentSale.getTotalPrice() - refundAmount);
-        saleDao.updateSaleHeader(currentSale);
-
-        // 4. 🕒 Historique
-        historyDao.insertHistory(
-                item.getProductId(),
-                sessionManager.getUserId(),
-                "RETOUR CLIENT",
-                "+" + qtyToReturn + " en stock",
-                "Remboursement: " + CurrencyUtils.formatKMF(refundAmount)
-        );
-
-        Toast.makeText(this, "Retour effectué ✅", Toast.LENGTH_SHORT).show();
-
-        // 5. 🔄 Rafraîchissement
+        Toast.makeText(this, "Retour effectué ✅ (" + CurrencyUtils.formatKMF(refund) + " remboursés)", Toast.LENGTH_SHORT).show();
         syncManager.startSynchronization();
         loadSaleData();
     }
@@ -270,14 +246,16 @@ public class SaleDetailsActivity extends BaseActivity {
 
             holder.tvName.setText(item.getProductName());
 
-            // Formatage : "3 x 500 KMF"
+            // Formatage : "3 x 500 KMF" (quantité nette), et ce qui a été retourné
             String details = item.getQuantity() + " x " + CurrencyUtils.formatKMF(item.getUnitPrice());
+            if (item.getReturnedQuantity() > 0) details += " (" + item.getReturnedQuantity() + " retourné)";
             holder.tvDetails.setText(details);
 
             holder.tvTotal.setText(CurrencyUtils.formatKMF(item.getTotal()));
 
-            // Clic sur le bouton "Retourner"
+            // Clic sur le bouton "Retourner" (masqué quand tout a été retourné)
             if (holder.btnReturn != null) {
+                holder.btnReturn.setVisibility(item.getQuantity() > 0 ? View.VISIBLE : View.GONE);
                 holder.btnReturn.setOnClickListener(v -> showReturnDialog(item));
             }
         }

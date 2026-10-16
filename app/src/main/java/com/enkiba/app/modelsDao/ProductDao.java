@@ -32,11 +32,16 @@ public class ProductDao {
     // Produits actifs (suppression logique)
     private static final String ACTIVE = "p." + DatabaseHelper.COL_DELETED_AT + " IS NULL";
 
-    // Produit + quantité vendue (lignes de ventes non supprimées), exposée sous le nom sold_quantity
+    // Produit + quantité vendue nette (lignes de ventes non supprimées moins les retours),
+    // exposée sous le nom sold_quantity
     private static final String SELECT_WITH_SOLD =
-            "SELECT p.*, COALESCE((SELECT SUM(si.quantity) FROM " + DatabaseHelper.TABLE_SALE_ITEMS + " si " +
+            "SELECT p.*, " +
+            "COALESCE((SELECT SUM(si.quantity) FROM " + DatabaseHelper.TABLE_SALE_ITEMS + " si " +
             "JOIN " + DatabaseHelper.TABLE_SALES + " s ON s.id = si.sale_id " +
-            "WHERE si.product_id = p.id AND s." + DatabaseHelper.COL_DELETED_AT + " IS NULL), 0) AS sold_quantity " +
+            "WHERE si.product_id = p.id AND s." + DatabaseHelper.COL_DELETED_AT + " IS NULL), 0) - " +
+            "COALESCE((SELECT SUM(r.quantity) FROM " + DatabaseHelper.TABLE_SALE_RETURNS + " r " +
+            "JOIN " + DatabaseHelper.TABLE_SALES + " s ON s.id = r.sale_id " +
+            "WHERE r.product_id = p.id AND s." + DatabaseHelper.COL_DELETED_AT + " IS NULL), 0) AS sold_quantity " +
             "FROM " + TABLE_PRODUCTS + " p ";
 
     public ProductDao(Context context) {
@@ -262,7 +267,7 @@ public class ProductDao {
 
     /**
      * Écart entre le stock local et le stock serveur dû aux opérations locales
-     * pas encore envoyées : mouvements en attente, ventes en attente.
+     * pas encore envoyées : mouvements, ventes et retours en attente.
      */
     private int pendingLocalDelta(SQLiteDatabase db, String productId) {
         int delta = 0;
@@ -273,6 +278,10 @@ public class ProductDao {
         try (Cursor c = db.rawQuery("SELECT COALESCE(SUM(quantity), 0) FROM " + DatabaseHelper.TABLE_SALE_ITEMS
                 + " WHERE product_id = ? AND " + DatabaseHelper.COL_SYNC_STATUS + " = 'pending'", new String[]{productId})) {
             if (c.moveToFirst()) delta -= c.getInt(0);
+        }
+        try (Cursor c = db.rawQuery("SELECT COALESCE(SUM(quantity), 0) FROM " + DatabaseHelper.TABLE_SALE_RETURNS
+                + " WHERE product_id = ? AND " + DatabaseHelper.COL_SYNC_STATUS + " = 'pending'", new String[]{productId})) {
+            if (c.moveToFirst()) delta += c.getInt(0);
         }
         return delta;
     }

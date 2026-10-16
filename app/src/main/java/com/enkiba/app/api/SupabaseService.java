@@ -8,6 +8,7 @@ import com.enkiba.app.models.ProductHistory;
 import com.enkiba.app.models.Profile;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItem;
+import com.enkiba.app.models.SaleReturn;
 import com.enkiba.app.models.ShopMember;
 import com.google.gson.JsonObject;
 
@@ -80,6 +81,11 @@ public interface SupabaseService {
             @Query("updated_at") String filterTime,
             @Query("select") String selectFields);
 
+    @GET("rest/v1/sale_returns")
+    Call<List<SaleReturn>> getSaleReturnsSince(
+            @Query("updated_at") String filterTime,
+            @Query("select") String selectFields);
+
     @GET("rest/v1/history")
     Call<List<ProductHistory>> getHistorySince(
             @Query("updated_at") String filterTime,
@@ -128,6 +134,10 @@ public interface SupabaseService {
     @Headers("Content-Type: application/json")
     @POST("rest/v1/sale_items")
     Call<Void> upsertSaleItemMap(@Header("Prefer") String prefer, @Body Map<String, Object> itemMap);
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/sale_returns")
+    Call<Void> insertSaleReturn(@Header("Prefer") String prefer, @Body Map<String, Object> saleReturn);
 
     @Headers("Content-Type: application/json")
     @POST("rest/v1/stock_movements")

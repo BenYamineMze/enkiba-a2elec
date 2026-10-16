@@ -70,7 +70,7 @@ public class SaleHeaderAdapter extends RecyclerView.Adapter<SaleHeaderAdapter.Sa
         holder.tvPayment.setText("Paiement : " + payment);
 
         holder.tvTotal.setText(
-                "Total : " + new DecimalFormat("0.00").format(header.getTotalPrice()) + " KMF"
+                "Total : " + new DecimalFormat("0.00").format(header.getNetTotal()) + " KMF"
         );
 
         // --- GESTION DU BADGE ROUGE "PRIX NÉGOCIÉ" ---

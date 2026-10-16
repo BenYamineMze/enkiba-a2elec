@@ -46,6 +46,8 @@ public class SaleHeader implements Serializable {
 
     // --- Champs locaux (affichage / synchro) ---
     private transient String username;
+    // Somme des remboursements (retours) : la vente d'origine n'est jamais modifiée
+    private transient double refundedAmount;
     private transient String syncStatus;
 
     /** Nouvelle vente : l'UUID est généré immédiatement. */
@@ -98,6 +100,12 @@ public class SaleHeader implements Serializable {
 
     public String getDeletedAt() { return deletedAt; }
     public void setDeletedAt(String deletedAt) { this.deletedAt = deletedAt; }
+
+    public double getRefundedAmount() { return refundedAmount; }
+    public void setRefundedAmount(double refundedAmount) { this.refundedAmount = refundedAmount; }
+
+    /** Montant réellement encaissé : total de la vente moins les remboursements. */
+    public double getNetTotal() { return totalPrice - refundedAmount; }
 
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }

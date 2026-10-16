@@ -13,7 +13,8 @@ public class SaleItemRow implements Serializable {
     private double unitPrice;
     private int quantity;
     private double total;
-    private int initial_quantity;
+    // Quantité déjà retournée (quantity est la quantité nette, après retours)
+    private int returnedQuantity;
 
     public SaleItemRow() {}
 
@@ -63,11 +64,11 @@ public class SaleItemRow implements Serializable {
         this.total = total;
     }
 
-    public int getInitialQuantity() {
-        return initial_quantity;
+    public int getReturnedQuantity() {
+        return returnedQuantity;
     }
 
-    public void setInitialQuantity(int initial_quantity) {
-        this.initial_quantity = initial_quantity;
+    public void setReturnedQuantity(int returnedQuantity) {
+        this.returnedQuantity = returnedQuantity;
     }
 }

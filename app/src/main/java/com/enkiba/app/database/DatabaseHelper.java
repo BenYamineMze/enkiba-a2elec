@@ -12,7 +12,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String DATABASE_NAME = "stock.db";
     // v7 : schéma aligné sur Supabase v2 (UUID TEXT, shop_id, deleted_at, plus d'archives)
     // v8 : table stock_movements (mouvements saisis localement, en attente d'envoi)
-    private static final int DATABASE_VERSION = 8;
+    // v9 : table sale_returns ; sale_items n'a plus de initial_quantity (lignes immuables)
+    private static final int DATABASE_VERSION = 9;
 
     // --- CONSTANTES DE COLONNES INTERNES ---
     private static final String COL_ID = "id";
@@ -35,6 +36,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String TABLE_SALE_ITEMS = "sale_items";
     public static final String TABLE_HISTORY = "history";
     public static final String TABLE_STOCK_MOVEMENTS = "stock_movements";
+    public static final String TABLE_SALE_RETURNS = "sale_returns";
 
 
     public DatabaseHelper(Context context) {
@@ -118,7 +120,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX idx_sales_date ON " + TABLE_SALES + "(sale_date)");
 
         // 5. TABLE SALE_ITEMS (copie du nom et du prix catalogue au moment de la vente)
-        // initial_quantity est purement local : les retours ne sont pas encore synchronisés.
+        // Une ligne n'est jamais modifiée : les retours vont dans sale_returns.
         String CREATE_SALE_ITEMS = "CREATE TABLE " + TABLE_SALE_ITEMS + " (" +
                 "id TEXT PRIMARY KEY, " +
                 COL_SHOP_ID + " TEXT, " +
@@ -126,7 +128,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 "product_id TEXT NOT NULL, " +
                 "product_name TEXT NOT NULL, " +
                 "quantity INTEGER NOT NULL, " +
-                "initial_quantity INTEGER NOT NULL, " +
                 "list_price REAL NOT NULL, " +
                 "unit_price REAL NOT NULL, " +
                 "total_price REAL NOT NULL, " +
@@ -166,6 +167,24 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'pending'" +
                 ")";
         db.execSQL(CREATE_STOCK_MOVEMENTS);
+
+        // 8. TABLE SALE_RETURNS : un retour par ligne, la vente d'origine reste intacte
+        String CREATE_SALE_RETURNS = "CREATE TABLE " + TABLE_SALE_RETURNS + " (" +
+                "id TEXT PRIMARY KEY, " +
+                COL_SHOP_ID + " TEXT, " +
+                "sale_id TEXT NOT NULL, " +
+                "sale_item_id TEXT NOT NULL, " +
+                "product_id TEXT NOT NULL, " +
+                "quantity INTEGER NOT NULL, " +
+                "refund_amount REAL NOT NULL, " +
+                "created_by TEXT, " +
+                "created_at TEXT NOT NULL, " +
+                COL_UPDATED_AT + " TEXT, " +
+                COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'pending'" +
+                ")";
+        db.execSQL(CREATE_SALE_RETURNS);
+        db.execSQL("CREATE INDEX idx_sale_returns_item ON " + TABLE_SALE_RETURNS + "(sale_item_id)");
+        db.execSQL("CREATE INDEX idx_sale_returns_sale ON " + TABLE_SALE_RETURNS + "(sale_id)");
     }
 
     @Override
@@ -181,6 +200,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_CLIENTS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_SALE_ITEMS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_STOCK_MOVEMENTS);
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_SALE_RETURNS);
         db.execSQL("DROP TABLE IF EXISTS sale_items_archive"); // table v1 obsolète
         db.execSQL("DROP TABLE IF EXISTS sale_archive"); // table v1 obsolète
 

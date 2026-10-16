@@ -11,6 +11,7 @@ import com.enkiba.app.models.Product;
 import com.enkiba.app.models.ProductHistory;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItem;
+import com.enkiba.app.models.SaleReturn;
 import com.enkiba.app.models.StockMovement;
 import com.enkiba.app.modelsDao.ProductDao;
 import com.enkiba.app.modelsDao.SyncDao;
@@ -202,6 +203,13 @@ public class SynchronizationManager {
             Log.e(TAG, "Erreur PUSH ventes : " + e.getMessage(), e);
         }
 
+        // Retours (après les lignes de vente qu'ils référencent)
+        try {
+            pushSaleReturnsSync(syncDao.getPendingSaleReturns());
+        } catch (Exception e) {
+            Log.e(TAG, "Erreur PUSH retours : " + e.getMessage(), e);
+        }
+
         // Historique des produits
         try {
             pushHistoryTableSync(syncDao.getPendingHistory());
@@ -329,6 +337,31 @@ public class SynchronizationManager {
         }
     }
 
+    /**
+     * Envoie les retours. Le serveur revérifie la quantité retournable et remet le stock
+     * (mouvement 'sale_cancel'). Rejouer un envoi est sans effet (même id, doublon ignoré).
+     */
+    private void pushSaleReturnsSync(List<SaleReturn> returns) throws Exception {
+        for (SaleReturn r : returns) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", r.getId());
+            map.put("shop_id", r.getShopId() != null ? r.getShopId() : sessionManager.getShopId());
+            map.put("sale_id", r.getSaleId());
+            map.put("sale_item_id", r.getSaleItemId());
+            map.put("product_id", r.getProductId());
+            map.put("quantity", r.getQuantity());
+            map.put("refund_amount", r.getRefundAmount());
+            map.put("created_by", r.getCreatedBy() != null ? r.getCreatedBy() : sessionManager.getUserId());
+
+            Response<Void> res = supabaseService.insertSaleReturn(PREFER_IGNORE_DUPLICATES, map).execute();
+            if (res.isSuccessful()) {
+                syncDao.markSaleReturnAsSynced(r.getId());
+            } else {
+                logFailure("retour " + r.getId(), res);
+            }
+        }
+    }
+
     /** Envoie le journal des opérations sur les produits. */
     private void pushHistoryTableSync(List<ProductHistory> histories) throws Exception {
         if (histories.isEmpty()) return;
@@ -399,6 +432,14 @@ public class SynchronizationManager {
             Response<List<SaleItem>> respItems = supabaseService.getSaleItemsSince(filterDate, selectAll).execute();
             if (respItems.isSuccessful() && respItems.body() != null) {
                 for (SaleItem i : respItems.body()) syncDao.upsertSaleItem(i);
+            }
+
+            // Retours
+            Response<List<SaleReturn>> respReturns = supabaseService.getSaleReturnsSince(filterDate, selectAll).execute();
+            if (respReturns.isSuccessful() && respReturns.body() != null) {
+                for (SaleReturn r : respReturns.body()) syncDao.upsertSaleReturn(r);
+            } else {
+                logFailure("pull retours", respReturns);
             }
 
             // Historique (la table "history" n'existe plus en v2 : réponse 404 attendue jusqu'à l'étape 4)
