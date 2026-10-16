@@ -2,13 +2,21 @@ package com.enkiba.app.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.enkiba.app.R
 
-// Une seule famille : Plus Jakarta Sans (maquettes v2).
-// TODO : ajouter les fichiers de police dans res/font et remplacer FontFamily.Default.
-val EnkibaFontFamily: FontFamily = FontFamily.Default
+// Une seule famille : Plus Jakarta Sans (maquettes v2), fichiers statiques embarqués
+// (licence OFL : third_party/fonts). Statiques plutôt que variable : minSdk 24.
+val EnkibaFontFamily: FontFamily = FontFamily(
+    Font(R.font.plus_jakarta_sans_regular, FontWeight.Normal),
+    Font(R.font.plus_jakarta_sans_medium, FontWeight.Medium),
+    Font(R.font.plus_jakarta_sans_semibold, FontWeight.SemiBold),
+    Font(R.font.plus_jakarta_sans_bold, FontWeight.Bold),
+    Font(R.font.plus_jakarta_sans_extrabold, FontWeight.ExtraBold),
+)
 
 private fun style(size: Int, weight: FontWeight, letterSpacing: Double = 0.0, lineHeight: Int = (size * 1.3).toInt()) =
     TextStyle(
