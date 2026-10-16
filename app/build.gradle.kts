@@ -5,12 +5,14 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.room)
+    alias(libs.plugins.kotlin.compose)
 }
 
 android {
 
     buildFeatures {
         buildConfig = true
+        compose = true
     }
 
     namespace = "com.enkiba.app"
@@ -97,6 +99,19 @@ dependencies {
 
 
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // Interface : Jetpack Compose (Material 3)
+    val composeBom = platform(libs.compose.bom)
+    implementation(composeBom)
+    implementation(libs.compose.ui)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.material.icons)
+    implementation(libs.compose.ui.tooling.preview)
+    implementation(libs.activity.compose)
+    implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.lifecycle.runtime.compose)
+    debugImplementation(libs.compose.ui.tooling)
 
     // Base locale : Room (entités et DAO en Kotlin)
     implementation(libs.room.runtime)
