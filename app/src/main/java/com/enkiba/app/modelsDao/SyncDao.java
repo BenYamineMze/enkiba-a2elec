@@ -74,6 +74,7 @@ public class SyncDao {
     public void markProductAsSynced(String id) { productDao.markProductAsSynced(id); }
     public void markClientAsSynced(String id) { clientDao.markClientAsSynced(id); }
     public void markSaleAsSynced(String id) { saleDao.markSaleAsSynced(id); }
+    public void discardRejectedQuoteSale(String saleId, String quoteId) { saleDao.discardRejectedQuoteSale(saleId, quoteId); }
     public void markSaleItemAsSynced(String id) { saleItemDao.markSaleItemAsSynced(id); }
     public void markHistoryAsSynced(String id) { historyDao.markHistoryAsSynced(id); }
     public void markStockMovementAsSynced(String id) { stockMovementDao.markMovementAsSynced(id); }

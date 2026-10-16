@@ -232,8 +232,14 @@ public class SynchronizationManager {
             Response<Void> res = supabaseService.insertSale(prefer, map).execute();
             if (res.isSuccessful()) {
                 syncDao.markSaleAsSynced(s.getId());
+                continue;
+            }
+            String error = readError(res);
+            if (res.code() == 409 && s.getSourceQuoteId() != null && error.contains("sales_source_quote_uniq")) {
+                // Devis déjà converti sur un autre téléphone : cette vente est annulée localement
+                syncDao.discardRejectedQuoteSale(s.getId(), s.getSourceQuoteId());
             } else {
-                logFailure("vente " + s.getId(), res);
+                Log.e(TAG, "Échec vente " + s.getId() + " (code " + res.code() + ") " + error);
             }
         }
     }
@@ -585,10 +591,14 @@ public class SynchronizationManager {
 
     /** Journalise un échec HTTP avec le code et le message d'erreur renvoyé par le serveur. */
     private void logFailure(String what, Response<?> res) {
-        String body = "";
+        Log.e(TAG, "Échec " + what + " (code " + res.code() + ") " + readError(res));
+    }
+
+    /** Corps de l'erreur renvoyée par le serveur (lisible une seule fois). */
+    private static String readError(Response<?> res) {
         try {
-            if (res.errorBody() != null) body = res.errorBody().string();
+            if (res.errorBody() != null) return res.errorBody().string();
         } catch (IOException ignored) { }
-        Log.e(TAG, "Échec " + what + " (code " + res.code() + ") " + body);
+        return "";
     }
 }

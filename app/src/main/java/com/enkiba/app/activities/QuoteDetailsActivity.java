@@ -14,12 +14,15 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.enkiba.app.R;
 import com.enkiba.app.models.Client;
+import com.enkiba.app.models.Product;
 import com.enkiba.app.models.Quote;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItemRow;
 import com.enkiba.app.models.User;
 import com.enkiba.app.modelsDao.ClientDao;
+import com.enkiba.app.modelsDao.ProductDao;
 import com.enkiba.app.modelsDao.QuoteDao;
+import com.enkiba.app.modelsDao.SaleDao;
 import com.enkiba.app.modelsDao.UserDao;
 import com.enkiba.app.utils.CurrencyUtils;
 import com.enkiba.app.utils.DatabaseUtils;
@@ -46,6 +49,8 @@ public class QuoteDetailsActivity extends BaseActivity {
     private View layoutStatusActions;
 
     private QuoteDao quoteDao;
+    private SaleDao saleDao;
+    private ProductDao productDao;
     private ClientDao clientDao;
     private UserDao userDao;
     private SynchronizationManager syncManager;
@@ -61,6 +66,8 @@ public class QuoteDetailsActivity extends BaseActivity {
         setContentView(R.layout.activity_quote_details);
 
         quoteDao = new QuoteDao(this);
+        saleDao = new SaleDao(this);
+        productDao = new ProductDao(this);
         clientDao = new ClientDao(this);
         userDao = new UserDao(this);
         syncManager = new SynchronizationManager(this);
@@ -101,6 +108,7 @@ public class QuoteDetailsActivity extends BaseActivity {
         if (back != null) back.setOnClickListener(v -> finish());
 
         btnPdf.setOnClickListener(v -> generatePdf());
+        btnConvert.setOnClickListener(v -> startConversion());
         btnAccept.setOnClickListener(v -> changeStatus(Quote.STATUS_ACCEPTED, "accepté"));
         btnReject.setOnClickListener(v -> changeStatus(Quote.STATUS_REJECTED, "refusé"));
         btnDelete.setOnClickListener(v -> confirmDelete());
@@ -147,7 +155,7 @@ public class QuoteDetailsActivity extends BaseActivity {
         btnAccept.setEnabled(!Quote.STATUS_ACCEPTED.equals(quote.getStatus()));
         btnReject.setEnabled(!Quote.STATUS_REJECTED.equals(quote.getStatus()));
         btnDelete.setVisibility(canEdit && !converted ? View.VISIBLE : View.GONE);
-        btnConvert.setVisibility(View.GONE); // conversion : commit suivant
+        btnConvert.setVisibility(canEdit && quote.isConvertible() ? View.VISIBLE : View.GONE);
     }
 
     private void generatePdf() {
@@ -158,6 +166,76 @@ public class QuoteDetailsActivity extends BaseActivity {
                 runOnUiThread(() -> Toast.makeText(this, "Erreur lors de la génération du PDF", Toast.LENGTH_LONG).show());
             }
         }).start();
+    }
+
+    // ---------------------------------------------------------
+    // CONVERSION EN VENTE
+    // ---------------------------------------------------------
+
+    /** Avertissements (devis expiré, stock insuffisant), puis choix du mode de paiement. */
+    private void startConversion() {
+        StringBuilder warnings = new StringBuilder();
+        if (quote.isExpired()) {
+            warnings.append("• Ce devis a expiré le ").append(quote.getValidUntil()).append(".\n");
+        }
+        for (SaleItemRow r : items) {
+            Product p = productDao.getProductById(r.getProductId());
+            if (p == null || p.getDeletedAt() != null) {
+                warnings.append("• ").append(r.getProductName()).append(" n'existe plus dans le catalogue.\n");
+            } else if (p.getQuantity() < r.getQuantity()) {
+                warnings.append("• ").append(r.getProductName()).append(" : ").append(p.getQuantity())
+                        .append(" en stock pour ").append(r.getQuantity()).append(" demandés.\n");
+            }
+        }
+        if (warnings.length() == 0) {
+            choosePaymentAndConvert();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Convertir quand même ?")
+                .setMessage(warnings.toString().trim())
+                .setPositiveButton("Continuer", (d, w) -> choosePaymentAndConvert())
+                .setNegativeButton("Annuler", null)
+                .show();
+    }
+
+    private void choosePaymentAndConvert() {
+        final String[] labels = {"Espèces", "Virement"};
+        final String[] methods = {"espece", "virement"};
+        new AlertDialog.Builder(this)
+                .setTitle("Mode de paiement")
+                .setItems(labels, (d, which) -> convert(methods[which]))
+                .setNegativeButton("Annuler", null)
+                .show();
+    }
+
+    /**
+     * Vente + lignes + stock + historique + devis 'converted' en une transaction.
+     * Les prix du devis sont conservés ; la vente est au nom de l'utilisateur connecté.
+     */
+    private void convert(String paymentMethod) {
+        double total = 0;
+        for (SaleItemRow r : items) total += r.getTotal();
+        SaleHeader sale = new SaleHeader();
+        sale.setSellerId(sessionManager.getUserId());
+        sale.setClientId(quote.getClientId());
+        sale.setTotalPrice(total);
+        sale.setPaymentMethod(paymentMethod);
+
+        String saleId = saleDao.recordSale(sale, items, quoteId);
+        if (saleId == null) {
+            Toast.makeText(this, "Conversion impossible (devis déjà converti ou erreur)", Toast.LENGTH_LONG).show();
+            loadQuote();
+            return;
+        }
+        Toast.makeText(this, "Vente #" + SaleHeader.shortRef(saleId) + " enregistrée ✅", Toast.LENGTH_LONG).show();
+        syncManager.startSynchronization();
+
+        // Ouvre la vente créée (facture, retours)
+        android.content.Intent intent = new android.content.Intent(this, SaleDetailsActivity.class);
+        intent.putExtra("sale_id", saleId);
+        startActivity(intent);
+        finish();
     }
 
     private void changeStatus(String status, String label) {
