@@ -10,12 +10,13 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.enkiba.app.BuildConfig
 import com.enkiba.app.activities.HistoryActivity
-import com.enkiba.app.activities.ProductListActivity
 import com.enkiba.app.activities.SaleDetailsActivity
 import com.enkiba.app.activities.StatisticsActivity
 import com.enkiba.app.activities.UserManagementActivity
 import com.enkiba.app.ui.profile.ProfileActivity
-import com.enkiba.app.ui.sale.SaleActivity
+import com.enkiba.app.ui.navigation.AppNavigator
+import com.enkiba.app.ui.products.ProductsActivity
+import com.enkiba.app.ui.products.StockTab
 import com.enkiba.app.ui.theme.EnkibaTheme
 import com.enkiba.app.utils.SessionManager
 
@@ -46,13 +47,13 @@ class HomeActivity : ComponentActivity() {
                     state = state,
                     actions = HomeActions(
                         onSync = viewModel::sync,
-                        onOpenTab = ::openTab,
-                        onNewSale = { open(SaleActivity::class.java) },
+                        onOpenTab = { tab -> AppNavigator.open(this, tab, session.isAdmin) },
+                        onNewSale = { AppNavigator.newSale(this) },
                         onTodaySales = { openHistory(HistoryActivity.TAB_SALES) },
-                        onLowStock = { open(ProductListActivity::class.java) },
+                        onLowStock = { openProducts(StockTab.LOW) },
                         onOpenQuotes = { openHistory(HistoryActivity.TAB_QUOTES) },
                         onStockValue = {
-                            if (state.isAdmin) open(StatisticsActivity::class.java) else open(ProductListActivity::class.java)
+                            if (state.isAdmin) open(StatisticsActivity::class.java) else openProducts(StockTab.ALL)
                         },
                         onAllSales = { openHistory(HistoryActivity.TAB_SALES) },
                         onOpenSale = { sale ->
@@ -77,14 +78,8 @@ class HomeActivity : ComponentActivity() {
         if (session.isLoggedIn) viewModel.refresh() else session.logout()
     }
 
-    private fun openTab(tab: HomeTab) {
-        when (tab) {
-            HomeTab.HOME -> Unit
-            HomeTab.PRODUCTS -> open(ProductListActivity::class.java)
-            HomeTab.HISTORY -> openHistory(HistoryActivity.TAB_SALES)
-            HomeTab.STATS -> if (session.isAdmin) open(StatisticsActivity::class.java)
-        }
-    }
+    private fun openProducts(tab: StockTab) =
+        startActivity(Intent(this, ProductsActivity::class.java).putExtra(ProductsActivity.EXTRA_TAB, tab.name))
 
     private fun open(target: Class<*>) = startActivity(Intent(this, target))
 

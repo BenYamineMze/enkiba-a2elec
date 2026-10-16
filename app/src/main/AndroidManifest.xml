@@ -32,8 +32,7 @@
         <activity android:name=".ui.home.HomeActivity"/>
         <activity android:name=".ui.profile.ProfileActivity"
             android:windowSoftInputMode="adjustResize"/>
-        <activity android:name=".activities.ProductListActivity"
-            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".ui.products.ProductsActivity"/>
         <activity android:name=".activities.AddProductActivity"
             android:windowSoftInputMode="adjustNothing|stateHidden"/>
         <activity android:name=".activities.StatisticsActivity"

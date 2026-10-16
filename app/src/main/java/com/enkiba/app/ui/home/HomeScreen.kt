@@ -16,8 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountBalance
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.Description
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.ShoppingBag
@@ -44,10 +42,8 @@ import com.enkiba.app.models.SaleHeader
 import com.enkiba.app.ui.components.AmountText
 import com.enkiba.app.ui.components.EmptyState
 import com.enkiba.app.ui.components.EnkibaCard
-import com.enkiba.app.ui.components.FloatingBottomBar
 import com.enkiba.app.ui.components.IconBadge
 import com.enkiba.app.ui.components.ListRow
-import com.enkiba.app.ui.components.NavDestination
 import com.enkiba.app.ui.components.ProgressRing
 import com.enkiba.app.ui.components.SectionHeader
 import com.enkiba.app.ui.components.StatTile
@@ -56,16 +52,15 @@ import com.enkiba.app.ui.components.UserHeader
 import com.enkiba.app.ui.components.formatKmf
 import com.enkiba.app.ui.components.formatKmfCompact
 import com.enkiba.app.ui.components.formatSaleMoment
+import com.enkiba.app.ui.navigation.AppBottomBar
+import com.enkiba.app.ui.navigation.AppTab
 import com.enkiba.app.ui.theme.EnkibaTheme
 import com.enkiba.app.ui.theme.Spacing
-
-/** Destinations de la barre de l'accueil (les statistiques sont réservées aux admins). */
-enum class HomeTab { HOME, PRODUCTS, HISTORY, STATS }
 
 /** Actions de l'accueil, branchées par HomeActivity. */
 data class HomeActions(
     val onSync: () -> Unit = {},
-    val onOpenTab: (HomeTab) -> Unit = {},
+    val onOpenTab: (AppTab) -> Unit = {},
     val onNewSale: () -> Unit = {},
     val onTodaySales: () -> Unit = {},
     val onLowStock: () -> Unit = {},
@@ -82,12 +77,6 @@ data class HomeActions(
 
 @Composable
 fun HomeScreen(state: HomeUiState, actions: HomeActions) {
-    val tabs = buildList {
-        add(HomeTab.HOME to NavDestination("Accueil", Icons.Rounded.Home))
-        add(HomeTab.PRODUCTS to NavDestination("Produits", Icons.Rounded.Inventory2))
-        add(HomeTab.HISTORY to NavDestination("Historique", Icons.Rounded.History))
-        if (state.isAdmin) add(HomeTab.STATS to NavDestination("Stats", Icons.Rounded.BarChart))
-    }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -128,12 +117,11 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions) {
             }
         }
 
-        FloatingBottomBar(
-            destinations = tabs.map { it.second },
-            selectedIndex = 0,
-            onSelect = { index -> actions.onOpenTab(tabs[index].first) },
-            centerActionLabel = "Nouvelle vente",
-            onCenterAction = actions.onNewSale,
+        AppBottomBar(
+            selected = AppTab.HOME,
+            isAdmin = state.isAdmin,
+            onTab = actions.onOpenTab,
+            onNewSale = actions.onNewSale,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp),
         )
     }
