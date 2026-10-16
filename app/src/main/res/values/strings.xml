@@ -51,6 +51,7 @@
     <string name="content_desc_logout_button">Bouton de déconnexion</string>
     <string name="hint_search_product">Rechercher un produit...</string>
     <string name="hint_search_sale">Rechercher une vente</string>
+    <string name="hint_search_quote">Rechercher un devis (référence, client)</string>
 
     <string name="nav_title_home">Accueil</string>
     <string name="nav_title_products">Produits</string>
@@ -107,6 +108,7 @@
     <string name="content_desc_sale_user">Vendeur ayant effectué la transaction</string>
     <string name="message_empty_product_history">Aucun historique produit n\'est disponible.</string>
     <string name="message_empty_sales_history">Aucune vente trouvée dans l\'historique.</string>
+    <string name="message_empty_quotes">Aucun devis. Créez-en un depuis l\'écran de vente (bouton Devis).</string>
 
     <string name="title_stock_overview">Aperçu global du stock</string>
     <string name="title_category_distribution">Répartition du stock par catégorie</string>
@@ -131,4 +133,12 @@
     <string name="user_avatar_desc">Avatar utilisateur</string>
     <string name="app_logo">logo app</string>
     <string name="section_title_info">info utilisateur</string>
+    <!-- Devis -->
+    <string name="title_quote_details">Détail du devis</string>
+    <string name="tab_quotes">Devis</string>
+    <string name="btn_quote_pdf">Générer le PDF</string>
+    <string name="btn_quote_accept">Marquer accepté</string>
+    <string name="btn_quote_reject">Marquer refusé</string>
+    <string name="btn_quote_convert">Convertir en vente</string>
+    <string name="btn_quote_delete">Supprimer le devis</string>
 </resources>

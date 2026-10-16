@@ -57,6 +57,7 @@ public class HistoryActivity extends BaseActivity {
         // Liaison des onglets avec le ViewPager
         new TabLayoutMediator(tabLayout, viewPager, (tab, position) -> {
             if (position == 0) tab.setText("Historique des ventes");
+            else if (position == 1) tab.setText(R.string.tab_quotes);
             else tab.setText("Operations des articles ");
         }).attach();
 

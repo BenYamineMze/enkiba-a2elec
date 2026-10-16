@@ -8,6 +8,7 @@ import android.util.Log;
 
 import com.enkiba.app.database.DatabaseHelper;
 import com.enkiba.app.models.ProductHistory;
+import com.enkiba.app.models.Quote;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItemRow;
 import com.enkiba.app.models.SaleReturn;
@@ -69,6 +70,7 @@ public class SaleDao {
         s.setPaymentMethod(cursor.getString(cursor.getColumnIndexOrThrow("payment_method")));
         s.setSaleDate(cursor.getString(cursor.getColumnIndexOrThrow("sale_date")));
         s.setHasNegotiatedPrice(cursor.getInt(cursor.getColumnIndexOrThrow(COL_HAS_NEGOTIATION)) == 1);
+        s.setSourceQuoteId(cursor.getString(cursor.getColumnIndexOrThrow("source_quote_id")));
         s.setUpdatedAt(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_UPDATED_AT)));
         s.setDeletedAt(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_DELETED_AT)));
         s.setSyncStatus(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_SYNC_STATUS)));
@@ -108,6 +110,7 @@ public class SaleDao {
         values.put("payment_method", sale.getPaymentMethod());
         values.put("sale_date", sale.getSaleDate() != null ? sale.getSaleDate() : now);
         values.put(COL_HAS_NEGOTIATION, sale.isHasNegotiatedPrice() ? 1 : 0);
+        values.put("source_quote_id", sale.getSourceQuoteId());
         values.put(DatabaseHelper.COL_UPDATED_AT, now);
         values.put(DatabaseHelper.COL_SYNC_STATUS, "pending");
         return db.insert(TABLE_SALES, null, values);
@@ -142,15 +145,36 @@ public class SaleDao {
      * @return l'id (UUID) de la vente, ou null en cas d'échec (rien n'est écrit).
      */
     public String recordSale(SaleHeader header, List<SaleItemRow> rows) {
+        return recordSale(header, rows, null);
+    }
+
+    /**
+     * Comme recordSale, et si quoteId est fourni : la vente est issue de ce devis
+     * (source_quote_id), et le devis passe en 'converted' avec converted_sale_id,
+     * dans la même transaction. Refusé si le devis est déjà converti, refusé ou supprimé.
+     */
+    public String recordSale(SaleHeader header, List<SaleItemRow> rows, String quoteId) {
         if (rows == null || rows.isEmpty()) return null;
 
         String now = DatabaseUtils.getCurrentIsoTime();
         String shopId = header.getShopId() != null ? header.getShopId() : sessionManager.getShopId();
         header.setShopId(shopId);
+        header.setSourceQuoteId(quoteId);
 
         SQLiteDatabase db = dbHelper.getWritableDatabase();
         db.beginTransaction();
         try {
+            // 0. Devis encore convertible ?
+            if (quoteId != null) {
+                try (Cursor c = db.rawQuery("SELECT status, " + DatabaseHelper.COL_DELETED_AT + " FROM "
+                        + DatabaseHelper.TABLE_QUOTES + " WHERE id = ?", new String[]{quoteId})) {
+                    if (!c.moveToFirst() || !c.isNull(1)
+                            || Quote.STATUS_CONVERTED.equals(c.getString(0)) || Quote.STATUS_REJECTED.equals(c.getString(0))) {
+                        throw new IllegalStateException("devis non convertible : " + quoteId);
+                    }
+                }
+            }
+
             // 1. Lecture des produits (stock avant vente, prix catalogue)
             int n = rows.size();
             int[] oldQty = new int[n];
@@ -209,6 +233,18 @@ public class SaleDao {
                     throw new IllegalStateException("insertion de l'historique impossible");
                 }
             }
+
+            // 4. Devis converti
+            if (quoteId != null) {
+                ContentValues qv = new ContentValues();
+                qv.put("status", Quote.STATUS_CONVERTED);
+                qv.put("converted_sale_id", header.getId());
+                qv.put(DatabaseHelper.COL_UPDATED_AT, now);
+                qv.put(DatabaseHelper.COL_SYNC_STATUS, "pending");
+                if (db.update(DatabaseHelper.TABLE_QUOTES, qv, "id = ?", new String[]{quoteId}) != 1) {
+                    throw new IllegalStateException("mise à jour du devis impossible");
+                }
+            }
             db.setTransactionSuccessful();
             return header.getId();
         } catch (Exception e) {
@@ -216,6 +252,55 @@ public class SaleDao {
             return null;
         } finally {
             db.endTransaction();
+        }
+    }
+
+    /**
+     * Annule localement une vente issue d'un devis que le serveur a refusée parce que
+     * ce devis a déjà été converti sur un autre téléphone. La vente n'existe pas sur le
+     * serveur (refusée avant ses lignes) : elle est retirée du téléphone, le stock local
+     * est rétabli, et le devis sera rafraîchi par le prochain pull.
+     */
+    public void discardRejectedQuoteSale(String saleId, String quoteId) {
+        String now = DatabaseUtils.getCurrentIsoTime();
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        db.beginTransaction();
+        try {
+            String shopId = sessionManager.getShopId();
+            try (Cursor c = db.rawQuery("SELECT product_id, quantity FROM " + TABLE_SALE_ITEMS
+                    + " WHERE sale_id = ?", new String[]{saleId})) {
+                while (c.moveToNext()) {
+                    String productId = c.getString(0);
+                    int qty = c.getInt(1);
+                    db.execSQL("UPDATE " + TABLE_PRODUCTS + " SET quantity = quantity + ? WHERE id = ?",
+                            new Object[]{qty, productId});
+                    ProductHistory entry = new ProductHistory();
+                    entry.setProductId(productId);
+                    entry.setUserId(sessionManager.getUserId());
+                    entry.setOperation("Vente annulée (devis déjà converti ailleurs)");
+                    entry.setOldValue("Vente #" + SaleHeader.shortRef(saleId));
+                    entry.setNewValue("+" + qty + " en stock");
+                    entry.setTimestamp(now);
+                    ContentValues hist = HistoryDao.toValues(entry, shopId);
+                    hist.put(DatabaseHelper.COL_UPDATED_AT, now);
+                    hist.put(DatabaseHelper.COL_SYNC_STATUS, "pending");
+                    db.insert(DatabaseHelper.TABLE_HISTORY, null, hist);
+                }
+            }
+            db.delete(DatabaseHelper.TABLE_SALE_RETURNS, "sale_id = ?", new String[]{saleId});
+            db.delete(TABLE_SALE_ITEMS, "sale_id = ?", new String[]{saleId});
+            db.delete(TABLE_SALES, "id = ?", new String[]{saleId});
+            if (quoteId != null) {
+                // Le devis local n'est plus « à envoyer » : le pull apportera la version du serveur
+                ContentValues qv = new ContentValues();
+                qv.put(DatabaseHelper.COL_SYNC_STATUS, "synced");
+                db.update(DatabaseHelper.TABLE_QUOTES, qv, "id = ?", new String[]{quoteId});
+            }
+            db.setTransactionSuccessful();
+            Log.w(TAG, "Vente " + saleId + " annulée : devis " + quoteId + " déjà converti sur le serveur");
+        } finally {
+            db.endTransaction();
+            db.close();
         }
     }
 
@@ -428,6 +513,7 @@ public class SaleDao {
         values.put("payment_method", remoteSale.getPaymentMethod());
         values.put("sale_date", remoteSale.getSaleDate());
         values.put(COL_HAS_NEGOTIATION, remoteSale.isHasNegotiatedPrice() ? 1 : 0);
+        values.put("source_quote_id", remoteSale.getSourceQuoteId());
         values.put(DatabaseHelper.COL_UPDATED_AT, remoteSale.getUpdatedAt());
         values.put(DatabaseHelper.COL_DELETED_AT, remoteSale.getDeletedAt());
         values.put(DatabaseHelper.COL_SYNC_STATUS, "synced");

@@ -5,6 +5,8 @@ import android.content.Context;
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Product;
 import com.enkiba.app.models.ProductHistory;
+import com.enkiba.app.models.Quote;
+import com.enkiba.app.models.QuoteItem;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItem;
 import com.enkiba.app.models.SaleReturn;
@@ -25,6 +27,7 @@ public class SyncDao {
     private final HistoryDao historyDao;
     private final StockMovementDao stockMovementDao;
     private final SaleReturnDao saleReturnDao;
+    private final QuoteDao quoteDao;
 
     public SyncDao(Context context) {
         this.productDao = new ProductDao(context);
@@ -34,6 +37,7 @@ public class SyncDao {
         this.historyDao = new HistoryDao(context);
         this.stockMovementDao = new StockMovementDao(context);
         this.saleReturnDao = new SaleReturnDao(context);
+        this.quoteDao = new QuoteDao(context);
     }
 
     // ----------------------------------------------------------------------------------
@@ -47,6 +51,8 @@ public class SyncDao {
     public List<ProductHistory> getPendingHistory() { return historyDao.getPendingHistoryForSync(); }
     public List<StockMovement> getPendingStockMovements() { return stockMovementDao.getPendingMovementsForSync(); }
     public List<SaleReturn> getPendingSaleReturns() { return saleReturnDao.getPendingReturnsForSync(); }
+    public List<Quote> getPendingQuotes() { return quoteDao.getPendingQuotesForSync(); }
+    public List<QuoteItem> getPendingQuoteItems() { return quoteDao.getPendingQuoteItemsForSync(); }
 
     // ----------------------------------------------------------------------------------
     // B. PULL : INSERTION/MISE À JOUR DEPUIS LE SERVEUR
@@ -58,6 +64,8 @@ public class SyncDao {
     public void upsertSaleItem(SaleItem si) { saleItemDao.upsertSaleItemFromRemote(si); }
     public void upsertHistory(ProductHistory h) { historyDao.upsertHistoryFromRemote(h); }
     public void upsertSaleReturn(SaleReturn r) { saleReturnDao.upsertReturnFromRemote(r); }
+    public void upsertQuote(Quote q) { quoteDao.upsertQuoteFromRemote(q); }
+    public void upsertQuoteItem(QuoteItem i) { quoteDao.upsertQuoteItemFromRemote(i); }
 
     // ----------------------------------------------------------------------------------
     // C. MARQUER COMME SYNCHRONISÉ
@@ -66,8 +74,11 @@ public class SyncDao {
     public void markProductAsSynced(String id) { productDao.markProductAsSynced(id); }
     public void markClientAsSynced(String id) { clientDao.markClientAsSynced(id); }
     public void markSaleAsSynced(String id) { saleDao.markSaleAsSynced(id); }
+    public void discardRejectedQuoteSale(String saleId, String quoteId) { saleDao.discardRejectedQuoteSale(saleId, quoteId); }
     public void markSaleItemAsSynced(String id) { saleItemDao.markSaleItemAsSynced(id); }
     public void markHistoryAsSynced(String id) { historyDao.markHistoryAsSynced(id); }
     public void markStockMovementAsSynced(String id) { stockMovementDao.markMovementAsSynced(id); }
     public void markSaleReturnAsSynced(String id) { saleReturnDao.markReturnAsSynced(id); }
+    public void markQuoteAsSynced(String id) { quoteDao.markQuoteAsSynced(id); }
+    public void markQuoteItemAsSynced(String id) { quoteDao.markQuoteItemAsSynced(id); }
 }

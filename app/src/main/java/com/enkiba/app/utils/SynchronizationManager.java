@@ -10,6 +10,8 @@ import com.enkiba.app.models.AuditLogEntry;
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Product;
 import com.enkiba.app.models.ProductHistory;
+import com.enkiba.app.models.Quote;
+import com.enkiba.app.models.QuoteItem;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItem;
 import com.enkiba.app.models.SaleReturn;
@@ -194,6 +196,14 @@ public class SynchronizationManager {
             Log.e(TAG, "Erreur PUSH retours : " + e.getMessage(), e);
         }
 
+        // Devis (après les ventes : un devis converti référence sa vente), puis leurs lignes
+        try {
+            pushQuotesSync(syncDao.getPendingQuotes());
+            pushQuoteItemsSync(syncDao.getPendingQuoteItems());
+        } catch (Exception e) {
+            Log.e(TAG, "Erreur PUSH devis : " + e.getMessage(), e);
+        }
+
         // Historique des produits
         try {
             pushHistoryTableSync(syncDao.getPendingHistory());
@@ -217,12 +227,19 @@ public class SynchronizationManager {
             map.put("payment_method", s.getPaymentMethod() != null ? s.getPaymentMethod() : "espece");
             map.put("has_negotiation", s.isHasNegotiatedPrice()); // vente à prix négocié
             map.put("sale_date", s.getSaleDate());
+            map.put("source_quote_id", s.getSourceQuoteId());
 
             Response<Void> res = supabaseService.insertSale(prefer, map).execute();
             if (res.isSuccessful()) {
                 syncDao.markSaleAsSynced(s.getId());
+                continue;
+            }
+            String error = readError(res);
+            if (res.code() == 409 && s.getSourceQuoteId() != null && error.contains("sales_source_quote_uniq")) {
+                // Devis déjà converti sur un autre téléphone : cette vente est annulée localement
+                syncDao.discardRejectedQuoteSale(s.getId(), s.getSourceQuoteId());
             } else {
-                logFailure("vente " + s.getId(), res);
+                Log.e(TAG, "Échec vente " + s.getId() + " (code " + res.code() + ") " + error);
             }
         }
     }
@@ -356,6 +373,53 @@ public class SynchronizationManager {
         }
     }
 
+    /** Envoie les devis créés ou modifiés (statut, conversion, suppression) : upsert. */
+    private void pushQuotesSync(List<Quote> quotes) throws Exception {
+        for (Quote q : quotes) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", q.getId());
+            map.put("shop_id", q.getShopId() != null ? q.getShopId() : sessionManager.getShopId());
+            map.put("seller_id", q.getSellerId());
+            map.put("client_id", q.getClientId());
+            map.put("status", q.getStatus());
+            map.put("total_price", q.getTotalPrice());
+            map.put("valid_until", q.getValidUntil());
+            map.put("notes", q.getNotes());
+            map.put("converted_sale_id", q.getConvertedSaleId());
+            map.put("deleted_at", q.getDeletedAt());
+
+            Response<Void> res = supabaseService.upsertQuote(PREFER_MERGE_DUPLICATES, map).execute();
+            if (res.isSuccessful()) {
+                syncDao.markQuoteAsSynced(q.getId());
+            } else {
+                logFailure("devis " + q.getId(), res);
+            }
+        }
+    }
+
+    /** Envoie les lignes de devis (jamais modifiées : doublon ignoré). */
+    private void pushQuoteItemsSync(List<QuoteItem> items) throws Exception {
+        for (QuoteItem i : items) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", i.getId());
+            map.put("shop_id", i.getShopId() != null ? i.getShopId() : sessionManager.getShopId());
+            map.put("quote_id", i.getQuoteId());
+            map.put("product_id", i.getProductId());
+            map.put("product_name", i.getProductName());
+            map.put("quantity", i.getQuantity());
+            map.put("list_price", i.getListPrice());
+            map.put("unit_price", i.getUnitPrice());
+            map.put("total_price", i.getTotalPrice());
+
+            Response<Void> res = supabaseService.insertQuoteItem(PREFER_IGNORE_DUPLICATES, map).execute();
+            if (res.isSuccessful()) {
+                syncDao.markQuoteItemAsSynced(i.getId());
+            } else {
+                logFailure("ligne de devis " + i.getId(), res);
+            }
+        }
+    }
+
     /** Envoie le journal des opérations sur les produits. */
     private void pushHistoryTableSync(List<ProductHistory> histories) throws Exception {
         String currentUser = sessionManager.getUserId();
@@ -431,6 +495,12 @@ public class SynchronizationManager {
         pullTable(shop, "sale_returns",
                 since -> supabaseService.pullSaleReturns(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
                 SaleReturn::getUpdatedAt, syncDao::upsertSaleReturn);
+        pullTable(shop, "quotes",
+                since -> supabaseService.pullQuotes(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
+                Quote::getUpdatedAt, syncDao::upsertQuote);
+        pullTable(shop, "quote_items",
+                since -> supabaseService.pullQuoteItems(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
+                QuoteItem::getUpdatedAt, syncDao::upsertQuoteItem);
         // audit_log n'a pas de updated_at (lignes jamais modifiées) : curseur sur created_at
         pullTable(shop, "audit_log",
                 since -> supabaseService.pullProductAuditLog(shopFilter, since, "created_at.asc,id.asc", PULL_PAGE_SIZE),
@@ -521,10 +591,14 @@ public class SynchronizationManager {
 
     /** Journalise un échec HTTP avec le code et le message d'erreur renvoyé par le serveur. */
     private void logFailure(String what, Response<?> res) {
-        String body = "";
+        Log.e(TAG, "Échec " + what + " (code " + res.code() + ") " + readError(res));
+    }
+
+    /** Corps de l'erreur renvoyée par le serveur (lisible une seule fois). */
+    private static String readError(Response<?> res) {
         try {
-            if (res.errorBody() != null) body = res.errorBody().string();
+            if (res.errorBody() != null) return res.errorBody().string();
         } catch (IOException ignored) { }
-        Log.e(TAG, "Échec " + what + " (code " + res.code() + ") " + body);
+        return "";
     }
 }

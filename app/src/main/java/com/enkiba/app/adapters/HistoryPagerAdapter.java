@@ -7,6 +7,7 @@ import androidx.viewpager2.adapter.FragmentStateAdapter;
 
 import com.enkiba.app.fragments.SalesHistoryFragment;
 import com.enkiba.app.fragments.ProductHistoryFragment;
+import com.enkiba.app.fragments.QuotesFragment;
 
 public class HistoryPagerAdapter extends FragmentStateAdapter {
 
@@ -17,14 +18,13 @@ public class HistoryPagerAdapter extends FragmentStateAdapter {
     @NonNull
     @Override
     public Fragment createFragment(int position) {
-        if (position == 0)
-            return new SalesHistoryFragment();
-        else
-            return new ProductHistoryFragment();
+        if (position == 0) return new SalesHistoryFragment();
+        if (position == 1) return new QuotesFragment();
+        return new ProductHistoryFragment();
     }
 
     @Override
     public int getItemCount() {
-        return 2; // 2 onglets
+        return 3; // ventes, devis, opérations sur les articles
     }
 }

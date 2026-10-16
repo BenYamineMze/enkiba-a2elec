@@ -59,6 +59,9 @@
         <activity android:name=".activities.ProductHistoryActivity"
             android:windowSoftInputMode="adjustNothing|stateHidden"/>
 
+        <activity android:name=".activities.QuoteDetailsActivity"
+            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+
         <activity android:name=".activities.SaleDetailsActivity"
             android:windowSoftInputMode="adjustNothing|stateHidden"/>
 

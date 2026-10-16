@@ -6,6 +6,8 @@ import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Membership;
 import com.enkiba.app.models.Product;
 import com.enkiba.app.models.Profile;
+import com.enkiba.app.models.Quote;
+import com.enkiba.app.models.QuoteItem;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItem;
 import com.enkiba.app.models.SaleReturn;
@@ -83,6 +85,14 @@ public interface SupabaseService {
     Call<List<SaleReturn>> pullSaleReturns(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
                                            @Query("order") String order, @Query("limit") int limit);
 
+    @GET("rest/v1/quotes")
+    Call<List<Quote>> pullQuotes(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
+                                 @Query("order") String order, @Query("limit") int limit);
+
+    @GET("rest/v1/quote_items")
+    Call<List<QuoteItem>> pullQuoteItems(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
+                                         @Query("order") String order, @Query("limit") int limit);
+
     @GET("rest/v1/audit_log?entity=eq.product")
     Call<List<AuditLogEntry>> pullProductAuditLog(@Query("shop_id") String shopFilter, @Query("created_at") String since,
                                                   @Query("order") String order, @Query("limit") int limit);
@@ -125,6 +135,15 @@ public interface SupabaseService {
     @Headers("Content-Type: application/json")
     @POST("rest/v1/sale_returns")
     Call<Void> insertSaleReturn(@Header("Prefer") String prefer, @Body Map<String, Object> saleReturn);
+
+    // Devis : upsert (le statut change) ; lignes : jamais modifiées après création
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/quotes")
+    Call<Void> upsertQuote(@Header("Prefer") String prefer, @Body Map<String, Object> quote);
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/quote_items")
+    Call<Void> insertQuoteItem(@Header("Prefer") String prefer, @Body Map<String, Object> item);
 
     @Headers("Content-Type: application/json")
     @POST("rest/v1/audit_log")
