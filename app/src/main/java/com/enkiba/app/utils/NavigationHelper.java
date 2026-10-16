@@ -3,7 +3,7 @@ package com.enkiba.app.utils;
 import android.app.Activity;
 import android.content.Intent;
 import com.enkiba.app.R;
-import com.enkiba.app.activities.StatisticsActivity;
+import com.enkiba.app.ui.stats.StatsActivity;
 import com.enkiba.app.activities.UserManagementActivity;
 import com.enkiba.app.ui.history.HistoryActivity;
 import com.enkiba.app.ui.home.HomeActivity;
@@ -60,8 +60,8 @@ public class NavigationHelper {
                 return true;
             }
             else if (id == R.id.nav_stats) {
-                if (!(activity instanceof StatisticsActivity))
-                    activity.startActivity(new Intent(activity, StatisticsActivity.class));
+                if (!(activity instanceof StatsActivity))
+                    activity.startActivity(new Intent(activity, StatsActivity.class));
                 return true;
             }
 

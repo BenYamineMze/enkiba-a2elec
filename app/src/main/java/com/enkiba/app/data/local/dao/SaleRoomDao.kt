@@ -7,6 +7,7 @@ import androidx.room.Query
 import com.enkiba.app.data.local.entity.SaleEntity
 import com.enkiba.app.data.local.entity.SaleItemEntity
 import com.enkiba.app.data.local.entity.SaleItemWithReturned
+import com.enkiba.app.data.local.entity.SaleNetRow
 import com.enkiba.app.data.local.entity.SaleWithExtras
 
 // Vente + nom du vendeur (cache local users) + montant remboursé (retours)
@@ -64,6 +65,15 @@ interface SaleRoomDao {
             "AND (:paymentMethod IS NULL OR s.payment_method = :paymentMethod)"
     )
     fun netTotalBetween(start: String, end: String, sellerId: String?, paymentMethod: String?): Double
+
+    /** Statistiques : montant net de chaque vente de la période, la plus récente d'abord. */
+    @Query(
+        "SELECT s.sale_date AS sale_date, s.payment_method AS payment_method, " +
+            "s.total_price - COALESCE((SELECT SUM(r.refund_amount) FROM sale_returns r WHERE r.sale_id = s.id), 0) AS net " +
+            "FROM sales s WHERE s.deleted_at IS NULL AND s.sale_date >= :start AND s.sale_date < :end " +
+            "ORDER BY s.sale_date DESC"
+    )
+    fun netRowsBetween(start: String, end: String): List<SaleNetRow>
 
     @Query(
         "SELECT COUNT(*) FROM sales s WHERE s.deleted_at IS NULL AND s.sale_date >= :start AND s.sale_date < :end " +

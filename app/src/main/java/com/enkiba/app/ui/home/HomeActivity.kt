@@ -10,10 +10,10 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.enkiba.app.BuildConfig
 import com.enkiba.app.ui.history.HistoryActivity
-import com.enkiba.app.activities.StatisticsActivity
 import com.enkiba.app.activities.UserManagementActivity
 import com.enkiba.app.ui.profile.ProfileActivity
 import com.enkiba.app.ui.sale.SaleDetailActivity
+import com.enkiba.app.ui.stats.StatsActivity
 import com.enkiba.app.ui.navigation.AppNavigator
 import com.enkiba.app.ui.products.ProductsActivity
 import com.enkiba.app.ui.products.StockTab
@@ -53,7 +53,7 @@ class HomeActivity : ComponentActivity() {
                         onLowStock = { openProducts(StockTab.LOW) },
                         onOpenQuotes = { openHistory(HistoryActivity.TAB_QUOTES) },
                         onStockValue = {
-                            if (state.isAdmin) open(StatisticsActivity::class.java) else openProducts(StockTab.ALL)
+                            if (state.isAdmin) open(StatsActivity::class.java) else openProducts(StockTab.ALL)
                         },
                         onAllSales = { openHistory(HistoryActivity.TAB_SALES) },
                         onOpenSale = { sale ->

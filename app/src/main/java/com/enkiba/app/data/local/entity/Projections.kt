@@ -36,3 +36,10 @@ data class HistoryWithNames(
     @ColumnInfo(name = "product_name") val productName: String?,
     @ColumnInfo(name = "user_name") val userName: String?,
 )
+
+/** Vente réduite à sa date, son mode de paiement et son montant net (statistiques). */
+data class SaleNetRow(
+    @ColumnInfo(name = "sale_date") val saleDate: String?,
+    @ColumnInfo(name = "payment_method") val paymentMethod: String?,
+    @ColumnInfo(name = "net") val net: Double,
+)
