@@ -40,14 +40,9 @@
         <activity android:name=".ui.stats.StatsActivity" />
         <activity android:name=".ui.sale.SaleActivity"
             android:windowSoftInputMode="adjustResize"/>
-        <activity android:name=".activities.UserManagementActivity"
-            android:windowSoftInputMode="adjustNothing|stateHidden"/>
-        <activity android:name=".activities.AddUserActivity"
-            android:windowSoftInputMode="adjustNothing|stateHidden"/>
-        <activity android:name=".activities.ShowUserActivity"
-            android:windowSoftInputMode="adjustNothing|stateHidden"/>
-        <activity android:name=".activities.EditUserActivity"
-            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".ui.users.TeamActivity" />
+        <activity android:name=".ui.users.UserFormActivity"
+            android:windowSoftInputMode="adjustResize"/>
 
         <activity android:name=".ui.quotes.QuoteDetailActivity" />
 

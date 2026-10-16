@@ -4,7 +4,7 @@ import android.app.Activity;
 import android.content.Intent;
 import com.enkiba.app.R;
 import com.enkiba.app.ui.stats.StatsActivity;
-import com.enkiba.app.activities.UserManagementActivity;
+import com.enkiba.app.ui.users.TeamActivity;
 import com.enkiba.app.ui.history.HistoryActivity;
 import com.enkiba.app.ui.home.HomeActivity;
 import com.enkiba.app.ui.products.ProductsActivity;
@@ -44,8 +44,8 @@ public class NavigationHelper {
             }
             else if (id == R.id.nav_personnel) {
                 if ("admin".equalsIgnoreCase(role)) {
-                    if (!(activity instanceof UserManagementActivity))
-                        activity.startActivity(new Intent(activity, UserManagementActivity.class));
+                    if (!(activity instanceof TeamActivity))
+                        activity.startActivity(new Intent(activity, TeamActivity.class));
                 }
                 return true;
             }
