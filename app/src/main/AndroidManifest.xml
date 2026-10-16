@@ -37,8 +37,7 @@
         <activity android:name=".ui.products.ProductDetailActivity"/>
         <activity android:name=".ui.products.ProductFormActivity"
             android:windowSoftInputMode="adjustResize"/>
-        <activity android:name=".activities.StatisticsActivity"
-            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".ui.stats.StatsActivity" />
         <activity android:name=".ui.sale.SaleActivity"
             android:windowSoftInputMode="adjustResize"/>
         <activity android:name=".activities.UserManagementActivity"

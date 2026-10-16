@@ -10,12 +10,12 @@ import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.enkiba.app.ui.history.HistoryActivity
-import com.enkiba.app.activities.StatisticsActivity
 import com.enkiba.app.ui.components.FloatingBottomBar
 import com.enkiba.app.ui.components.NavDestination
 import com.enkiba.app.ui.home.HomeActivity
 import com.enkiba.app.ui.products.ProductsActivity
 import com.enkiba.app.ui.sale.SaleActivity
+import com.enkiba.app.ui.stats.StatsActivity
 
 /** Onglets de la barre de navigation (les statistiques sont réservées aux admins). */
 enum class AppTab(val destination: NavDestination) {
@@ -61,7 +61,7 @@ object AppNavigator {
             AppTab.PRODUCTS -> Intent(activity, ProductsActivity::class.java)
             AppTab.HISTORY -> Intent(activity, HistoryActivity::class.java)
                 .putExtra(HistoryActivity.EXTRA_TAB, HistoryActivity.TAB_SALES)
-            AppTab.STATS -> if (isAdmin) Intent(activity, StatisticsActivity::class.java) else return
+            AppTab.STATS -> if (isAdmin) Intent(activity, StatsActivity::class.java) else return
         }
         activity.startActivity(intent)
     }
