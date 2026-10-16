@@ -40,8 +40,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String TABLE_SALES = "sales";
     public static final String TABLE_SALE_ITEMS = "sale_items";
     public static final String TABLE_HISTORY = "history";
-    public static final String TABLE_SALE_ARCHIVE = "sale_archive";
-    public static final String TABLE_SALE_ITEMS_ARCHIVE = "sale_items_archive";
 
 
     public DatabaseHelper(Context context) {
@@ -152,33 +150,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 "FOREIGN KEY(user_id) REFERENCES " + TABLE_USERS + "(id)" +
                 ")";
         db.execSQL(CREATE_HISTORY_TABLE);
-
-        // 7. TABLE SALE_ARCHIVE
-        String CREATE_SALE_ARCHIVE = "CREATE TABLE " + TABLE_SALE_ARCHIVE + " (" +
-                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                "sale_date TEXT, " +
-                "user_id TEXT, " +
-                "client_id INTEGER, " +
-                "total_price REAL, " +
-                "payment_method TEXT, " +
-                "updated_at TEXT NOT NULL, " +
-                "sync_status TEXT NOT NULL DEFAULT 'synced'" +
-                ")";
-        db.execSQL(CREATE_SALE_ARCHIVE);
-
-        // 8. TABLE SALE_ITEMS_ARCHIVE
-        String CREATE_SALE_ITEMS_ARCHIVE = "CREATE TABLE " + TABLE_SALE_ITEMS_ARCHIVE + " (" +
-                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                "sale_id INTEGER, " +
-                "product_name TEXT, " +
-                "quantity REAL, " +
-                "unit_price REAL, " +
-                "total_price REAL," +
-                COL_UPDATED_AT + " TEXT NOT NULL, " +
-                COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'," +
-                "FOREIGN KEY (sale_id) REFERENCES " + TABLE_SALE_ARCHIVE + "(id)" +
-                ")";
-        db.execSQL(CREATE_SALE_ITEMS_ARCHIVE);
     }
 
     @Override
@@ -190,8 +161,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_HISTORY);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_CLIENTS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_SALE_ITEMS);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_SALE_ITEMS_ARCHIVE);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_SALE_ARCHIVE);
+        db.execSQL("DROP TABLE IF EXISTS sale_items_archive"); // table v1 obsolète
+        db.execSQL("DROP TABLE IF EXISTS sale_archive"); // table v1 obsolète
 
         onCreate(db);
     }
@@ -199,79 +170,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     // --------------------------------------------------------------------------------
     // --- TRANSACTIONS COMPLEXES ---
     // --------------------------------------------------------------------------------
-
-    public boolean archiveAllSales() {
-        SQLiteDatabase db = this.getWritableDatabase();
-        db.beginTransaction();
-
-        try {
-            String archiveTimestamp = DatabaseUtils.getCurrentIsoTime();
-
-            // 1. Table temporaire pour mapping ID
-            db.execSQL("DROP TABLE IF EXISTS temp_sale_map");
-            db.execSQL("CREATE TABLE temp_sale_map (old_id INTEGER, new_id INTEGER)");
-
-            // 2. Archivage Headers
-            Cursor cursor = db.rawQuery(
-                    "SELECT s.id AS old_id, s.sale_date, s.user_id, " +
-                            "s.client_id, s.total_price, s.payment_method " +
-                            "FROM " + TABLE_SALES + " s", null);
-
-            while (cursor.moveToNext()) {
-                int oldId = cursor.getInt(0);
-
-                db.execSQL(
-                        "INSERT INTO " + TABLE_SALE_ARCHIVE + " (sale_date, user_id, client_id, total_price, payment_method, " +
-                                COL_UPDATED_AT + ", " + COL_SYNC_STATUS + ") " +
-                                "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        new Object[] {
-                                cursor.getString(1),
-                                cursor.getString(2),
-                                cursor.getInt(3),
-                                cursor.getDouble(4),
-                                cursor.getString(5),
-                                archiveTimestamp,
-                                "pending"
-                        }
-                );
-
-                Cursor idCur = db.rawQuery("SELECT last_insert_rowid()", null);
-                idCur.moveToFirst();
-                int newId = idCur.getInt(0);
-                idCur.close();
-
-                db.execSQL("INSERT INTO temp_sale_map (old_id, new_id) VALUES (?, ?)",
-                        new Object[]{oldId, newId});
-            }
-            cursor.close();
-
-            // 3. Archivage Items
-            db.execSQL(
-                    "INSERT INTO " + TABLE_SALE_ITEMS_ARCHIVE + " (sale_id, product_name, quantity, unit_price, total_price, " +
-                            COL_UPDATED_AT + ", " + COL_SYNC_STATUS + ") " +
-                            "SELECT m.new_id, p.name, si.quantity, si.unit_price, si.total_price, ?, ? " +
-                            "FROM " + TABLE_SALE_ITEMS + " si " +
-                            "JOIN " + TABLE_PRODUCTS + " p ON si.product_id = p.id " +
-                            "JOIN temp_sale_map m ON m.old_id = si.sale_id",
-                    new Object[] {
-                            archiveTimestamp,
-                            "pending"
-                    }
-            );
-
-            db.execSQL("DROP TABLE IF EXISTS temp_sale_map");
-
-            db.setTransactionSuccessful();
-            Log.i("ARCHIVE", "Archivage réussi.");
-            return true;
-
-        } catch (Exception e) {
-            Log.e("ARCHIVE", "Erreur archivage: " + e.getMessage(), e);
-            return false;
-        } finally {
-            db.endTransaction();
-        }
-    }
 
     public long recordSaleWithItems(String userId, Integer clientId, List<SaleItemRow> items, String paymentMethod) {
         if (items == null || items.isEmpty()) return -1;
@@ -349,11 +247,5 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             db.endTransaction();
         }
         return saleId;
-    }
-
-    public void clearActiveSales() {
-        SQLiteDatabase db = this.getWritableDatabase();
-        db.delete(TABLE_SALES, null, null);
-        db.delete(TABLE_SALE_ITEMS, null, null);
     }
 }

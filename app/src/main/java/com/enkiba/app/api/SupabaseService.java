@@ -6,10 +6,8 @@ import com.enkiba.app.models.Membership;
 import com.enkiba.app.models.Product;
 import com.enkiba.app.models.ProductHistory;
 import com.enkiba.app.models.Profile;
-import com.enkiba.app.models.SaleArchive;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItem;
-import com.enkiba.app.models.SaleItemArchive;
 import com.enkiba.app.models.ShopMember;
 import com.google.gson.JsonObject;
 
@@ -132,28 +130,8 @@ public interface SupabaseService {
     Call<Void> upsertSaleItemMap(@Header("Prefer") String prefer, @Body Map<String, Object> itemMap);
 
     // ======================================================================
-    // 5. ARCHIVAGE ET SUPPRESSION : à supprimer à l'étape 4
+    // 5. SUPPRESSION
     // ======================================================================
-
-    @Headers("Content-Type: application/json")
-    @POST("rest/v1/sale_archive")
-    Call<Void> upsertSaleArchiveMap(@Header("Prefer") String prefer, @Body Map<String, Object> archiveMap);
-
-    @Headers("Content-Type: application/json")
-    @POST("rest/v1/sale_items_archive")
-    Call<Void> upsertSaleItemArchiveMap(@Header("Prefer") String prefer, @Body Map<String, Object> itemArchiveMap);
-
-    @POST("rest/v1/sale_archive")
-    Call<Void> upsertSaleArchive(@Body SaleArchive archive);
-
-    @POST("rest/v1/sale_items_archive")
-    Call<Void> upsertSaleItemArchive(@Body SaleItemArchive itemArchive);
-
-    @DELETE("rest/v1/sale_items?id=neq.0")
-    Call<Void> deleteAllSaleItemsRemote();
-
-    @DELETE("rest/v1/sales?id=neq.0")
-    Call<Void> deleteAllSalesRemote();
 
     @POST("rest/v1/rpc/delete_product_by_id")
     Call<Void> deleteProductRemote(@Body Map<String, Object> body);

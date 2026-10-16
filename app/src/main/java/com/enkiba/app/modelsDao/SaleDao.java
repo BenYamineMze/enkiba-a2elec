@@ -7,7 +7,6 @@ import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
 
 import com.enkiba.app.database.DatabaseHelper;
-import com.enkiba.app.models.SaleArchive;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItem;
 import com.enkiba.app.models.SaleItemRow;
@@ -22,8 +21,6 @@ public class SaleDao {
     private static final String TABLE_SALES = DatabaseHelper.TABLE_SALES;
     private static final String TABLE_SALE_ITEMS = DatabaseHelper.TABLE_SALE_ITEMS;
     private static final String TABLE_USERS = DatabaseHelper.TABLE_USERS;
-    private static final String TABLE_SALE_ARCHIVE = DatabaseHelper.TABLE_SALE_ARCHIVE;
-    private static final String TABLE_SALE_ITEMS_ARCHIVE = DatabaseHelper.TABLE_SALE_ITEMS_ARCHIVE;
     private static final String TABLE_PRODUCTS = DatabaseHelper.TABLE_PRODUCTS;
     private static final String TABLE_CLIENTS = DatabaseHelper.TABLE_CLIENTS;
 
@@ -489,58 +486,6 @@ public class SaleDao {
             db.delete(TABLE_SALES, "id = ?", new String[]{String.valueOf(saleId)});
             db.setTransactionSuccessful();
         } catch (Exception e) { Log.e(TAG, "Delete phys error: " + e.getMessage()); }
-        finally { db.endTransaction(); db.close(); }
-    }
-
-    // ----------------------------------------------------------------------
-    // --- TRANSACTIONS (ARCHIVAGE) - RÉINTÉGRÉES ---
-    // ----------------------------------------------------------------------
-
-    public boolean archiveAllSales() {
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
-        db.beginTransaction();
-        try {
-            String archiveTimestamp = DatabaseUtils.getCurrentIsoTime();
-            db.execSQL("DROP TABLE IF EXISTS temp_sale_map");
-            db.execSQL("CREATE TABLE temp_sale_map (old_id INTEGER, new_id INTEGER)");
-
-            Cursor cursor = db.rawQuery("SELECT s.id AS old_id, s.sale_date, s.user_id, s.client_id, s.total_price, s.payment_method FROM " + TABLE_SALES + " s", null);
-            while (cursor.moveToNext()) {
-                int oldId = cursor.getInt(0);
-                db.execSQL("INSERT INTO " + TABLE_SALE_ARCHIVE + " (sale_date, user_id, client_id, total_price, payment_method, " + COL_UPDATED_AT + ", " + COL_SYNC_STATUS + ") VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        new Object[] { cursor.getString(1), cursor.getString(2), cursor.getInt(3), cursor.getDouble(4), cursor.getString(5), archiveTimestamp, "pending" });
-                Cursor idCur = db.rawQuery("SELECT last_insert_rowid()", null);
-                idCur.moveToFirst();
-                int newId = idCur.getInt(0);
-                idCur.close();
-                db.execSQL("INSERT INTO temp_sale_map (old_id, new_id) VALUES (?, ?)", new Object[]{oldId, newId});
-            }
-            cursor.close();
-
-            db.execSQL("INSERT INTO " + TABLE_SALE_ITEMS_ARCHIVE + " (sale_id, product_name, quantity, unit_price, total_price, " + COL_UPDATED_AT + ", " + COL_SYNC_STATUS + ") " +
-                            "SELECT m.new_id, p.name, si.quantity, si.unit_price, si.total_price, ?, ? FROM " + TABLE_SALE_ITEMS + " si JOIN " + TABLE_PRODUCTS + " p ON si.product_id = p.id JOIN temp_sale_map m ON m.old_id = si.sale_id",
-                    new Object[] { archiveTimestamp, "pending" });
-
-            db.execSQL("DROP TABLE IF EXISTS temp_sale_map");
-            db.execSQL("DELETE FROM " + TABLE_SALE_ITEMS);
-            db.execSQL("DELETE FROM " + TABLE_SALES);
-            db.setTransactionSuccessful();
-            return true;
-        } catch (Exception e) { return false; }
-        finally { db.endTransaction(); db.close(); }
-    }
-
-    public boolean clearActiveSales() {
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
-        db.beginTransaction();
-        try {
-            db.execSQL("PRAGMA foreign_keys = OFF;");
-            db.delete(TABLE_SALE_ITEMS, "sale_id IN (SELECT id FROM " + TABLE_SALES + " WHERE " + COL_IS_ARCHIVED + " = 0)", null);
-            db.delete(TABLE_SALES, COL_IS_ARCHIVED + " = ?", new String[]{ "0" });
-            db.execSQL("PRAGMA foreign_keys = ON;");
-            db.setTransactionSuccessful();
-            return true;
-        } catch (Exception e) { return false; }
         finally { db.endTransaction(); db.close(); }
     }
 

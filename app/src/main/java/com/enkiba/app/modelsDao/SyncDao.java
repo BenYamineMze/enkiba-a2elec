@@ -9,10 +9,8 @@ import com.enkiba.app.database.DatabaseHelper;
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Product;
 import com.enkiba.app.models.ProductHistory;
-import com.enkiba.app.models.SaleArchive;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItem;
-import com.enkiba.app.models.SaleItemArchive;
 import com.enkiba.app.models.User;
 
 import java.util.ArrayList;
@@ -31,7 +29,6 @@ public class SyncDao {
     private final SaleDao saleDao;
     private final SaleItemDao saleItemDao;
     private final HistoryDao historyDao;
-    private final SaleArchiveDao saleArchiveDao;
     private final DatabaseHelper dbHelper;
 
     public SyncDao(Context context) {
@@ -41,7 +38,6 @@ public class SyncDao {
         this.saleDao = new SaleDao(context);
         this.saleItemDao = new SaleItemDao(context);
         this.historyDao = new HistoryDao(context);
-        this.saleArchiveDao = new SaleArchiveDao(context);
         this.dbHelper = new DatabaseHelper(context);
     }
 
@@ -78,32 +74,6 @@ public class SyncDao {
     }
 
     public List<ProductHistory> getPendingHistory() { return historyDao.getPendingHistoryForSync(); }
-
-    public List<SaleArchive> getPendingSaleArchives() {
-        List<SaleArchive> list = new ArrayList<>();
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT * FROM " + DatabaseHelper.TABLE_SALE_ARCHIVE + " WHERE sync_status = 'pending'", null);
-        if (cursor.moveToFirst()) {
-            do {
-                list.add(cursorToSaleArchive(cursor));
-            } while (cursor.moveToNext());
-        }
-        cursor.close();
-        return list;
-    }
-
-    public List<SaleItemArchive> getPendingSaleItemArchives() {
-        List<SaleItemArchive> list = new ArrayList<>();
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT * FROM " + DatabaseHelper.TABLE_SALE_ITEMS_ARCHIVE + " WHERE sync_status = 'pending'", null);
-        if (cursor.moveToFirst()) {
-            do {
-                list.add(cursorToSaleItemArchive(cursor));
-            } while (cursor.moveToNext());
-        }
-        cursor.close();
-        return list;
-    }
 
     // ----------------------------------------------------------------------------------
     // B. PULL : INSERTION/MISE À JOUR DEPUIS LE SERVEUR
@@ -144,25 +114,12 @@ public class SyncDao {
     public void markSaleAsSynced(long id) { saleDao.markSaleAsSynced(id); }
     public void markSaleItemAsSynced(long id) { saleItemDao.markSaleItemAsSynced(id); }
     public void markHistoryAsSynced(long id) { historyDao.markHistoryAsSynced(id); }
-    public void markSaleArchiveAsSynced(long localId) { saleArchiveDao.markSaleArchiveAsSynced(localId); }
-    public void markSaleItemArchiveAsSynced(long localId) { saleArchiveDao.markSaleItemArchiveAsSynced(localId); }
 
     // ----------------------------------------------------------------------------------
     // E. AUTRES UTILITAIRES
     // ----------------------------------------------------------------------------------
 
     public User getUserById(String id) { return userDao.getUserById(id); }
-
-    public boolean isSaleArchiveSynced(long saleId) {
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        Cursor cursor = db.rawQuery(
-                "SELECT id FROM sale_archive WHERE id = ? AND sync_status = 'synced'",
-                new String[]{String.valueOf(saleId)}
-        );
-        boolean exists = cursor.getCount() > 0;
-        cursor.close();
-        return exists;
-    }
 
     public SaleHeader getSaleById(long saleId) {
         SQLiteDatabase db = dbHelper.getReadableDatabase();
@@ -229,48 +186,6 @@ public class SyncDao {
         i.setTotalPrice(c.getDouble(c.getColumnIndex("total_price")));
         i.setUpdatedAt(c.getString(c.getColumnIndex(DatabaseHelper.COL_UPDATED_AT)));
         i.setSyncStatus(c.getString(c.getColumnIndex(DatabaseHelper.COL_SYNC_STATUS)));
-        return i;
-    }
-
-    @SuppressLint("Range")
-    private SaleArchive cursorToSaleArchive(Cursor c) {
-        SaleArchive s = new SaleArchive();
-        s.setId(c.getLong(c.getColumnIndex("id")));
-        s.setSaleDate(c.getString(c.getColumnIndex("sale_date")));
-        s.setUserId(c.getLong(c.getColumnIndex("user_id")));
-
-        int clientIdx = c.getColumnIndex("client_id");
-        if (clientIdx != -1 && !c.isNull(clientIdx)) {
-            s.setClientId(c.getInt(clientIdx));
-        } else {
-            s.setClientId(0);
-        }
-
-        s.setTotalPrice(c.getDouble(c.getColumnIndex("total_price")));
-        s.setPaymentMethod(c.getString(c.getColumnIndex("payment_method")));
-        s.setUpdatedAt(c.getString(c.getColumnIndex(DatabaseHelper.COL_UPDATED_AT)));
-        s.setSyncStatus(c.getString(c.getColumnIndex(DatabaseHelper.COL_SYNC_STATUS)));
-        return s;
-    }
-
-    @SuppressLint("Range")
-    private SaleItemArchive cursorToSaleItemArchive(Cursor c) {
-        SaleItemArchive i = new SaleItemArchive();
-        i.setId(c.getLong(c.getColumnIndex("id")));
-        i.setSaleId(c.getLong(c.getColumnIndex("sale_id")));
-        i.setProductName(c.getString(c.getColumnIndex("product_name")));
-        i.setQuantity(c.getInt(c.getColumnIndex("quantity")));
-
-        int idxInit = c.getColumnIndex("initial_quantity");
-        if (idxInit != -1 && !c.isNull(idxInit)) {
-            i.setInitialQuantity(c.getInt(idxInit));
-        } else {
-            i.setInitialQuantity(i.getQuantity());
-        }
-
-        i.setUnitPrice(c.getDouble(c.getColumnIndex("unit_price")));
-        i.setTotalPrice(c.getDouble(c.getColumnIndex("total_price")));
-        i.setUpdatedAt(c.getString(c.getColumnIndex(DatabaseHelper.COL_UPDATED_AT)));
         return i;
     }
 }

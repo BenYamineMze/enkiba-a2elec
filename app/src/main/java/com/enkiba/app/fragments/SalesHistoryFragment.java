@@ -24,7 +24,6 @@ import com.enkiba.app.modelsDao.SaleDao;
 import com.enkiba.app.modelsDao.UserDao;
 import com.enkiba.app.utils.PDFUtils;
 import com.enkiba.app.utils.SessionManager;
-import com.enkiba.app.utils.SynchronizationManager;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.textfield.TextInputEditText;
 
@@ -40,7 +39,6 @@ public class SalesHistoryFragment extends Fragment {
 
     List<SaleHeader> salesList;
     private SessionManager sessionManager;
-    private SynchronizationManager syncManager;
 
     @Nullable
     @Override
@@ -52,7 +50,6 @@ public class SalesHistoryFragment extends Fragment {
         TextInputEditText edtSearchSale = view.findViewById(R.id.edtSearchSale);
 
         sessionManager = new SessionManager(getContext());
-        syncManager = new SynchronizationManager(getContext());
 
         // Initialisation des DAOs
         this.saleDao = new SaleDao(getContext());
@@ -98,51 +95,21 @@ public class SalesHistoryFragment extends Fragment {
                 return;
             }
 
-            // Confirmation avant archivage
-            new androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                    .setTitle("Exporter et Archiver ?")
-                    .setMessage("Voulez-vous vraiment exporter puis archiver l’historique des ventes ? Cette action est irréversible localement.")
-                    .setPositiveButton("Oui", (dialog, which) -> {
-
-                        btnExportPdf.setEnabled(false);
-
-                        new Thread(() -> {
-                            // Génération PDF pour l'historique des ventes
-                            boolean success = PDFUtils.generateSalesReportPdf(
-                                    requireContext(),
-                                    salesList,
-                                    "A2 ELEC - Historique des ventes"
-                            );
-
-                            requireActivity().runOnUiThread(() -> {
-                                btnExportPdf.setEnabled(true);
-
-                                if (success) {
-                                    // Une seule méthode pour tout gérer proprement
-                                    boolean isArchived = saleDao.archiveAllSales();
-
-                                    if (isArchived) {
-                                        if (salesList != null) salesList.clear();
-                                        if (saleAdapter != null) saleAdapter.notifyDataSetChanged();
-                                        Toast.makeText(requireContext(), "PDF généré et Historique archivé.", Toast.LENGTH_LONG).show();
-
-                                        // Déclenchement initial de la synchronisation pour PUSH les archives
-                                        syncManager.startSynchronization();
-
-                                    } else {
-                                        Toast.makeText(requireContext(), "Erreur d'archivage technique (Vérifiez Logcat)", Toast.LENGTH_LONG).show();
-                                    }
-                                } else {
-                                    Toast.makeText(requireContext(),
-                                            "Erreur lors de la génération du PDF.",
-                                            Toast.LENGTH_LONG).show();
-                                }
-                            });
-                        }).start();
-
-                    })
-                    .setNegativeButton("Annuler", null)
-                    .show();
+            // Export PDF de l'historique (plus d'archivage : les ventes restent en base)
+            btnExportPdf.setEnabled(false);
+            new Thread(() -> {
+                boolean success = PDFUtils.generateSalesReportPdf(
+                        requireContext(),
+                        salesList,
+                        "A2 ELEC - Historique des ventes"
+                );
+                requireActivity().runOnUiThread(() -> {
+                    btnExportPdf.setEnabled(true);
+                    Toast.makeText(requireContext(),
+                            success ? "PDF généré." : "Erreur lors de la génération du PDF.",
+                            Toast.LENGTH_LONG).show();
+                });
+            }).start();
         });
 
         return view;

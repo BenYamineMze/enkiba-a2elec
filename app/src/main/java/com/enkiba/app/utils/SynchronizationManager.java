@@ -9,10 +9,8 @@ import com.enkiba.app.api.SupabaseService;
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Product;
 import com.enkiba.app.models.ProductHistory;
-import com.enkiba.app.models.SaleArchive;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItem;
-import com.enkiba.app.models.SaleItemArchive;
 import com.enkiba.app.modelsDao.ProductDao;
 import com.enkiba.app.modelsDao.SyncDao;
 
@@ -163,18 +161,6 @@ public class SynchronizationManager {
             pushSaleItemTableSync(syncDao.getPendingSaleItems(), preferHeader);
         } catch (Exception e) {
             Log.e(TAG, "Erreur PUSH ventes : " + e.getMessage(), e);
-        }
-
-        // Archives (à supprimer à l'étape 4 : les tables n'existent plus en v2)
-        try {
-            List<SaleArchive> archives = syncDao.getPendingSaleArchives();
-            if (!archives.isEmpty()) {
-                pushSaleArchiveTableSync(archives, preferHeader);
-                pushSaleItemArchiveTableSync(syncDao.getPendingSaleItemArchives(), preferHeader);
-                deleteArchivedSalesFromServer();
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Erreur PUSH archives : " + e.getMessage(), e);
         }
 
         // Historique des produits
@@ -333,55 +319,6 @@ public class SynchronizationManager {
             } else {
                 logFailure("historique " + h.getId(), res);
             }
-        }
-    }
-
-    // ----------------------------------------------------------------------------------
-    // ARCHIVES (à supprimer à l'étape 4)
-    // ----------------------------------------------------------------------------------
-
-    private void pushSaleArchiveTableSync(List<SaleArchive> archives, String prefer) throws Exception {
-        for (SaleArchive ar : archives) {
-            Map<String, Object> map = new HashMap<>();
-            map.put("id", ar.getId());
-            map.put("sale_date", ar.getSaleDate());
-            map.put("user_id", ar.getUserId());
-            map.put("client_id", ar.getClientId());
-            map.put("total_price", ar.getTotalPrice());
-            map.put("payment_method", ar.getPaymentMethod());
-            map.put("updated_at", ar.getUpdatedAt());
-            if (supabaseService.upsertSaleArchiveMap(prefer, map).execute().isSuccessful()) {
-                syncDao.markSaleArchiveAsSynced(ar.getId());
-            }
-        }
-    }
-
-    private void pushSaleItemArchiveTableSync(List<SaleItemArchive> items, String prefer) throws Exception {
-        for (SaleItemArchive i : items) {
-            // L'archive parente doit être déjà envoyée
-            if (!syncDao.isSaleArchiveSynced(i.getSaleId())) continue;
-
-            Map<String, Object> map = new HashMap<>();
-            map.put("sale_id", i.getSaleId());
-            map.put("product_name", i.getProductName());
-            map.put("quantity", i.getQuantity());
-            map.put("initial_quantity", i.getQuantity());
-            map.put("unit_price", i.getUnitPrice());
-            map.put("total_price", i.getTotalPrice());
-            map.put("updated_at", i.getUpdatedAt());
-            if (supabaseService.upsertSaleItemArchiveMap(prefer, map).execute().isSuccessful()) {
-                syncDao.markSaleItemArchiveAsSynced(i.getId());
-            }
-        }
-    }
-
-    /** DANGEREUX : supprime TOUTES les ventes du serveur. À retirer à l'étape 4. */
-    private void deleteArchivedSalesFromServer() {
-        try {
-            supabaseService.deleteAllSaleItemsRemote().execute();
-            supabaseService.deleteAllSalesRemote().execute();
-        } catch (Exception e) {
-            Log.e(TAG, "Erreur suppression des ventes archivées : " + e.getMessage());
         }
     }
 
