@@ -49,6 +49,7 @@ import com.enkiba.app.ui.components.formatSaleMoment
 import com.enkiba.app.ui.components.softShadow
 import com.enkiba.app.ui.navigation.AppBottomBar
 import com.enkiba.app.ui.navigation.AppTab
+import com.enkiba.app.ui.quotes.quoteTile
 import com.enkiba.app.ui.theme.EnkibaTheme
 import com.enkiba.app.ui.theme.Spacing
 import com.enkiba.app.ui.theme.Tile
@@ -188,19 +189,6 @@ private fun LazyListScope.operationItems(state: HistoryUiState) {
     HistoryFilters.groupByDay(ops, { it.timestamp }).forEach { g ->
         dayHeader(g.label)
         items(g.items, key = { it.id }) { op -> OperationRow(op) }
-    }
-}
-
-/** Tuile de couleur d'un statut de devis. */
-@Composable
-private fun quoteTile(q: Quote): Tile {
-    val c = EnkibaTheme.colors
-    return when {
-        q.isExpired -> c.peach
-        q.status == Quote.STATUS_ACCEPTED -> c.sky
-        q.status == Quote.STATUS_CONVERTED -> c.mint
-        q.status == Quote.STATUS_REJECTED -> c.danger
-        else -> c.neutral
     }
 }
 

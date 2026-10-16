@@ -50,11 +50,9 @@
         <activity android:name=".activities.EditUserActivity"
             android:windowSoftInputMode="adjustNothing|stateHidden"/>
 
-        <activity android:name=".activities.QuoteDetailsActivity"
-            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".ui.quotes.QuoteDetailActivity" />
 
-        <activity android:name=".activities.SaleDetailsActivity"
-            android:windowSoftInputMode="adjustNothing|stateHidden"/>
+        <activity android:name=".ui.sale.SaleDetailActivity" />
 
         <activity android:name=".activities.QrListActivity"
             android:windowSoftInputMode="adjustNothing|stateHidden"/>

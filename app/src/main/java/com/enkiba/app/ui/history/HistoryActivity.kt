@@ -9,9 +9,9 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
-import com.enkiba.app.activities.QuoteDetailsActivity
-import com.enkiba.app.activities.SaleDetailsActivity
 import com.enkiba.app.ui.navigation.AppNavigator
+import com.enkiba.app.ui.quotes.QuoteDetailActivity
+import com.enkiba.app.ui.sale.SaleDetailActivity
 import com.enkiba.app.ui.theme.EnkibaTheme
 import com.enkiba.app.utils.SessionManager
 import kotlinx.coroutines.launch
@@ -45,8 +45,8 @@ class HistoryActivity : ComponentActivity() {
                         onQueryChange = viewModel::onQueryChange,
                         onQuoteFilter = viewModel::onQuoteFilter,
                         onRefresh = viewModel::refresh,
-                        onOpenSale = { s -> startActivity(Intent(this, SaleDetailsActivity::class.java).putExtra("sale_id", s.id)) },
-                        onOpenQuote = { q -> startActivity(Intent(this, QuoteDetailsActivity::class.java).putExtra(QuoteDetailsActivity.EXTRA_QUOTE_ID, q.id)) },
+                        onOpenSale = { s -> startActivity(Intent(this, SaleDetailActivity::class.java).putExtra(SaleDetailActivity.EXTRA_SALE_ID, s.id)) },
+                        onOpenQuote = { q -> startActivity(Intent(this, QuoteDetailActivity::class.java).putExtra(QuoteDetailActivity.EXTRA_QUOTE_ID, q.id)) },
                         onExport = ::export,
                         onNavigate = { tab -> AppNavigator.open(this, tab, session.isAdmin) },
                         onNewSale = { AppNavigator.newSale(this) },
