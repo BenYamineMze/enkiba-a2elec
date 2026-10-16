@@ -16,6 +16,7 @@ import android.widget.TextView;
 import androidx.core.content.ContextCompat;
 
 import com.enkiba.app.R;
+import com.enkiba.app.ui.products.ProductFormActivity;
 import com.enkiba.app.models.Product;
 import com.enkiba.app.modelsDao.ProductDao;
 import com.enkiba.app.utils.NavigationHelper;
@@ -228,10 +229,10 @@ public class StatisticsActivity extends BaseActivity {
 
         builder.setMessage(sb.toString());
 
-        // Bouton Modifier : Redirige vers EditProductActivity
+        // Bouton Modifier : formulaire produit (Compose)
         builder.setPositiveButton("Modifier", (dialog, which) -> {
-            Intent intent = new Intent(StatisticsActivity.this, EditProductActivity.class);
-            intent.putExtra("PRODUCT_ID", info.id); // Utilisation de l'ID UUID
+            Intent intent = new Intent(StatisticsActivity.this, ProductFormActivity.class);
+            intent.putExtra(ProductFormActivity.EXTRA_PRODUCT_ID, info.id);
             startActivity(intent);
         });
 
