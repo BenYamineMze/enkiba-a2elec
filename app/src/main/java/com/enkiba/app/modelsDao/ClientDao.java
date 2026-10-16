@@ -134,6 +134,11 @@ public class ClientDao {
     /** Insère ou remplace un client reçu du serveur (PULL). */
     public void upsertClientFromRemote(Client remoteClient) {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
+        // Une modification locale pas encore envoyée n'est jamais écrasée
+        if (ProductDao.isPending(db, TABLE_CLIENTS, remoteClient.getId())) {
+            db.close();
+            return;
+        }
         ContentValues values = toValues(remoteClient);
         values.put(DatabaseHelper.COL_UPDATED_AT, remoteClient.getUpdatedAt());
         values.put(DatabaseHelper.COL_SYNC_STATUS, "synced");

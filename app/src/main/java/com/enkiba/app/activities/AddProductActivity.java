@@ -128,19 +128,10 @@ public class AddProductActivity extends BaseActivity {
             // CORRECTION: On définit le QR Code sur l'objet avant insertion
             product.setQr_code(stableQrCode);
 
-            // C. Insertion en base
-            // [MODIFICATION UUID] Le type de retour est maintenant String (l'UUID) ou null
-            String result = productDao.insertProduct(product);
+            // C. Insertion en base : produit + mouvement de stock 'initial' (une transaction)
+            String result = productDao.createProduct(product, quantity, sessionManager.getUserId());
 
             if (result != null) {
-                // L'ID est déjà défini dans l'objet product, mais 'result' contient la confirmation
-                // product.setId(result); // Redondant avec UUID, mais inoffensif
-
-                // 🚨 SAFEGUARD :
-                // On s'assure que le QR Code est bien persistant
-                product.setQr_code(stableQrCode);
-                productDao.updateProduct(product);
-
                 Log.d("AddProduct", "Produit sauvegardé. ID=" + result + ", QR=" + stableQrCode);
 
                 // Historique

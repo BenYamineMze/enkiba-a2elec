@@ -44,9 +44,7 @@ public class SaleItem implements Serializable {
     @Expose @SerializedName("updated_at")
     private String updatedAt;
 
-    // --- Champs locaux ---
-    // Quantité vendue à l'origine : les retours sont gérés localement pour l'instant
-    private transient int initialQuantity;
+    // --- Champ local ---
     private transient String syncStatus;
 
     public SaleItem() {
@@ -100,9 +98,6 @@ public class SaleItem implements Serializable {
 
     public String getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }
-
-    public int getInitialQuantity() { return initialQuantity; }
-    public void setInitialQuantity(int initialQuantity) { this.initialQuantity = initialQuantity; }
 
     public String getSyncStatus() { return syncStatus; }
     public void setSyncStatus(String syncStatus) { this.syncStatus = syncStatus; }

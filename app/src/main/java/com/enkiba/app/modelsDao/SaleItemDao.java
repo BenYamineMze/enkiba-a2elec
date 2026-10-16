@@ -34,7 +34,6 @@ public class SaleItemDao {
         item.setUnitPrice(cursor.getDouble(cursor.getColumnIndexOrThrow("unit_price")));
         item.setQuantity(cursor.getInt(cursor.getColumnIndexOrThrow("quantity")));
         item.setTotalPrice(cursor.getDouble(cursor.getColumnIndexOrThrow("total_price")));
-        item.setInitialQuantity(cursor.getInt(cursor.getColumnIndexOrThrow("initial_quantity")));
         item.setUpdatedAt(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_UPDATED_AT)));
         item.setSyncStatus(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_SYNC_STATUS)));
         return item;
@@ -69,8 +68,6 @@ public class SaleItemDao {
         values.put("product_id", remoteItem.getProductId());
         values.put("product_name", remoteItem.getProductName() != null ? remoteItem.getProductName() : "");
         values.put("quantity", remoteItem.getQuantity());
-        // Le serveur ne connaît pas les retours : la quantité reçue est la quantité d'origine
-        values.put("initial_quantity", remoteItem.getQuantity());
         values.put("list_price", remoteItem.getListPrice());
         values.put("unit_price", remoteItem.getUnitPrice());
         values.put("total_price", remoteItem.getTotalPrice());

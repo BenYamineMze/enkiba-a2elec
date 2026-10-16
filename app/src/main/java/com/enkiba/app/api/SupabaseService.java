@@ -1,13 +1,14 @@
 package com.enkiba.app.api;
 
+import com.enkiba.app.models.AuditLogEntry;
 import com.enkiba.app.models.AuthResponse;
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Membership;
 import com.enkiba.app.models.Product;
-import com.enkiba.app.models.ProductHistory;
 import com.enkiba.app.models.Profile;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItem;
+import com.enkiba.app.models.SaleReturn;
 import com.enkiba.app.models.ShopMember;
 import com.google.gson.JsonObject;
 
@@ -16,10 +17,10 @@ import java.util.Map;
 
 import retrofit2.Call;
 import retrofit2.http.Body;
-import retrofit2.http.DELETE;
 import retrofit2.http.GET;
 import retrofit2.http.Header;
 import retrofit2.http.Headers;
+import retrofit2.http.PATCH;
 import retrofit2.http.POST;
 import retrofit2.http.Query;
 
@@ -57,77 +58,81 @@ public interface SupabaseService {
     Call<JsonObject> updateSeller(@Body JsonObject body);
 
     // ======================================================================
-    // 3. SYNCHRONISATION DESCENDANTE (PULL) : à réécrire à l'étape 4
+    // 3. SYNCHRONISATION DESCENDANTE (PULL)
+    // Incrémental : updated_at (ou created_at pour audit_log) >= curseur, trié, par pages.
+    // since = "gte.<horodatage serveur>", order = "updated_at.asc,id.asc"
     // ======================================================================
 
     @GET("rest/v1/products")
-    Call<List<Product>> getProductsSince(
-            @Query("updated_at") String filterTime,
-            @Query("select") String selectFields);
+    Call<List<Product>> pullProducts(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
+                                     @Query("order") String order, @Query("limit") int limit);
 
     @GET("rest/v1/clients")
-    Call<List<Client>> getClientsSince(
-            @Query("updated_at") String filterTime,
-            @Query("select") String selectFields);
+    Call<List<Client>> pullClients(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
+                                   @Query("order") String order, @Query("limit") int limit);
 
     @GET("rest/v1/sales")
-    Call<List<SaleHeader>> getSalesSince(
-            @Query("updated_at") String filterTime,
-            @Query("select") String selectFields);
+    Call<List<SaleHeader>> pullSales(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
+                                     @Query("order") String order, @Query("limit") int limit);
 
     @GET("rest/v1/sale_items")
-    Call<List<SaleItem>> getSaleItemsSince(
-            @Query("updated_at") String filterTime,
-            @Query("select") String selectFields);
+    Call<List<SaleItem>> pullSaleItems(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
+                                       @Query("order") String order, @Query("limit") int limit);
 
-    @GET("rest/v1/history")
-    Call<List<ProductHistory>> getHistorySince(
-            @Query("updated_at") String filterTime,
-            @Query("select") String selectFields);
+    @GET("rest/v1/sale_returns")
+    Call<List<SaleReturn>> pullSaleReturns(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
+                                           @Query("order") String order, @Query("limit") int limit);
+
+    @GET("rest/v1/audit_log?entity=eq.product")
+    Call<List<AuditLogEntry>> pullProductAuditLog(@Query("shop_id") String shopFilter, @Query("created_at") String since,
+                                                  @Query("order") String order, @Query("limit") int limit);
 
     // ======================================================================
-    // 4. SYNCHRONISATION ASCENDANTE (PUSH) : à réécrire à l'étape 4
+    // 4. SYNCHRONISATION ASCENDANTE (PUSH)
+    // Le header Prefer est choisi par le SynchronizationManager :
+    // - resolution=ignore-duplicates pour ce qui n'est jamais modifié après création
+    //   (ventes, lignes, retours, mouvements de stock, journal) : un renvoi est sans effet ;
+    // - resolution=merge-duplicates pour les clients (modifiables par tous les membres).
     // ======================================================================
-
-    @Headers("Content-Type: application/json")
-    @POST("rest/v1/products")
-    Call<List<Product>> upsertProduct(@Header("Prefer") String prefer, @Body Product product);
-
-    @Headers("Content-Type: application/json")
-    @POST("rest/v1/products")
-    Call<List<Product>> upsertProductAsMap(@Header("Prefer") String prefer, @Body Map<String, Object> productMap);
-
-    @Headers({"Content-Type: application/json", "Prefer: resolution=merge-duplicates"})
-    @POST("rest/v1/clients")
-    Call<Void> upsertClient(@Body Client client);
-
-    @Headers({"Content-Type: application/json", "Prefer: resolution=merge-duplicates"})
-    @POST("rest/v1/sales")
-    Call<Void> upsertSale(@Body SaleHeader sale);
-
-    @Headers({"Content-Type: application/json", "Prefer: resolution=merge-duplicates"})
-    @POST("rest/v1/sale_items")
-    Call<Void> upsertSaleItem(@Body SaleItem saleItem);
-
-    @Headers({"Content-Type: application/json", "Prefer: resolution=merge-duplicates"})
-    @POST("rest/v1/history")
-    Call<Void> upsertHistory(@Body ProductHistory history);
 
     @Headers("Content-Type: application/json")
     @POST("rest/v1/clients")
-    Call<Void> upsertClientMap(@Header("Prefer") String prefer, @Body Map<String, Object> clientMap);
+    Call<Void> upsertClient(@Header("Prefer") String prefer, @Body Map<String, Object> client);
+
+    // Produit : modification (PATCH) puis création si absent. Un upsert réécrirait id et
+    // shop_id, que le rôle authenticated n'a pas le droit de modifier.
+    @Headers("Content-Type: application/json")
+    @PATCH("rest/v1/products")
+    Call<List<Product>> patchProduct(@Header("Prefer") String prefer, @Query("id") String idFilter,
+                                     @Body Map<String, Object> product);
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/products")
+    Call<Void> insertProduct(@Header("Prefer") String prefer, @Body Map<String, Object> product);
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/stock_movements")
+    Call<Void> insertStockMovement(@Header("Prefer") String prefer, @Body Map<String, Object> movement);
 
     @Headers("Content-Type: application/json")
     @POST("rest/v1/sales")
-    Call<Void> upsertSaleMap(@Header("Prefer") String prefer, @Body Map<String, Object> saleMap);
-
-    @Headers("Content-Type: application/json")
-    @POST("rest/v1/sales")
-    Call<List<SaleHeader>> upsertSaleAsMap(@Header("Prefer") String prefer, @Body Map<String, Object> saleMap);
+    Call<Void> insertSale(@Header("Prefer") String prefer, @Body Map<String, Object> sale);
 
     @Headers("Content-Type: application/json")
     @POST("rest/v1/sale_items")
-    Call<Void> upsertSaleItemMap(@Header("Prefer") String prefer, @Body Map<String, Object> itemMap);
+    Call<Void> insertSaleItem(@Header("Prefer") String prefer, @Body Map<String, Object> item);
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/sale_returns")
+    Call<Void> insertSaleReturn(@Header("Prefer") String prefer, @Body Map<String, Object> saleReturn);
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/audit_log")
+    Call<Void> insertAuditLog(@Header("Prefer") String prefer, @Body Map<String, Object> entry);
+
+    // ======================================================================
+    // 5. DIVERS
+    // ======================================================================
 
     @GET("rest/v1/shop_members")
     Call<List<ShopMember>> getShopMember(

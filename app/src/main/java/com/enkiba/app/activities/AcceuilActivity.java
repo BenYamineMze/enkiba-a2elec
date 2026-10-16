@@ -178,7 +178,7 @@ public class AcceuilActivity extends BaseActivity {
             holder.setText(R.id.tvMainText, "Vente #" + s.getShortRef());
             // UTILISATION DU FORMATTER
             holder.setText(R.id.tvSubText, CurrencyUtils.formatSaleDate(s.getSaleDate()));
-            holder.setText(R.id.tvValue, CurrencyUtils.formatKMF(s.getTotalPrice()));
+            holder.setText(R.id.tvValue, CurrencyUtils.formatKMF(s.getNetTotal()));
             holder.setTextColor(R.id.tvValue, getColor(R.color.blue_dark));
         });
     }
@@ -191,7 +191,7 @@ public class AcceuilActivity extends BaseActivity {
             holder.setText(R.id.tvMainText, "Vente #" + s.getShortRef());
             // UTILISATION DU FORMATTER
             holder.setText(R.id.tvSubText, CurrencyUtils.formatSaleDate(s.getSaleDate()));
-            holder.setText(R.id.tvValue, CurrencyUtils.formatKMF(s.getTotalPrice()));
+            holder.setText(R.id.tvValue, CurrencyUtils.formatKMF(s.getNetTotal()));
             holder.setTextColor(R.id.tvValue, getColor(R.color.green_dark_2));
         });
     }

@@ -379,7 +379,6 @@ public class SellProductActivity extends BaseActivity {
                     return;
                 }
                 row.setQuantity(newQty);
-                row.setInitialQuantity(newQty);
                 row.setTotal(row.getUnitPrice() * newQty);
                 merged = true;
                 break;
@@ -388,7 +387,6 @@ public class SellProductActivity extends BaseActivity {
 
         if (!merged) {
             SaleItemRow row = new SaleItemRow(p.getId(), p.getName(), price, qty);
-            row.setInitialQuantity(qty);
             cartRows.add(row);
         }
         updateCartBadge();

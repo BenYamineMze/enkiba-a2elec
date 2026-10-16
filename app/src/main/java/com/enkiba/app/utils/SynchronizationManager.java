@@ -6,44 +6,52 @@ import android.util.Log;
 
 import com.enkiba.app.api.RetrofitClient;
 import com.enkiba.app.api.SupabaseService;
+import com.enkiba.app.models.AuditLogEntry;
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Product;
 import com.enkiba.app.models.ProductHistory;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItem;
-import com.enkiba.app.modelsDao.ProductDao;
+import com.enkiba.app.models.SaleReturn;
+import com.enkiba.app.models.StockMovement;
 import com.enkiba.app.modelsDao.SyncDao;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import retrofit2.Response;
 
 /**
  * Synchronise la base locale (SQLite) avec Supabase.
  *
- * Fonctionnement : PUSH (envoi des modifications locales "pending")
- * puis PULL (récupération des changements du serveur).
+ * Fonctionnement : PUSH (envoi des modifications locales "pending") puis PULL
+ * (récupération des changements du serveur). Une seule synchronisation à la fois.
  *
- * NOTE : les utilisateurs ne sont plus synchronisés ici. Ils sont gérés
- * directement par le serveur (écrans de gestion des utilisateurs + Edge Functions).
+ * - Les ids sont des UUID générés par le téléphone : un renvoi est idempotent.
+ * - Le stock n'est jamais envoyé : le serveur le calcule à partir des mouvements de stock
+ *   (saisis par un admin, ou générés par trigger pour les ventes et les retours).
+ * - Le pull est incrémental, table par table, sur l'horodatage du serveur.
+ * - Les suppressions passent par deleted_at, jamais par un DELETE.
  *
- * TODO étape 4 : réécriture complète (UUID, stock_movements, pull incrémental
- * basé sur le updated_at serveur).
+ * Les utilisateurs ne sont pas synchronisés ici : ils sont gérés directement par le
+ * serveur (écrans de gestion des utilisateurs + Edge Functions).
  */
 public class SynchronizationManager {
 
     private static final String TAG = "SyncManager";
+
+    // Insertion idempotente : une ligne déjà présente (même id) est ignorée sans erreur.
+    // Pour les données qu'on ne modifie jamais après création (ventes, mouvements, journal).
+    private static final String PREFER_IGNORE_DUPLICATES = "resolution=ignore-duplicates, return=minimal";
+    // Upsert : la ligne existante est mise à jour (clients).
+    private static final String PREFER_MERGE_DUPLICATES = "resolution=merge-duplicates, return=minimal";
     private static final String PREFS_SYNC = "sync_prefs";
-    private static final String KEY_LAST_SYNC = "last_sync_time";
 
     private final SupabaseService supabaseService;
     private final SyncDao syncDao;
-    private final ProductDao productDao;
     private final Context context;
     private final SessionManager sessionManager;
 
@@ -56,22 +64,7 @@ public class SynchronizationManager {
         this.context = context;
         this.supabaseService = RetrofitClient.getSupabaseService(context);
         this.syncDao = new SyncDao(context);
-        this.productDao = new ProductDao(context);
         this.sessionManager = new SessionManager(context);
-    }
-
-    // ----------------------------------------------------------------------------------
-    // DATE DE DERNIÈRE SYNCHRO
-    // ----------------------------------------------------------------------------------
-
-    private String getLastSyncTime() {
-        SharedPreferences prefs = context.getSharedPreferences(PREFS_SYNC, Context.MODE_PRIVATE);
-        return prefs.getString(KEY_LAST_SYNC, "2000-01-01T00:00:00.000Z");
-    }
-
-    private void setLastSyncTime(String timestamp) {
-        SharedPreferences prefs = context.getSharedPreferences(PREFS_SYNC, Context.MODE_PRIVATE);
-        prefs.edit().putString(KEY_LAST_SYNC, timestamp).apply();
     }
 
     // ----------------------------------------------------------------------------------
@@ -82,9 +75,18 @@ public class SynchronizationManager {
         startSynchronization(null);
     }
 
+    // Une seule synchronisation à la fois pour tout le processus (plusieurs écrans en créent).
+    // Une demande reçue pendant une synchro en cours relance un tour juste après,
+    // pour que la dernière modification locale soit toujours envoyée.
+    private static final Object LOCK = new Object();
+    private static boolean running = false;
+    private static boolean rerunRequested = false;
+    private static final List<SyncCallback> waitingCallbacks = new ArrayList<>();
+
     /**
      * Lance la synchronisation dans un thread séparé.
      * Ne fait rien si l'appareil est hors ligne ou si aucun utilisateur n'est connecté.
+     * Le callback est appelé sur le thread principal à la fin du tour qui inclut cette demande.
      */
     public void startSynchronization(SyncCallback callback) {
         if (!NetworkUtils.isOnline(context)) {
@@ -99,28 +101,51 @@ public class SynchronizationManager {
             return;
         }
 
-        final String lastSyncTimestamp = getLastSyncTime();
-        final String currentSyncTime = DatabaseUtils.getCurrentIsoTime();
+        synchronized (LOCK) {
+            if (callback != null) waitingCallbacks.add(callback);
+            if (running) {
+                rerunRequested = true;
+                Log.d(TAG, "Sync déjà en cours : un nouveau tour suivra.");
+                return;
+            }
+            running = true;
+        }
 
         new Thread(() -> {
-            try {
-                // 1. PUSH : envoi des modifications locales
-                pushLocalChangesSync();
-
-                // 2. PULL : récupération des changements du serveur
-                pullRemoteChangesSynchronous(lastSyncTimestamp);
-
-                setLastSyncTime(currentSyncTime);
-                Log.d(TAG, "--- SYNCHRO TERMINÉE ---");
-
-            } catch (Exception e) {
-                Log.e(TAG, "Erreur critique synchro : " + e.getMessage(), e);
-            } finally {
-                if (callback != null) {
-                    new android.os.Handler(android.os.Looper.getMainLooper()).post(callback::onFinish);
+            while (true) {
+                synchronized (LOCK) {
+                    rerunRequested = false;
                 }
+                runOnce();
+                List<SyncCallback> toNotify;
+                synchronized (LOCK) {
+                    if (rerunRequested) continue;
+                    running = false;
+                    toNotify = new ArrayList<>(waitingCallbacks);
+                    waitingCallbacks.clear();
+                }
+                if (!toNotify.isEmpty()) {
+                    android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+                    for (SyncCallback cb : toNotify) main.post(cb::onFinish);
+                }
+                break;
             }
-        }).start();
+        }, "sync").start();
+    }
+
+    /** Un tour complet : PUSH puis PULL. Ne lève jamais d'exception. */
+    private void runOnce() {
+        try {
+            // 1. PUSH : envoi des modifications locales
+            pushLocalChangesSync();
+
+            // 2. PULL : récupération des changements du serveur
+            pullRemoteChangesSynchronous();
+
+            Log.d(TAG, "--- SYNCHRO TERMINÉE ---");
+        } catch (Exception e) {
+            Log.e(TAG, "Erreur critique synchro : " + e.getMessage(), e);
+        }
     }
 
     // ----------------------------------------------------------------------------------
@@ -130,11 +155,11 @@ public class SynchronizationManager {
     /** Envoie au serveur tout ce qui est en attente ("pending") dans la base locale. */
     private void pushLocalChangesSync() {
         Log.d(TAG, "--- DÉBUT PUSH ---");
-        String preferHeader = "resolution=merge-duplicates";
+        // Ordre : chaque table après celles qu'elle référence (clés étrangères)
 
-        // Clients
+        // Clients (modifiables par tous les membres : upsert)
         try {
-            pushClientTableSync(syncDao.getPendingClients(), preferHeader);
+            pushClientTableSync(syncDao.getPendingClients(), PREFER_MERGE_DUPLICATES);
         } catch (Exception e) {
             Log.e(TAG, "Erreur PUSH clients : " + e.getMessage(), e);
         }
@@ -146,12 +171,27 @@ public class SynchronizationManager {
             Log.e(TAG, "Erreur PUSH produits : " + e.getMessage(), e);
         }
 
+        // Mouvements de stock saisis localement (après les produits : clé étrangère)
+        try {
+            pushStockMovementsSync(syncDao.getPendingStockMovements());
+        } catch (Exception e) {
+            Log.e(TAG, "Erreur PUSH mouvements de stock : " + e.getMessage(), e);
+        }
+
         // Ventes : l'en-tête d'abord, puis les lignes
         try {
-            pushSaleHeaderTableSync(syncDao.getPendingSales(), preferHeader);
-            pushSaleItemTableSync(syncDao.getPendingSaleItems(), preferHeader);
+            // Une vente n'est jamais modifiée par un vendeur : doublon ignoré
+            pushSaleHeaderTableSync(syncDao.getPendingSales(), PREFER_IGNORE_DUPLICATES);
+            pushSaleItemTableSync(syncDao.getPendingSaleItems(), PREFER_IGNORE_DUPLICATES);
         } catch (Exception e) {
             Log.e(TAG, "Erreur PUSH ventes : " + e.getMessage(), e);
+        }
+
+        // Retours (après les lignes de vente qu'ils référencent)
+        try {
+            pushSaleReturnsSync(syncDao.getPendingSaleReturns());
+        } catch (Exception e) {
+            Log.e(TAG, "Erreur PUSH retours : " + e.getMessage(), e);
         }
 
         // Historique des produits
@@ -164,8 +204,7 @@ public class SynchronizationManager {
 
     /**
      * Envoie les en-têtes de vente. L'id (UUID) est généré par le téléphone :
-     * le serveur garde le même, il n'y a plus d'id à reporter localement.
-     * TODO étape 4 : resolution=ignore-duplicates (un vendeur ne modifie pas une vente).
+     * le serveur garde le même ; un renvoi (réponse perdue, synchro interrompue) est ignoré.
      */
     private void pushSaleHeaderTableSync(List<SaleHeader> sales, String prefer) throws Exception {
         for (SaleHeader s : sales) {
@@ -179,7 +218,7 @@ public class SynchronizationManager {
             map.put("has_negotiation", s.isHasNegotiatedPrice()); // vente à prix négocié
             map.put("sale_date", s.getSaleDate());
 
-            Response<Void> res = supabaseService.upsertSaleMap(prefer, map).execute();
+            Response<Void> res = supabaseService.insertSale(prefer, map).execute();
             if (res.isSuccessful()) {
                 syncDao.markSaleAsSynced(s.getId());
             } else {
@@ -202,7 +241,7 @@ public class SynchronizationManager {
             map.put("unit_price", i.getUnitPrice());
             map.put("total_price", i.getTotalPrice());
 
-            Response<Void> res = supabaseService.upsertSaleItemMap(prefer, map).execute();
+            Response<Void> res = supabaseService.insertSaleItem(prefer, map).execute();
             if (res.isSuccessful()) {
                 syncDao.markSaleItemAsSynced(i.getId());
             } else {
@@ -223,7 +262,7 @@ public class SynchronizationManager {
             map.put("id", c.getId());
             map.put("shop_id", c.getShopId() != null ? c.getShopId() : sessionManager.getShopId());
 
-            Response<Void> res = supabaseService.upsertClientMap(prefer, map).execute();
+            Response<Void> res = supabaseService.upsertClient(prefer, map).execute();
             if (res.isSuccessful()) {
                 syncDao.markClientAsSynced(c.getId());
             } else {
@@ -232,48 +271,118 @@ public class SynchronizationManager {
         }
     }
 
-    /** Envoie les produits créés ou modifiés localement (identifiés par un UUID). */
+    /**
+     * Envoie les produits créés ou modifiés localement (admin).
+     * PATCH d'abord ; si aucune ligne n'est modifiée, le produit n'existe pas encore : INSERT.
+     * Le stock (quantity) n'est jamais envoyé : il vient des mouvements de stock.
+     */
     private void pushProductTableSync(List<Product> products) throws Exception {
-        String prefer = "resolution=merge-duplicates, return=representation";
         for (Product p : products) {
-            Map<String, Object> map = new HashMap<>();
-            map.put("id", p.getId());
-            map.put("shop_id", p.getShopId() != null ? p.getShopId() : sessionManager.getShopId());
-            map.put("name", p.getName());
-            map.put("category", p.getCategory());
-            map.put("quantity", p.getQuantity());
-            map.put("price", p.getPrice());
-            map.put("description", p.getDescription());
-            map.put("qr_code", p.getQr_code());
-            map.put("initial_stock", p.getInitial_stock());
-            map.put("low_stock_threshold", p.getLowStockThreshold());
-            map.put("deleted_at", p.getDeletedAt());
+            Map<String, Object> fields = new HashMap<>();
+            fields.put("name", p.getName());
+            fields.put("category", p.getCategory());
+            fields.put("price", p.getPrice());
+            fields.put("description", p.getDescription());
+            fields.put("qr_code", p.getQr_code());
+            fields.put("initial_stock", p.getInitial_stock());
+            fields.put("low_stock_threshold", p.getLowStockThreshold());
+            fields.put("deleted_at", p.getDeletedAt());
 
-            Response<List<Product>> res = supabaseService.upsertProductAsMap(prefer, map).execute();
+            Response<List<Product>> patch = supabaseService
+                    .patchProduct("return=representation", "eq." + p.getId(), fields).execute();
+            if (!patch.isSuccessful()) {
+                logFailure("modification produit " + p.getId(), patch);
+                continue;
+            }
+            if (patch.body() == null || patch.body().isEmpty()) {
+                Map<String, Object> row = new HashMap<>(fields);
+                row.put("id", p.getId());
+                row.put("shop_id", p.getShopId() != null ? p.getShopId() : sessionManager.getShopId());
+                Response<Void> insert = supabaseService.insertProduct(PREFER_IGNORE_DUPLICATES, row).execute();
+                if (!insert.isSuccessful()) {
+                    logFailure("création produit " + p.getId(), insert);
+                    continue;
+                }
+            }
+            syncDao.markProductAsSynced(p.getId());
+        }
+    }
+
+    /**
+     * Envoie les mouvements de stock saisis par un admin.
+     * Rejouer un envoi est sans effet (même id, doublon ignoré).
+     */
+    private void pushStockMovementsSync(List<StockMovement> movements) throws Exception {
+        for (StockMovement m : movements) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", m.getId());
+            map.put("shop_id", m.getShopId() != null ? m.getShopId() : sessionManager.getShopId());
+            map.put("product_id", m.getProductId());
+            map.put("delta", m.getDelta());
+            map.put("reason", m.getReason());
+            map.put("created_by", m.getCreatedBy() != null ? m.getCreatedBy() : sessionManager.getUserId());
+
+            Response<Void> res = supabaseService.insertStockMovement(PREFER_IGNORE_DUPLICATES, map).execute();
             if (res.isSuccessful()) {
-                syncDao.markProductAsSynced(p.getId());
+                syncDao.markStockMovementAsSynced(m.getId());
             } else {
-                logFailure("produit " + p.getId(), res);
+                logFailure("mouvement de stock " + m.getId(), res);
+            }
+        }
+    }
+
+    /**
+     * Envoie les retours. Le serveur revérifie la quantité retournable et remet le stock
+     * (mouvement 'sale_cancel'). Rejouer un envoi est sans effet (même id, doublon ignoré).
+     */
+    private void pushSaleReturnsSync(List<SaleReturn> returns) throws Exception {
+        for (SaleReturn r : returns) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", r.getId());
+            map.put("shop_id", r.getShopId() != null ? r.getShopId() : sessionManager.getShopId());
+            map.put("sale_id", r.getSaleId());
+            map.put("sale_item_id", r.getSaleItemId());
+            map.put("product_id", r.getProductId());
+            map.put("quantity", r.getQuantity());
+            map.put("refund_amount", r.getRefundAmount());
+            map.put("created_by", r.getCreatedBy() != null ? r.getCreatedBy() : sessionManager.getUserId());
+
+            Response<Void> res = supabaseService.insertSaleReturn(PREFER_IGNORE_DUPLICATES, map).execute();
+            if (res.isSuccessful()) {
+                syncDao.markSaleReturnAsSynced(r.getId());
+            } else {
+                logFailure("retour " + r.getId(), res);
             }
         }
     }
 
     /** Envoie le journal des opérations sur les produits. */
     private void pushHistoryTableSync(List<ProductHistory> histories) throws Exception {
-        if (histories.isEmpty()) return;
-        Log.d(TAG, "Envoi de " + histories.size() + " logs historique...");
-
+        String currentUser = sessionManager.getUserId();
         for (ProductHistory h : histories) {
             // Entrée sans produit : inutilisable, on la considère comme traitée
             if (h.getProductId() == null) {
                 syncDao.markHistoryAsSynced(h.getId());
                 continue;
             }
+            // Le serveur n'accepte que les entrées de l'utilisateur connecté : celles d'un autre
+            // utilisateur de ce téléphone partiront à sa prochaine connexion
+            if (h.getUserId() != null && !h.getUserId().equals(currentUser)) continue;
 
-            Response<Void> res = supabaseService.upsertHistory(h).execute();
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", h.getId());
+            map.put("shop_id", h.getShopId() != null ? h.getShopId() : sessionManager.getShopId());
+            map.put("user_id", currentUser);
+            map.put("entity", "product");
+            map.put("entity_id", h.getProductId());
+            map.put("operation", h.getOperation() != null ? h.getOperation() : "");
+            // old_value / new_value sont en jsonb : une chaîne devient une chaîne JSON
+            map.put("old_value", h.getOldValue());
+            map.put("new_value", h.getNewValue());
+            if (h.getTimestamp() != null) map.put("created_at", h.getTimestamp());
 
-            // 409 = déjà présent sur le serveur : on le marque comme envoyé
-            if (res.isSuccessful() || res.code() == 409) {
+            Response<Void> res = supabaseService.insertAuditLog(PREFER_IGNORE_DUPLICATES, map).execute();
+            if (res.isSuccessful()) {
                 syncDao.markHistoryAsSynced(h.getId());
             } else {
                 logFailure("historique " + h.getId(), res);
@@ -285,60 +394,125 @@ public class SynchronizationManager {
     // PHASE PULL
     // ----------------------------------------------------------------------------------
 
-    /** Récupère les données du serveur et met à jour la base locale. */
-    private void pullRemoteChangesSynchronous(String lastSyncTime) {
-        String filterDate = "gt." + lastSyncTime;
-        String selectAll = "*";
-        try {
-            // Produits : récupération complète, puis suppression locale de ceux disparus du serveur
-            Response<List<Product>> respProducts =
-                    supabaseService.getProductsSince("gt.1970-01-01T00:00:00.000Z", selectAll).execute();
-            if (respProducts.isSuccessful() && respProducts.body() != null) {
-                Set<String> remoteIds = new HashSet<>();
-                for (Product p : respProducts.body()) {
-                    remoteIds.add(p.getId());
-                    // On ne remplace jamais une modification locale non encore envoyée
-                    Product localP = productDao.getProductById(p.getId());
-                    if (localP != null && !"synced".equalsIgnoreCase(localP.getSyncStatus())) continue;
-                    syncDao.insertOrUpdateProduct(p);
-                }
-                for (Product local : productDao.getAllProducts()) {
-                    if (local.getId() != null && !remoteIds.contains(local.getId())) {
-                        if (!"synced".equalsIgnoreCase(local.getSyncStatus())) continue;
-                        productDao.deleteProductPhysically(local.getId());
-                    }
-                }
-            } else {
-                logFailure("pull produits", respProducts);
-            }
+    private static final int PULL_PAGE_SIZE = 500;
+    private static final String PULL_ORDER = "updated_at.asc,id.asc";
+    private static final String EPOCH = "1970-01-01T00:00:00+00:00";
 
-            // Clients
-            Response<List<Client>> respClients = supabaseService.getClientsSince(filterDate, selectAll).execute();
-            if (respClients.isSuccessful() && respClients.body() != null) {
-                for (Client c : respClients.body()) syncDao.upsertClient(c);
-            }
+    /** Requête d'une page à partir d'un curseur (filtre PostgREST "gte.<horodatage>"). */
+    private interface PageFetcher<T> {
+        retrofit2.Call<List<T>> fetch(String since);
+    }
 
-            // Ventes
-            Response<List<SaleHeader>> respSales = supabaseService.getSalesSince(filterDate, selectAll).execute();
-            if (respSales.isSuccessful() && respSales.body() != null) {
-                for (SaleHeader s : respSales.body()) syncDao.upsertSale(s);
-            }
-
-            // Lignes de vente
-            Response<List<SaleItem>> respItems = supabaseService.getSaleItemsSince(filterDate, selectAll).execute();
-            if (respItems.isSuccessful() && respItems.body() != null) {
-                for (SaleItem i : respItems.body()) syncDao.upsertSaleItem(i);
-            }
-
-            // Historique (la table "history" n'existe plus en v2 : réponse 404 attendue jusqu'à l'étape 4)
-            Response<List<ProductHistory>> respHist = supabaseService.getHistorySince(filterDate, selectAll).execute();
-            if (respHist.isSuccessful() && respHist.body() != null) {
-                for (ProductHistory h : respHist.body()) syncDao.upsertHistory(h);
-            }
-
-        } catch (IOException e) {
-            Log.e(TAG, "Erreur PULL synchrone : " + e.getMessage());
+    /**
+     * Récupère les changements du serveur, table par table, dans l'ordre des dépendances.
+     * Chaque table a son curseur : le plus grand horodatage SERVEUR déjà reçu (jamais
+     * l'horloge du téléphone). Les suppressions arrivent comme des lignes avec deleted_at.
+     */
+    private void pullRemoteChangesSynchronous() {
+        String shop = sessionManager.getShopId();
+        if (shop == null) {
+            Log.w(TAG, "Pull annulé : aucune boutique dans la session.");
+            return;
         }
+        String shopFilter = "eq." + shop;
+
+        pullTable(shop, "products",
+                since -> supabaseService.pullProducts(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
+                Product::getUpdatedAt, syncDao::insertOrUpdateProduct);
+        pullTable(shop, "clients",
+                since -> supabaseService.pullClients(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
+                Client::getUpdatedAt, syncDao::upsertClient);
+        pullTable(shop, "sales",
+                since -> supabaseService.pullSales(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
+                SaleHeader::getUpdatedAt, syncDao::upsertSale);
+        pullTable(shop, "sale_items",
+                since -> supabaseService.pullSaleItems(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
+                SaleItem::getUpdatedAt, syncDao::upsertSaleItem);
+        pullTable(shop, "sale_returns",
+                since -> supabaseService.pullSaleReturns(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
+                SaleReturn::getUpdatedAt, syncDao::upsertSaleReturn);
+        // audit_log n'a pas de updated_at (lignes jamais modifiées) : curseur sur created_at
+        pullTable(shop, "audit_log",
+                since -> supabaseService.pullProductAuditLog(shopFilter, since, "created_at.asc,id.asc", PULL_PAGE_SIZE),
+                AuditLogEntry::getCreatedAt, e -> syncDao.upsertHistory(e.toProductHistory()));
+    }
+
+    /**
+     * Pull paginé d'une table. Le curseur est enregistré après chaque page appliquée :
+     * une synchro interrompue reprend là où elle s'était arrêtée. Le filtre est "gte"
+     * (pas "gt") pour ne rien perdre entre deux pages au même horodatage ; les lignes
+     * déjà reçues sont simplement réécrites.
+     */
+    private <T> void pullTable(String shop, String table, PageFetcher<T> fetcher,
+                               java.util.function.Function<T, String> timestampOf,
+                               java.util.function.Consumer<T> apply) {
+        String cursor = getPullCursor(shop, table);
+        try {
+            while (true) {
+                Response<List<T>> res = fetcher.fetch("gte." + cursor).execute();
+                if (!res.isSuccessful() || res.body() == null) {
+                    logFailure("pull " + table, res);
+                    return;
+                }
+                List<T> rows = res.body();
+                String max = cursor;
+                for (T row : rows) {
+                    apply.accept(row);
+                    String ts = timestampOf.apply(row);
+                    if (ts != null && compareTimestamps(ts, max) > 0) max = ts;
+                }
+                setPullCursor(shop, table, max);
+                if (rows.size() < PULL_PAGE_SIZE) return;
+                if (compareTimestamps(max, cursor) == 0) {
+                    // Page pleine au même horodatage : on ne peut pas avancer sans boucler
+                    Log.w(TAG, "Pull " + table + " : page pleine au même horodatage " + max);
+                    return;
+                }
+                cursor = max;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Erreur pull " + table + " : " + e.getMessage(), e);
+        }
+    }
+
+    // --- Curseurs de pull (par boutique et par table) ---
+
+    /** Oublie tous les curseurs : le prochain pull retélécharge tout (base locale recréée). */
+    public static void resetPullCursors(Context context) {
+        context.getSharedPreferences(PREFS_SYNC, Context.MODE_PRIVATE).edit().clear().apply();
+    }
+
+    private String getPullCursor(String shop, String table) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_SYNC, Context.MODE_PRIVATE);
+        return prefs.getString("cursor_" + shop + "_" + table, EPOCH);
+    }
+
+    private void setPullCursor(String shop, String table, String value) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_SYNC, Context.MODE_PRIVATE);
+        prefs.edit().putString("cursor_" + shop + "_" + table, value).apply();
+    }
+
+    /**
+     * Compare deux horodatages PostgreSQL au format ISO ("2026-10-16T10:09:06.12+00:00").
+     * PostgreSQL supprime les zéros finaux des microsecondes : la partie décimale est
+     * complétée à 6 chiffres avant la comparaison (les deux sont en UTC).
+     */
+    static int compareTimestamps(String a, String b) {
+        return normalizeTimestamp(a).compareTo(normalizeTimestamp(b));
+    }
+
+    private static String normalizeTimestamp(String ts) {
+        int tPos = ts.indexOf('T');
+        int dot = ts.indexOf('.', tPos);
+        int zoneStart = ts.length();
+        for (int i = (dot >= 0 ? dot + 1 : tPos + 1); i < ts.length(); i++) {
+            char c = ts.charAt(i);
+            if (c == '+' || c == '-' || c == 'Z') { zoneStart = i; break; }
+        }
+        String base = dot >= 0 ? ts.substring(0, dot) : ts.substring(0, zoneStart);
+        StringBuilder frac = new StringBuilder(dot >= 0 ? ts.substring(dot + 1, zoneStart) : "");
+        while (frac.length() < 6) frac.append('0');
+        return base + "." + frac;
     }
 
     // ----------------------------------------------------------------------------------

@@ -138,12 +138,12 @@ public class PDFUtils {
                 canvas.drawText(CurrencyUtils.formatSaleDate(s.getSaleDate()), colDate, currentY, paint);
                 //canvas.drawText(DatabaseUtils.formatIsoToDisplay(s.getSaleDate()), colDate, currentY, paint);
                 canvas.drawText(s.getPaymentMethod(), colPayment, currentY, paint);
-                canvas.drawText(df.format(s.getTotalPrice()), colTotal, currentY, paint);
+                canvas.drawText(df.format(s.getNetTotal()), colTotal, currentY, paint);
 
                 // Le nom d'utilisateur est censé être déjà chargé dans SaleHeader.username
                 canvas.drawText(s.getUsername(), colSeller, currentY, paint);
 
-                grandTotal += s.getTotalPrice();
+                grandTotal += s.getNetTotal();
                 currentY += rowHeight;
             }
 
@@ -463,9 +463,9 @@ public class PDFUtils {
             // --------------------------------------------------------------------
             cy += 40;
             bold.setTextSize(14);
-            canvas.drawText("Total : " + df.format(header.getTotalPrice()) + " KMF", colTotal - 40, cy, bold);
+            canvas.drawText("Total : " + df.format(header.getNetTotal()) + " KMF", colTotal - 40, cy, bold);
 
-            double euroTotal = kmfToEur(header.getTotalPrice());
+            double euroTotal = kmfToEur(header.getNetTotal());
             paint.setTextSize(12);
             canvas.drawText("Total en Euro : " + df.format(euroTotal) + " €", colTotal - 40, cy + 20, paint);
 
@@ -652,9 +652,9 @@ public class PDFUtils {
             // --------------------------------------------------------------------
             cy += 40;
             bold.setTextSize(14);
-            canvas.drawText("Total : " + df.format(header.getTotalPrice()) + " KMF", colTotal - 40, cy, bold);
+            canvas.drawText("Total : " + df.format(header.getNetTotal()) + " KMF", colTotal - 40, cy, bold);
 
-            double euroTotal = kmfToEur(header.getTotalPrice());
+            double euroTotal = kmfToEur(header.getNetTotal());
             paint.setTextSize(12);
             canvas.drawText("Total en Euro : " + df.format(euroTotal) + " €", colTotal - 40, cy + 20, paint);
 
