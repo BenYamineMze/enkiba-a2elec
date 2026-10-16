@@ -24,18 +24,18 @@ import com.enkiba.app.R;
 import com.enkiba.app.adapters.ProductAutoCompleteAdapter; // Import de l'adaptateur personnalisé
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Product;
+import com.enkiba.app.models.Quote;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItemRow;
 import com.enkiba.app.modelsDao.ClientDao;
-import com.enkiba.app.modelsDao.HistoryDao;
 import com.enkiba.app.modelsDao.ProductDao;
+import com.enkiba.app.modelsDao.QuoteDao;
 import com.enkiba.app.modelsDao.SaleDao;
-import com.enkiba.app.modelsDao.SaleItemDao;
 import com.enkiba.app.ui.CartBottomSheet;
-import com.enkiba.app.utils.DatabaseUtils;
 import com.enkiba.app.utils.NavigationHelper;
 import com.enkiba.app.utils.PDFUtils;
 import com.enkiba.app.utils.SessionManager;
+import com.enkiba.app.utils.ShopInfo;
 import com.enkiba.app.utils.SynchronizationManager;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.button.MaterialButton;
@@ -45,6 +45,7 @@ import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.journeyapps.barcodescanner.ScanContract;
 import com.journeyapps.barcodescanner.ScanOptions;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -75,9 +76,8 @@ public class SellProductActivity extends BaseActivity {
     // Database & Logic
     private ProductDao productDao;
     private ClientDao clientDao;
+    private QuoteDao quoteDao;
     private SaleDao saleDao;
-    private SaleItemDao saleItemDao;
-    private HistoryDao historyDao;
     private SessionManager sessionManagerLocal;
     private SynchronizationManager syncManager;
 
@@ -95,9 +95,8 @@ public class SellProductActivity extends BaseActivity {
         syncManager = new SynchronizationManager(this);
         productDao = new ProductDao(this);
         clientDao = new ClientDao(this);
+        quoteDao = new QuoteDao(this);
         saleDao = new SaleDao(this);
-        saleItemDao = new SaleItemDao(this);
-        historyDao = new HistoryDao(this);
 
         initViews();
         setupHeader();
@@ -450,73 +449,48 @@ public class SellProductActivity extends BaseActivity {
             return;
         }
 
-        // --- 1. SÉCURISATION DU CLIENT FICTIF ---
+        // 1. Client du devis (enregistré : il sera repris à la conversion en vente)
         Client clientObj = new Client();
         clientObj.setLastname(nomClient);
         clientObj.setFirstname(etClientPrenom.getText().toString().trim());
         clientObj.setAddress(etClientAddress.getText().toString().trim());
         clientObj.setPhone(etClientPhone.getText().toString().trim());
         clientObj.setEmail(etClientEmail.getText().toString().trim());
-
-        // Calcul du total
-        double totalAmount = 0;
-        for (SaleItemRow item : cartRows) {
-            totalAmount += item.getTotal();
+        if (!clientDao.saveClientLocally(clientObj)) {
+            Toast.makeText(this, "Impossible d'enregistrer le client", Toast.LENGTH_LONG).show();
+            return;
         }
 
-        // --- 2. SÉCURISATION DU TICKET FICTIF ---
-        SaleHeader quoteHeader = new SaleHeader();
-        quoteHeader.setTotalPrice(totalAmount);
+        // 2. Devis et lignes (une transaction) : brouillon, valable 30 jours
+        Quote quote = new Quote();
+        quote.setClientId(clientObj.getId());
+        quote.setSellerId(sessionManagerLocal.getUserId());
+        List<SaleItemRow> quoteRows = new ArrayList<>(cartRows);
+        if (quoteDao.createQuote(quote, quoteRows) == null) {
+            Toast.makeText(this, "Erreur lors de l'enregistrement du devis", Toast.LENGTH_LONG).show();
+            return;
+        }
+        syncManager.startSynchronization();
 
-        // Remplissage scrupuleux de TOUS les champs pour éviter les NullPointerException dans PDFUtils
-        quoteHeader.setSaleDate(DatabaseUtils.getCurrentIsoTime());
-        String currentUsername = sessionManagerLocal.getUsername();
-        quoteHeader.setUsername(currentUsername != null && !currentUsername.isEmpty() ? currentUsername : "Administrateur");
-        quoteHeader.setPaymentMethod("Devis (Non payé)");
-        quoteHeader.setSellerId(sessionManagerLocal.getUserId());
-        quoteHeader.setHasNegotiatedPrice(false);
-        quoteHeader.setUpdatedAt(DatabaseUtils.getCurrentIsoTime());
-        quoteHeader.setSyncStatus("pending");
-
-        Toast.makeText(this, "Génération du Devis en cours...", Toast.LENGTH_SHORT).show();
-
+        // 3. PDF avec la vraie référence du devis
+        Toast.makeText(this, "Devis " + quote.getShortRef() + " enregistré, génération du PDF...", Toast.LENGTH_SHORT).show();
         new Thread(() -> {
-            try {
-                // Appel de PDFUtils
-                // 🚨 CORRECTION CRITIQUE : On NE vérifie PLUS le retour de la fonction !
-                // Il est très probable que votre PDFUtils retourne 'null' à la fin de son code
-                // même si le PDF a été créé et ouvert avec succès.
-                PDFUtils.generateQuotePdf(
-                        SellProductActivity.this,
-                        quoteHeader,
-                        new ArrayList<>(cartRows),
-                        clientObj,
-                        "A2 ELEC",
-                        "Moroni",
-                        "Tel: +269 XX XX XX",
-                        "Email: contact@a2elec.km"
-                );
-
-                // Si aucune erreur n'a fait planter la ligne ci-dessus, on part du principe que c'est un succès.
-                runOnUiThread(() -> {
-                    new android.app.AlertDialog.Builder(SellProductActivity.this)
-                            .setTitle("Devis généré ✅")
-                            .setMessage("Le devis a été créé et affiché. Voulez-vous vider le panier ?")
-                            .setPositiveButton("Vider", (dialog, which) -> {
-                                cartRows.clear();
-                                updateCartBadge();
-                            })
-                            .setNegativeButton("Garder (Pour Vendre)", null)
-                            .show();
-                });
-
-            } catch (Exception e) {
-                // S'il y a un crash VRAIMENT bloquant, il s'affichera ici au lieu de bloquer silencieusement
-                Log.e(TAG, "Erreur fatale lors de la génération du Devis", e);
-                runOnUiThread(() -> {
-                    Toast.makeText(SellProductActivity.this, "Erreur PDF : " + e.getMessage(), Toast.LENGTH_LONG).show();
-                });
-            }
+            File pdf = PDFUtils.generateQuotePdf(SellProductActivity.this, quote, quoteRows, clientObj,
+                    ShopInfo.NAME, ShopInfo.ADDRESS, ShopInfo.PHONE, ShopInfo.EMAIL);
+            runOnUiThread(() -> {
+                if (pdf == null) {
+                    Toast.makeText(this, "Devis enregistré, mais le PDF n'a pas pu être généré", Toast.LENGTH_LONG).show();
+                }
+                new android.app.AlertDialog.Builder(SellProductActivity.this)
+                        .setTitle("Devis " + quote.getShortRef() + " ✅")
+                        .setMessage("Le devis est enregistré (Historique → Devis). Voulez-vous vider le panier ?")
+                        .setPositiveButton("Vider", (dialog, which) -> {
+                            cartRows.clear();
+                            updateCartBadge();
+                        })
+                        .setNegativeButton("Garder", null)
+                        .show();
+            });
         }).start();
     }
     // =========================================================

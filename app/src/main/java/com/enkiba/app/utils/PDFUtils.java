@@ -22,6 +22,7 @@ import com.enkiba.app.R;
 import com.enkiba.app.database.DatabaseHelper;
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Product;
+import com.enkiba.app.models.Quote;
 import com.enkiba.app.models.ProductHistory;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItemRow;
@@ -506,7 +507,7 @@ public class PDFUtils {
     }
 
     public static File generateQuotePdf(Context ctx,
-                                          SaleHeader header,
+                                          Quote quote,
                                           List<SaleItemRow> items,
                                           Client client,
                                           String shopName,
@@ -515,7 +516,7 @@ public class PDFUtils {
                                           String shopEmail) {
 
         try {
-            if (header == null || items == null || items.isEmpty())
+            if (quote == null || items == null || items.isEmpty())
                 return null;
 
             int pageWidth = 595, pageHeight = 842, margin = 20;
@@ -565,11 +566,11 @@ public class PDFUtils {
             // --------------------------------------------------------------------
             bold.setColor(Color.BLACK);
             bold.setTextSize(16);
-            canvas.drawText("DEVIS N° DEV-" + header.getShortRef(), x, 130, bold);
+            canvas.drawText("DEVIS N° " + quote.getShortRef(), x, 130, bold);
 
             paint.setTextSize(12);
             paint.setColor(0xFF000000);
-            canvas.drawText("Date : " + header.getSaleDate(), x, 150, paint);
+            canvas.drawText("Date : " + DatabaseUtils.formatIsoToDisplay(quote.getCreatedAt()), x, 150, paint);
 
             // --------------------------------------------------------------------
             // CLIENT
@@ -636,12 +637,12 @@ public class PDFUtils {
             // MODE DE PAIEMENT + VENDEUR
             // --------------------------------------------------------------------
             cy += 25;
-            canvas.drawText("Mode de paiement : " + header.getPaymentMethod(), x, cy, paint);
+            canvas.drawText("Valable jusqu'au : " + (quote.getValidUntil() != null ? quote.getValidUntil() : "—"), x, cy, paint);
 
             // 🚨 CORRECTION : Remplacement de DatabaseHelper par UserDao 🚨
             UserDao userDao = new UserDao(ctx);
             String vendeurName= "—";
-            User vendeurUser = userDao.getUserById(header.getSellerId());
+            User vendeurUser = userDao.getUserById(quote.getSellerId());
             if (vendeurUser != null) {
                 vendeurName = vendeurUser.getUsername() + " " + vendeurUser.getLastname();
             }
@@ -652,9 +653,9 @@ public class PDFUtils {
             // --------------------------------------------------------------------
             cy += 40;
             bold.setTextSize(14);
-            canvas.drawText("Total : " + df.format(header.getNetTotal()) + " KMF", colTotal - 40, cy, bold);
+            canvas.drawText("Total : " + df.format(quote.getTotalPrice()) + " KMF", colTotal - 40, cy, bold);
 
-            double euroTotal = kmfToEur(header.getNetTotal());
+            double euroTotal = kmfToEur(quote.getTotalPrice());
             paint.setTextSize(12);
             canvas.drawText("Total en Euro : " + df.format(euroTotal) + " €", colTotal - 40, cy + 20, paint);
 
@@ -677,7 +678,7 @@ public class PDFUtils {
             File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "GStock/Invoices");
             if (!folder.exists()) folder.mkdirs();
 
-            File file = new File(folder, "devis_" + header.getShortRef() + ".pdf");
+            File file = new File(folder, "devis_" + quote.getShortRef() + ".pdf");
             FileOutputStream fos = new FileOutputStream(file);
 
             pdf.writeTo(fos);
