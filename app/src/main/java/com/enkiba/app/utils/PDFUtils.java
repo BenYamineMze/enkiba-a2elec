@@ -134,7 +134,7 @@ public class PDFUtils {
                     currentY = 30;
                 }
 
-                canvas.drawText("N° " + s.getId(), colVente, currentY, paint);
+                canvas.drawText("N° " + s.getShortRef(), colVente, currentY, paint);
                 canvas.drawText(CurrencyUtils.formatSaleDate(s.getSaleDate()), colDate, currentY, paint);
                 //canvas.drawText(DatabaseUtils.formatIsoToDisplay(s.getSaleDate()), colDate, currentY, paint);
                 canvas.drawText(s.getPaymentMethod(), colPayment, currentY, paint);
@@ -376,7 +376,7 @@ public class PDFUtils {
             // --------------------------------------------------------------------
             bold.setColor(Color.BLACK);
             bold.setTextSize(16);
-            canvas.drawText("FACTURE #" + header.getId(), x, 130, bold);
+            canvas.drawText("FACTURE #" + header.getShortRef(), x, 130, bold);
 
             paint.setTextSize(12);
             paint.setColor(0xFF000000);
@@ -452,7 +452,7 @@ public class PDFUtils {
             // 🚨 CORRECTION : Remplacement de DatabaseHelper par UserDao 🚨
             UserDao userDao = new UserDao(ctx);
             String vendeurName= "—";
-            User vendeurUser = userDao.getUserById(header.getUserId());
+            User vendeurUser = userDao.getUserById(header.getSellerId());
             if (vendeurUser != null) {
                 vendeurName = vendeurUser.getUsername() + " " + vendeurUser.getLastname();
             }
@@ -488,7 +488,7 @@ public class PDFUtils {
             File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "GStock/Invoices");
             if (!folder.exists()) folder.mkdirs();
 
-            File file = new File(folder, "facture_" + header.getId() + ".pdf");
+            File file = new File(folder, "facture_" + header.getShortRef() + ".pdf");
             FileOutputStream fos = new FileOutputStream(file);
 
             pdf.writeTo(fos);
@@ -565,7 +565,7 @@ public class PDFUtils {
             // --------------------------------------------------------------------
             bold.setColor(Color.BLACK);
             bold.setTextSize(16);
-            canvas.drawText("DEVIS N° DEV-" + header.getId(), x, 130, bold);
+            canvas.drawText("DEVIS N° DEV-" + header.getShortRef(), x, 130, bold);
 
             paint.setTextSize(12);
             paint.setColor(0xFF000000);
@@ -641,7 +641,7 @@ public class PDFUtils {
             // 🚨 CORRECTION : Remplacement de DatabaseHelper par UserDao 🚨
             UserDao userDao = new UserDao(ctx);
             String vendeurName= "—";
-            User vendeurUser = userDao.getUserById(header.getUserId());
+            User vendeurUser = userDao.getUserById(header.getSellerId());
             if (vendeurUser != null) {
                 vendeurName = vendeurUser.getUsername() + " " + vendeurUser.getLastname();
             }
@@ -677,7 +677,7 @@ public class PDFUtils {
             File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "GStock/Invoices");
             if (!folder.exists()) folder.mkdirs();
 
-            File file = new File(folder, "facture_" + header.getId() + ".pdf");
+            File file = new File(folder, "devis_" + header.getShortRef() + ".pdf");
             FileOutputStream fos = new FileOutputStream(file);
 
             pdf.writeTo(fos);

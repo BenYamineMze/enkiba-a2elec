@@ -52,7 +52,7 @@ public class SaleHeaderAdapter extends RecyclerView.Adapter<SaleHeaderAdapter.Sa
     public void onBindViewHolder(@NonNull SaleHeaderViewHolder holder, int position) {
         SaleHeader header = saleHeaders.get(position);
 
-        holder.tvSaleId.setText("Vente n° " + header.getId());
+        holder.tvSaleId.setText("Vente n° " + header.getShortRef());
 
         // Gestion de la date avec CurrencyUtils
         try {
@@ -100,8 +100,8 @@ public class SaleHeaderAdapter extends RecyclerView.Adapter<SaleHeaderAdapter.Sa
         } else {
             text = text.toLowerCase();
             for (SaleHeader s : fullList) {
-                // Recherche par ID ou par nom du vendeur
-                boolean matchId = String.valueOf(s.getId()).contains(text);
+                // Recherche par référence (début de l'UUID, insensible à la casse) ou par nom du vendeur
+                boolean matchId = s.getId() != null && s.getId().toLowerCase().contains(text);
                 boolean matchUser = s.getUsername() != null && s.getUsername().toLowerCase().contains(text);
 
                 if (matchId || matchUser) {

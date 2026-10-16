@@ -9,15 +9,12 @@ import com.enkiba.app.api.SupabaseService;
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Product;
 import com.enkiba.app.models.ProductHistory;
-import com.enkiba.app.models.SaleArchive;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItem;
-import com.enkiba.app.models.SaleItemArchive;
 import com.enkiba.app.modelsDao.ProductDao;
 import com.enkiba.app.modelsDao.SyncDao;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -142,39 +139,19 @@ public class SynchronizationManager {
             Log.e(TAG, "Erreur PUSH clients : " + e.getMessage(), e);
         }
 
-        // Produits : on sépare les créations/modifications des suppressions
+        // Produits (les suppressions sont logiques : deleted_at est envoyé avec le reste)
         try {
-            List<Product> pendingProducts = syncDao.getPendingProducts();
-            List<Product> toUpsert = new ArrayList<>();
-            List<Product> toDelete = new ArrayList<>();
-            for (Product p : pendingProducts) {
-                if ("deleted".equalsIgnoreCase(p.getSyncStatus())) toDelete.add(p);
-                else toUpsert.add(p);
-            }
-            pushProductTableSync(toUpsert);
-            pushDeletedProductsSync(toDelete);
+            pushProductTableSync(syncDao.getPendingProducts());
         } catch (Exception e) {
             Log.e(TAG, "Erreur PUSH produits : " + e.getMessage(), e);
         }
 
-        // Ventes : l'en-tête d'abord (pour récupérer l'ID serveur), puis les lignes
+        // Ventes : l'en-tête d'abord, puis les lignes
         try {
-            pushSaleHeaderTableSync(syncDao.getPendingSales(), "resolution=merge-duplicates, return=representation");
+            pushSaleHeaderTableSync(syncDao.getPendingSales(), preferHeader);
             pushSaleItemTableSync(syncDao.getPendingSaleItems(), preferHeader);
         } catch (Exception e) {
             Log.e(TAG, "Erreur PUSH ventes : " + e.getMessage(), e);
-        }
-
-        // Archives (à supprimer à l'étape 4 : les tables n'existent plus en v2)
-        try {
-            List<SaleArchive> archives = syncDao.getPendingSaleArchives();
-            if (!archives.isEmpty()) {
-                pushSaleArchiveTableSync(archives, preferHeader);
-                pushSaleItemArchiveTableSync(syncDao.getPendingSaleItemArchives(), preferHeader);
-                deleteArchivedSalesFromServer();
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Erreur PUSH archives : " + e.getMessage(), e);
         }
 
         // Historique des produits
@@ -186,58 +163,44 @@ public class SynchronizationManager {
     }
 
     /**
-     * Envoie les en-têtes de vente.
-     * Une vente créée hors ligne a un ID local négatif : le serveur en génère un
-     * positif, qu'on reporte ensuite dans la base locale (updateLocalId).
+     * Envoie les en-têtes de vente. L'id (UUID) est généré par le téléphone :
+     * le serveur garde le même, il n'y a plus d'id à reporter localement.
+     * TODO étape 4 : resolution=ignore-duplicates (un vendeur ne modifie pas une vente).
      */
     private void pushSaleHeaderTableSync(List<SaleHeader> sales, String prefer) throws Exception {
         for (SaleHeader s : sales) {
             Map<String, Object> map = new HashMap<>();
+            map.put("id", s.getId());
+            map.put("shop_id", s.getShopId() != null ? s.getShopId() : sessionManager.getShopId());
+            map.put("seller_id", s.getSellerId() != null ? s.getSellerId() : sessionManager.getUserId());
+            map.put("client_id", s.getClientId());
             map.put("total_price", s.getTotalPrice());
-            map.put("updated_at", s.getUpdatedAt());
             map.put("payment_method", s.getPaymentMethod() != null ? s.getPaymentMethod() : "espece");
             map.put("has_negotiation", s.isHasNegotiatedPrice()); // vente à prix négocié
+            map.put("sale_date", s.getSaleDate());
 
-            Long clientId = s.getClientId();
-            map.put("client_id", (clientId != null && clientId != 0) ? clientId : null);
-            map.put("user_id", s.getUserId() != null ? s.getUserId() : sessionManager.getUserId());
-
-            // ID positif = déjà connu du serveur ; sinon on le laisse en générer un
-            if (s.getId() > 0) {
-                map.put("id", s.getId());
-            }
-
-            Response<List<SaleHeader>> res = supabaseService.upsertSaleAsMap(prefer, map).execute();
-
-            if (res.isSuccessful() && res.body() != null && !res.body().isEmpty()) {
-                long serverId = res.body().get(0).getId();
-                if (s.getId() <= 0) {
-                    Log.d(TAG, "ID vente : " + s.getId() + " -> " + serverId);
-                    syncDao.updateLocalId(s.getId(), serverId);
-                } else {
-                    syncDao.markSaleAsSynced(s.getId());
-                }
+            Response<Void> res = supabaseService.upsertSaleMap(prefer, map).execute();
+            if (res.isSuccessful()) {
+                syncDao.markSaleAsSynced(s.getId());
             } else {
                 logFailure("vente " + s.getId(), res);
             }
         }
     }
 
-    /** Envoie les lignes de vente (seulement si leur vente a déjà un ID serveur). */
+    /** Envoie les lignes de vente (la vente parente est envoyée juste avant). */
     private void pushSaleItemTableSync(List<SaleItem> items, String prefer) throws Exception {
         for (SaleItem i : items) {
-            // Vente pas encore envoyée (ID négatif) : on attend la prochaine synchro
-            if (i.getSaleId() <= 0) continue;
-
             Map<String, Object> map = new HashMap<>();
+            map.put("id", i.getId());
+            map.put("shop_id", i.getShopId() != null ? i.getShopId() : sessionManager.getShopId());
             map.put("sale_id", i.getSaleId());
             map.put("product_id", i.getProductId());
+            map.put("product_name", i.getProductName());
             map.put("quantity", i.getQuantity());
-            int initQty = (i.getInitialQuantity() > 0) ? i.getInitialQuantity() : i.getQuantity();
-            map.put("initial_quantity", initQty);
+            map.put("list_price", i.getListPrice());
             map.put("unit_price", i.getUnitPrice());
             map.put("total_price", i.getTotalPrice());
-            if (i.getId() > 0) map.put("id", i.getId());
 
             Response<Void> res = supabaseService.upsertSaleItemMap(prefer, map).execute();
             if (res.isSuccessful()) {
@@ -257,8 +220,8 @@ public class SynchronizationManager {
             map.put("email", c.getEmail());
             map.put("phone", c.getPhone());
             map.put("address", c.getAddress());
-            map.put("updated_at", c.getUpdatedAt());
-            if (c.getId() != 0) map.put("id", c.getId());
+            map.put("id", c.getId());
+            map.put("shop_id", c.getShopId() != null ? c.getShopId() : sessionManager.getShopId());
 
             Response<Void> res = supabaseService.upsertClientMap(prefer, map).execute();
             if (res.isSuccessful()) {
@@ -274,41 +237,23 @@ public class SynchronizationManager {
         String prefer = "resolution=merge-duplicates, return=representation";
         for (Product p : products) {
             Map<String, Object> map = new HashMap<>();
-            if (p.getId() != null) map.put("id", p.getId());
+            map.put("id", p.getId());
+            map.put("shop_id", p.getShopId() != null ? p.getShopId() : sessionManager.getShopId());
             map.put("name", p.getName());
             map.put("category", p.getCategory());
             map.put("quantity", p.getQuantity());
-            map.put("sold_quantity", p.getSoldQuantity()); // n'existe plus en v2 (étape 4)
             map.put("price", p.getPrice());
             map.put("description", p.getDescription());
             map.put("qr_code", p.getQr_code());
             map.put("initial_stock", p.getInitial_stock());
             map.put("low_stock_threshold", p.getLowStockThreshold());
-            map.put("updated_at", p.getUpdatedAt());
+            map.put("deleted_at", p.getDeletedAt());
 
             Response<List<Product>> res = supabaseService.upsertProductAsMap(prefer, map).execute();
             if (res.isSuccessful()) {
                 syncDao.markProductAsSynced(p.getId());
             } else {
                 logFailure("produit " + p.getId(), res);
-            }
-        }
-    }
-
-    /** Supprime côté serveur les produits supprimés localement, puis les efface du téléphone. */
-    private void pushDeletedProductsSync(List<Product> products) {
-        for (Product p : products) {
-            Map<String, Object> body = new HashMap<>();
-            body.put("product_id_to_delete", p.getId());
-            try {
-                Response<Void> response = supabaseService.deleteProductRemote(body).execute();
-                if (response.isSuccessful()) {
-                    productDao.deleteProductPhysically(p.getId());
-                } else {
-                    logFailure("suppression produit " + p.getId(), response);
-                }
-            } catch (IOException e) {
-                Log.e(TAG, "Exception suppression produit : " + e.getMessage());
             }
         }
     }
@@ -333,55 +278,6 @@ public class SynchronizationManager {
             } else {
                 logFailure("historique " + h.getId(), res);
             }
-        }
-    }
-
-    // ----------------------------------------------------------------------------------
-    // ARCHIVES (à supprimer à l'étape 4)
-    // ----------------------------------------------------------------------------------
-
-    private void pushSaleArchiveTableSync(List<SaleArchive> archives, String prefer) throws Exception {
-        for (SaleArchive ar : archives) {
-            Map<String, Object> map = new HashMap<>();
-            map.put("id", ar.getId());
-            map.put("sale_date", ar.getSaleDate());
-            map.put("user_id", ar.getUserId());
-            map.put("client_id", ar.getClientId());
-            map.put("total_price", ar.getTotalPrice());
-            map.put("payment_method", ar.getPaymentMethod());
-            map.put("updated_at", ar.getUpdatedAt());
-            if (supabaseService.upsertSaleArchiveMap(prefer, map).execute().isSuccessful()) {
-                syncDao.markSaleArchiveAsSynced(ar.getId());
-            }
-        }
-    }
-
-    private void pushSaleItemArchiveTableSync(List<SaleItemArchive> items, String prefer) throws Exception {
-        for (SaleItemArchive i : items) {
-            // L'archive parente doit être déjà envoyée
-            if (!syncDao.isSaleArchiveSynced(i.getSaleId())) continue;
-
-            Map<String, Object> map = new HashMap<>();
-            map.put("sale_id", i.getSaleId());
-            map.put("product_name", i.getProductName());
-            map.put("quantity", i.getQuantity());
-            map.put("initial_quantity", i.getQuantity());
-            map.put("unit_price", i.getUnitPrice());
-            map.put("total_price", i.getTotalPrice());
-            map.put("updated_at", i.getUpdatedAt());
-            if (supabaseService.upsertSaleItemArchiveMap(prefer, map).execute().isSuccessful()) {
-                syncDao.markSaleItemArchiveAsSynced(i.getId());
-            }
-        }
-    }
-
-    /** DANGEREUX : supprime TOUTES les ventes du serveur. À retirer à l'étape 4. */
-    private void deleteArchivedSalesFromServer() {
-        try {
-            supabaseService.deleteAllSaleItemsRemote().execute();
-            supabaseService.deleteAllSalesRemote().execute();
-        } catch (Exception e) {
-            Log.e(TAG, "Erreur suppression des ventes archivées : " + e.getMessage());
         }
     }
 
@@ -419,28 +315,25 @@ public class SynchronizationManager {
             // Clients
             Response<List<Client>> respClients = supabaseService.getClientsSince(filterDate, selectAll).execute();
             if (respClients.isSuccessful() && respClients.body() != null) {
-                for (Client c : respClients.body()) syncDao.insertOrUpdateClient(c);
+                for (Client c : respClients.body()) syncDao.upsertClient(c);
             }
 
             // Ventes
             Response<List<SaleHeader>> respSales = supabaseService.getSalesSince(filterDate, selectAll).execute();
             if (respSales.isSuccessful() && respSales.body() != null) {
-                for (SaleHeader s : respSales.body()) syncDao.insertOrUpdateSale(s);
+                for (SaleHeader s : respSales.body()) syncDao.upsertSale(s);
             }
 
             // Lignes de vente
             Response<List<SaleItem>> respItems = supabaseService.getSaleItemsSince(filterDate, selectAll).execute();
             if (respItems.isSuccessful() && respItems.body() != null) {
-                for (SaleItem i : respItems.body()) {
-                    if (i.getInitialQuantity() <= 0) i.setInitialQuantity(i.getQuantity());
-                    syncDao.insertOrUpdateSaleItem(i);
-                }
+                for (SaleItem i : respItems.body()) syncDao.upsertSaleItem(i);
             }
 
             // Historique (la table "history" n'existe plus en v2 : réponse 404 attendue jusqu'à l'étape 4)
             Response<List<ProductHistory>> respHist = supabaseService.getHistorySince(filterDate, selectAll).execute();
             if (respHist.isSuccessful() && respHist.body() != null) {
-                for (ProductHistory h : respHist.body()) syncDao.insertOrUpdateHistory(h);
+                for (ProductHistory h : respHist.body()) syncDao.upsertHistory(h);
             }
 
         } catch (IOException e) {

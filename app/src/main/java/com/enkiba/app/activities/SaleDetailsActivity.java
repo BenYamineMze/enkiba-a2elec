@@ -56,7 +56,7 @@ public class SaleDetailsActivity extends BaseActivity {
     private SynchronizationManager syncManager;
 
     // Data
-    private long currentSaleId;
+    private String currentSaleId;
     private SaleHeader currentSale;
     private List<SaleItemRow> saleItems;
     private Client currentClient; // Stocké pour le PDF
@@ -76,8 +76,8 @@ public class SaleDetailsActivity extends BaseActivity {
         this.syncManager = new SynchronizationManager(this);
 
         // 2. Récupération de l'ID Vente
-        currentSaleId = getIntent().getLongExtra("sale_id", -1L);
-        if (currentSaleId == -1) {
+        currentSaleId = getIntent().getStringExtra("sale_id");
+        if (currentSaleId == null) {
             Toast.makeText(this, "Erreur : ID Vente manquant", Toast.LENGTH_LONG).show();
             finish();
             return;
@@ -120,7 +120,7 @@ public class SaleDetailsActivity extends BaseActivity {
         }
 
         // --- Remplissage Header ---
-        tvSaleId.setText("Vente #" + currentSale.getId());
+        tvSaleId.setText("Vente #" + currentSale.getShortRef());
         tvSaleDate.setText("Date : " + CurrencyUtils.formatSaleDate(currentSale.getSaleDate()));
         tvPayment.setText("Paiement : " + currentSale.getPaymentMethod());
         tvTotal.setText("Total : " + CurrencyUtils.formatKMF(currentSale.getTotalPrice()));
@@ -136,10 +136,11 @@ public class SaleDetailsActivity extends BaseActivity {
         }
 
         // --- Info Vendeur ---
-        // Note: String.valueOf assure la compatibilité que l'ID soit long ou String dans SaleHeader
-        User seller = userDao.getUserById(String.valueOf(currentSale.getUserId()));
+        User seller = userDao.getUserById(currentSale.getSellerId());
         if (seller != null) {
             tvSeller.setText("Vendu par : " + seller.getUsername() + " " + seller.getLastname());
+        } else if (currentSale.getUsername() != null) {
+            tvSeller.setText("Vendu par : " + currentSale.getUsername());
         } else {
             tvSeller.setText("Vendu par : Inconnu");
         }
@@ -224,7 +225,6 @@ public class SaleDetailsActivity extends BaseActivity {
         Product product = productDao.getProductById(item.getProductId());
         if (product != null) {
             product.setQuantity(product.getQuantity() + qtyToReturn);
-            product.setSoldQuantity(Math.max(0, product.getSoldQuantity() - qtyToReturn));
             productDao.updateProduct(product);
         }
 

@@ -1,26 +1,17 @@
 package com.enkiba.app.database;
 
-import android.content.ContentValues;
 import android.content.Context;
-import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
-import android.util.Log;
-
-import com.enkiba.app.models.SaleItemRow;
-import com.enkiba.app.utils.DatabaseUtils;
-
-import java.util.List;
 
 /**
- * Gère la création de la base de données (schéma) et sa mise à jour.
- * Contient également les méthodes de transactions complexes impliquant plusieurs tables.
+ * Gère la création de la base de données locale (schéma) et sa mise à jour.
  */
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     public static final String DATABASE_NAME = "stock.db";
-    // 🚨 CHANGEMENT DE VERSION : Passage à 4 pour appliquer la contrainte UNIQUE sur l'email
-    private static final int DATABASE_VERSION = 6;
+    // v7 : schéma aligné sur Supabase v2 (UUID TEXT, shop_id, deleted_at, plus d'archives)
+    private static final int DATABASE_VERSION = 7;
 
     // --- CONSTANTES DE COLONNES INTERNES ---
     private static final String COL_ID = "id";
@@ -32,6 +23,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     // --- CONSTANTES DE SYNCHRONISATION ---
     public static final String COL_SYNC_STATUS = "sync_status"; // 'pending', 'synced', 'deleted'
     public static final String COL_UPDATED_AT = "updated_at";   // Horodatage ISO 8601
+    public static final String COL_DELETED_AT = "deleted_at";   // Suppression logique (NULL = actif)
+    public static final String COL_SHOP_ID = "shop_id";
 
     // --- CONSTANTES DE TABLES ---
     public static final String TABLE_PRODUCTS = "products";
@@ -40,8 +33,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String TABLE_SALES = "sales";
     public static final String TABLE_SALE_ITEMS = "sale_items";
     public static final String TABLE_HISTORY = "history";
-    public static final String TABLE_SALE_ARCHIVE = "sale_archive";
-    public static final String TABLE_SALE_ITEMS_ARCHIVE = "sale_items_archive";
 
 
     public DatabaseHelper(Context context) {
@@ -51,19 +42,20 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     @Override
     public void onCreate(SQLiteDatabase db) {
 
-        // 1. TABLE PRODUCTS
+        // 1. TABLE PRODUCTS (id = UUID ; la quantité vendue se calcule depuis sale_items)
         String CREATE_PRODUCTS_TABLE = "CREATE TABLE " + TABLE_PRODUCTS + " (" +
                 COL_ID + " TEXT PRIMARY KEY, " +
+                COL_SHOP_ID + " TEXT, " +
                 COL_NAME + " TEXT NOT NULL, " +
                 "category TEXT NOT NULL, " +
                 "quantity INTEGER NOT NULL, " +
-                "sold_quantity INTEGER DEFAULT 0, " +
                 "price REAL NOT NULL, " +
                 "description TEXT, " +
                 QR_CODE + " TEXT, " +
-                INIT_QUANTITY + " TEXT, " +
-                COL_LOW_STOCK_THRESHOLD + " INTEGER DEFAULT 5," +
+                INIT_QUANTITY + " INTEGER NOT NULL DEFAULT 0, " +
+                COL_LOW_STOCK_THRESHOLD + " INTEGER NOT NULL DEFAULT 5, " +
                 COL_UPDATED_AT + " TEXT NOT NULL, " +
+                COL_DELETED_AT + " TEXT, " +
                 COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'" +
                 ")";
         db.execSQL(CREATE_PRODUCTS_TABLE);
@@ -91,269 +83,90 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         "WHERE " + COL_SYNC_STATUS + " != 'deleted'";
         db.execSQL(CREATE_UNIQUE_EMAIL_INDEX);
 
-        // 3. TABLE CLIENTS
-        String CREATE_CLIENT_TABLE ="CREATE TABLE " + TABLE_CLIENTS + " (" +
-                "id INTEGER PRIMARY KEY, " +
+        // 3. TABLE CLIENTS (id = UUID généré par le téléphone)
+        String CREATE_CLIENT_TABLE = "CREATE TABLE " + TABLE_CLIENTS + " (" +
+                "id TEXT PRIMARY KEY, " +
+                COL_SHOP_ID + " TEXT, " +
                 "firstname TEXT, " +
                 "lastname TEXT, " +
                 "address TEXT, " +
                 "phone TEXT, " +
-                "email TEXT," +
+                "email TEXT, " +
                 COL_UPDATED_AT + " TEXT NOT NULL, " +
+                COL_DELETED_AT + " TEXT, " +
                 COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'" +
                 ")";
         db.execSQL(CREATE_CLIENT_TABLE);
 
-        // 4. TABLE SALES (CORRIGÉ AVEC LA COLONNE DE NÉGOCIATION)
+        // 4. TABLE SALES (id = UUID ; seller_id = profiles.id)
         String CREATE_SALES_TABLE = "CREATE TABLE " + TABLE_SALES + " (" +
-                "id INTEGER PRIMARY KEY, " +
-                "user_id TEXT NOT NULL, " +
-                "client_id INTEGER, " +
+                "id TEXT PRIMARY KEY, " +
+                COL_SHOP_ID + " TEXT, " +
+                "seller_id TEXT NOT NULL, " +
+                "client_id TEXT, " +
                 "total_price REAL NOT NULL, " +
                 "payment_method TEXT NOT NULL, " +
-                "sale_date DATETIME DEFAULT CURRENT_TIMESTAMP, " +
-                "is_archived INTEGER DEFAULT 0, " +
-                "has_negotiation INTEGER DEFAULT 0, " + // [AJOUT IMPORTANT]
-                "updated_at TEXT NOT NULL, " +
-                "sync_status TEXT NOT NULL DEFAULT 'synced', " +
-                "FOREIGN KEY(user_id) REFERENCES users(id), " +
-                "FOREIGN KEY(client_id) REFERENCES clients(id)" +
+                "has_negotiation INTEGER NOT NULL DEFAULT 0, " +
+                "sale_date TEXT NOT NULL, " +
+                COL_UPDATED_AT + " TEXT NOT NULL, " +
+                COL_DELETED_AT + " TEXT, " +
+                COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'" +
                 ")";
         db.execSQL(CREATE_SALES_TABLE);
+        db.execSQL("CREATE INDEX idx_sales_date ON " + TABLE_SALES + "(sale_date)");
 
-        // 5. TABLE SALE_ITEMS
+        // 5. TABLE SALE_ITEMS (copie du nom et du prix catalogue au moment de la vente)
+        // initial_quantity est purement local : les retours ne sont pas encore synchronisés.
         String CREATE_SALE_ITEMS = "CREATE TABLE " + TABLE_SALE_ITEMS + " (" +
-                "id INTEGER PRIMARY KEY, " +
-                "sale_id INTEGER NOT NULL, " +
-                "product_id INTEGER NOT NULL, " +
+                "id TEXT PRIMARY KEY, " +
+                COL_SHOP_ID + " TEXT, " +
+                "sale_id TEXT NOT NULL, " +
+                "product_id TEXT NOT NULL, " +
+                "product_name TEXT NOT NULL, " +
                 "quantity INTEGER NOT NULL, " +
                 "initial_quantity INTEGER NOT NULL, " +
+                "list_price REAL NOT NULL, " +
                 "unit_price REAL NOT NULL, " +
-                "total_price REAL NOT NULL," +
+                "total_price REAL NOT NULL, " +
                 COL_UPDATED_AT + " TEXT NOT NULL, " +
-                COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'," +
-                "FOREIGN KEY(sale_id) REFERENCES " + TABLE_SALES + "(id), " +
-                "FOREIGN KEY(product_id) REFERENCES " + TABLE_PRODUCTS + "(id)" +
+                COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'" +
                 ")";
         db.execSQL(CREATE_SALE_ITEMS);
+        db.execSQL("CREATE INDEX idx_sale_items_sale ON " + TABLE_SALE_ITEMS + "(sale_id)");
+        db.execSQL("CREATE INDEX idx_sale_items_product ON " + TABLE_SALE_ITEMS + "(product_id)");
 
-        // 6. TABLE HISTORY
+        // 6. TABLE HISTORY (id = UUID ; deviendra audit_log côté serveur à l'étape 4)
         String CREATE_HISTORY_TABLE = "CREATE TABLE " + TABLE_HISTORY + " (" +
-                "id INTEGER PRIMARY KEY, " +
-                "product_id INTEGER NOT NULL, " +
+                "id TEXT PRIMARY KEY, " +
+                COL_SHOP_ID + " TEXT, " +
+                "product_id TEXT NOT NULL, " +
                 "user_id TEXT NOT NULL, " +
                 "operation TEXT, " +
                 "old_value TEXT, " +
                 "new_value TEXT, " +
-                "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP," +
+                "timestamp TEXT NOT NULL, " +
                 COL_UPDATED_AT + " TEXT NOT NULL, " +
-                COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'," +
-                "FOREIGN KEY(product_id) REFERENCES " + TABLE_PRODUCTS + "(id), " +
-                "FOREIGN KEY(user_id) REFERENCES " + TABLE_USERS + "(id)" +
+                COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'" +
                 ")";
         db.execSQL(CREATE_HISTORY_TABLE);
-
-        // 7. TABLE SALE_ARCHIVE
-        String CREATE_SALE_ARCHIVE = "CREATE TABLE " + TABLE_SALE_ARCHIVE + " (" +
-                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                "sale_date TEXT, " +
-                "user_id TEXT, " +
-                "client_id INTEGER, " +
-                "total_price REAL, " +
-                "payment_method TEXT, " +
-                "updated_at TEXT NOT NULL, " +
-                "sync_status TEXT NOT NULL DEFAULT 'synced'" +
-                ")";
-        db.execSQL(CREATE_SALE_ARCHIVE);
-
-        // 8. TABLE SALE_ITEMS_ARCHIVE
-        String CREATE_SALE_ITEMS_ARCHIVE = "CREATE TABLE " + TABLE_SALE_ITEMS_ARCHIVE + " (" +
-                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                "sale_id INTEGER, " +
-                "product_name TEXT, " +
-                "quantity REAL, " +
-                "unit_price REAL, " +
-                "total_price REAL," +
-                COL_UPDATED_AT + " TEXT NOT NULL, " +
-                COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'," +
-                "FOREIGN KEY (sale_id) REFERENCES " + TABLE_SALE_ARCHIVE + "(id)" +
-                ")";
-        db.execSQL(CREATE_SALE_ITEMS_ARCHIVE);
+        db.execSQL("CREATE INDEX idx_history_timestamp ON " + TABLE_HISTORY + "(timestamp)");
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // Suppression des tables existantes pour recréation propre
+        // ⚠️ ATTENTION : supprime TOUTES les données locales, y compris les ventes non synchronisées.
+        // Acceptable tant qu'il n'y a aucun utilisateur réel (données jetables).
+        // TODO : remplacer par de vraies migrations (ALTER TABLE / copie) avant la première
+        // publication de la v2 (prévu avec Room à l'étape 6).
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_PRODUCTS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_USERS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_SALES);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_HISTORY);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_CLIENTS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_SALE_ITEMS);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_SALE_ITEMS_ARCHIVE);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_SALE_ARCHIVE);
+        db.execSQL("DROP TABLE IF EXISTS sale_items_archive"); // table v1 obsolète
+        db.execSQL("DROP TABLE IF EXISTS sale_archive"); // table v1 obsolète
 
         onCreate(db);
-    }
-
-    // --------------------------------------------------------------------------------
-    // --- TRANSACTIONS COMPLEXES ---
-    // --------------------------------------------------------------------------------
-
-    public boolean archiveAllSales() {
-        SQLiteDatabase db = this.getWritableDatabase();
-        db.beginTransaction();
-
-        try {
-            String archiveTimestamp = DatabaseUtils.getCurrentIsoTime();
-
-            // 1. Table temporaire pour mapping ID
-            db.execSQL("DROP TABLE IF EXISTS temp_sale_map");
-            db.execSQL("CREATE TABLE temp_sale_map (old_id INTEGER, new_id INTEGER)");
-
-            // 2. Archivage Headers
-            Cursor cursor = db.rawQuery(
-                    "SELECT s.id AS old_id, s.sale_date, s.user_id, " +
-                            "s.client_id, s.total_price, s.payment_method " +
-                            "FROM " + TABLE_SALES + " s", null);
-
-            while (cursor.moveToNext()) {
-                int oldId = cursor.getInt(0);
-
-                db.execSQL(
-                        "INSERT INTO " + TABLE_SALE_ARCHIVE + " (sale_date, user_id, client_id, total_price, payment_method, " +
-                                COL_UPDATED_AT + ", " + COL_SYNC_STATUS + ") " +
-                                "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        new Object[] {
-                                cursor.getString(1),
-                                cursor.getString(2),
-                                cursor.getInt(3),
-                                cursor.getDouble(4),
-                                cursor.getString(5),
-                                archiveTimestamp,
-                                "pending"
-                        }
-                );
-
-                Cursor idCur = db.rawQuery("SELECT last_insert_rowid()", null);
-                idCur.moveToFirst();
-                int newId = idCur.getInt(0);
-                idCur.close();
-
-                db.execSQL("INSERT INTO temp_sale_map (old_id, new_id) VALUES (?, ?)",
-                        new Object[]{oldId, newId});
-            }
-            cursor.close();
-
-            // 3. Archivage Items
-            db.execSQL(
-                    "INSERT INTO " + TABLE_SALE_ITEMS_ARCHIVE + " (sale_id, product_name, quantity, unit_price, total_price, " +
-                            COL_UPDATED_AT + ", " + COL_SYNC_STATUS + ") " +
-                            "SELECT m.new_id, p.name, si.quantity, si.unit_price, si.total_price, ?, ? " +
-                            "FROM " + TABLE_SALE_ITEMS + " si " +
-                            "JOIN " + TABLE_PRODUCTS + " p ON si.product_id = p.id " +
-                            "JOIN temp_sale_map m ON m.old_id = si.sale_id",
-                    new Object[] {
-                            archiveTimestamp,
-                            "pending"
-                    }
-            );
-
-            db.execSQL("DROP TABLE IF EXISTS temp_sale_map");
-
-            db.setTransactionSuccessful();
-            Log.i("ARCHIVE", "Archivage réussi.");
-            return true;
-
-        } catch (Exception e) {
-            Log.e("ARCHIVE", "Erreur archivage: " + e.getMessage(), e);
-            return false;
-        } finally {
-            db.endTransaction();
-        }
-    }
-
-    public long recordSaleWithItems(String userId, Integer clientId, List<SaleItemRow> items, String paymentMethod) {
-        if (items == null || items.isEmpty()) return -1;
-
-        SQLiteDatabase db = getWritableDatabase();
-        long saleId = -1;
-        db.beginTransaction();
-        try {
-            double grandTotal = 0.0;
-
-            // 1. Vérification des stocks avant toute insertion
-            for (SaleItemRow r : items) {
-                grandTotal += r.getTotal();
-
-                Cursor c = db.rawQuery("SELECT quantity FROM " + TABLE_PRODUCTS + " WHERE id = ?", new String[]{String.valueOf(r.getProductId())});
-                if (c == null || !c.moveToFirst()) {
-                    if (c != null) c.close();
-                    throw new Exception("Produit introuvable id=" + r.getProductId());
-                }
-                int currentQty = c.getInt(0);
-                c.close();
-                if (r.getQuantity() > currentQty) {
-                    throw new Exception("Stock insuffisant pour produit id=" + r.getProductId());
-                }
-            }
-
-            // 2. Insertion de l'en-tête de vente (Header)
-            ContentValues header = new ContentValues();
-            header.put("user_id", userId);
-            if (clientId != null) header.put("client_id", clientId);
-            header.put("total_price", grandTotal);
-            header.put("payment_method", paymentMethod);
-
-            String currentTimestamp = DatabaseUtils.getCurrentIsoTime();
-
-            header.put(COL_UPDATED_AT, currentTimestamp);
-            header.put(COL_SYNC_STATUS, "pending");
-
-            long inserted = db.insert(TABLE_SALES, null, header);
-            if (inserted == -1) throw new Exception("Impossible d'insérer le header de vente");
-            saleId = inserted;
-
-            // 3. Insertion des articles (Items)
-            for (SaleItemRow r : items) {
-                ContentValues it = new ContentValues();
-                it.put("sale_id", saleId);
-                it.put("product_id", r.getProductId());
-                it.put("quantity", r.getQuantity());
-
-                // --- CORRECTION : Ajout de initial_quantity ---
-                // Indispensable car la colonne est NOT NULL
-                it.put("initial_quantity", r.getQuantity());
-                // ----------------------------------------------
-
-                it.put("unit_price", r.getUnitPrice());
-                it.put("total_price", r.getTotal());
-
-                it.put(COL_UPDATED_AT, currentTimestamp);
-                it.put(COL_SYNC_STATUS, "pending");
-
-                long itemId = db.insert(TABLE_SALE_ITEMS, null, it);
-                if (itemId == -1) throw new Exception("Impossible d'insérer un sale_item");
-
-                // 4. Mise à jour du stock produit
-                db.execSQL("UPDATE " + TABLE_PRODUCTS + " SET quantity = quantity - ?, sold_quantity = sold_quantity + ?, " +
-                                COL_UPDATED_AT + " = ?, " + COL_SYNC_STATUS + " = 'pending' WHERE id = ?",
-                        new Object[]{r.getQuantity(), r.getQuantity(), currentTimestamp, r.getProductId()});
-            }
-
-            db.setTransactionSuccessful();
-        } catch (Exception e) {
-            Log.e("DB", "recordSaleWithItems error: " + e.getMessage());
-            saleId = -1;
-        } finally {
-            db.endTransaction();
-        }
-        return saleId;
-    }
-
-    public void clearActiveSales() {
-        SQLiteDatabase db = this.getWritableDatabase();
-        db.delete(TABLE_SALES, null, null);
-        db.delete(TABLE_SALE_ITEMS, null, null);
     }
 }

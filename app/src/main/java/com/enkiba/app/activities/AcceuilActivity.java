@@ -175,7 +175,7 @@ public class AcceuilActivity extends BaseActivity {
         List<SaleHeader> sales = saleDao.getRecentSalesByPayment("virement", 10);
         showGenericListPopup("💳 Derniers Virements", sales, (holder, item) -> {
             SaleHeader s = (SaleHeader) item;
-            holder.setText(R.id.tvMainText, "Vente #" + s.getId());
+            holder.setText(R.id.tvMainText, "Vente #" + s.getShortRef());
             // UTILISATION DU FORMATTER
             holder.setText(R.id.tvSubText, CurrencyUtils.formatSaleDate(s.getSaleDate()));
             holder.setText(R.id.tvValue, CurrencyUtils.formatKMF(s.getTotalPrice()));
@@ -188,7 +188,7 @@ public class AcceuilActivity extends BaseActivity {
         List<SaleHeader> sales = saleDao.getRecentSalesByPayment("espece", 10);
         showGenericListPopup("💵 Dernières Espèces", sales, (holder, item) -> {
             SaleHeader s = (SaleHeader) item;
-            holder.setText(R.id.tvMainText, "Vente #" + s.getId());
+            holder.setText(R.id.tvMainText, "Vente #" + s.getShortRef());
             // UTILISATION DU FORMATTER
             holder.setText(R.id.tvSubText, CurrencyUtils.formatSaleDate(s.getSaleDate()));
             holder.setText(R.id.tvValue, CurrencyUtils.formatKMF(s.getTotalPrice()));

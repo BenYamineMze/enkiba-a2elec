@@ -4,7 +4,7 @@ import java.io.Serializable;
 
 public class SaleItemRow implements Serializable {
 
-    private long id;
+    private String id;
 
     // [MODIFICATION UUID] L'ID produit est maintenant une chaîne (UUID)
     private String productId;
@@ -26,11 +26,11 @@ public class SaleItemRow implements Serializable {
         this.total = unitPrice * quantity;
     }
 
-    public long getId() {
+    public String getId() {
         return id;
     }
 
-    public void setId(long id) {
+    public void setId(String id) {
         this.id = id;
     }
 

@@ -75,8 +75,6 @@ public class EditUserActivity extends BaseActivity {
         loadMember();
     }
 
-    /** Masque une vue et son conteneur direct si c'est une enveloppe de champ. */
-
     private void loadMember() {
         supabaseService.getShopMember(
                         "eq." + sessionManager.getShopId(), "eq." + userId,
