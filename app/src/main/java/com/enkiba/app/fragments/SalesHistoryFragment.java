@@ -138,7 +138,7 @@ public class SalesHistoryFragment extends Fragment {
             List<User> allUsers = userDao.getAllUsers();
 
             for (SaleHeader sale : salesList) {
-                String saleUserId = sale.getUserId();
+                String saleUserId = sale.getSellerId();
                 User foundUser = null;
 
                 // Recherche dans la liste locale : on vérifie si l'ID de la vente correspond

@@ -468,8 +468,6 @@ public class SellProductActivity extends BaseActivity {
 
         // --- 2. SÉCURISATION DU TICKET FICTIF ---
         SaleHeader quoteHeader = new SaleHeader();
-        // Un pseudo-ID positif aléatoire (pour que la facture ait l'air vraie, ex: Devis N° 8452)
-        quoteHeader.setId((long) (Math.random() * 9000) + 1000);
         quoteHeader.setTotalPrice(totalAmount);
 
         // Remplissage scrupuleux de TOUS les champs pour éviter les NullPointerException dans PDFUtils
@@ -477,8 +475,7 @@ public class SellProductActivity extends BaseActivity {
         String currentUsername = sessionManagerLocal.getUsername();
         quoteHeader.setUsername(currentUsername != null && !currentUsername.isEmpty() ? currentUsername : "Administrateur");
         quoteHeader.setPaymentMethod("Devis (Non payé)");
-        quoteHeader.setUserId(sessionManagerLocal.getUserId());
-        quoteHeader.setClientId(0L);
+        quoteHeader.setSellerId(sessionManagerLocal.getUserId());
         quoteHeader.setHasNegotiatedPrice(false);
         quoteHeader.setUpdatedAt(DatabaseUtils.getCurrentIsoTime());
         quoteHeader.setSyncStatus("pending");
@@ -527,7 +524,7 @@ public class SellProductActivity extends BaseActivity {
     // =========================================================
 
     private void processTransaction() {
-        Integer clientId = null;
+        String clientId = null;
         Client clientObj = null;
 
         if (checkEditInvoice.isChecked()) {
@@ -539,10 +536,9 @@ public class SellProductActivity extends BaseActivity {
                 newClient.setAddress(etClientAddress.getText().toString().trim());
                 newClient.setPhone(etClientPhone.getText().toString().trim());
                 newClient.setEmail(etClientEmail.getText().toString().trim());
-                long cid = clientDao.insertOrUpdateClientLocally(newClient);
-                if (cid != -1) {
-                    clientId = (int) cid;
-                    clientObj = clientDao.getClientById(cid);
+                if (clientDao.saveClientLocally(newClient)) {
+                    clientId = newClient.getId();
+                    clientObj = newClient;
                 }
             }
         }
@@ -561,23 +557,15 @@ public class SellProductActivity extends BaseActivity {
         String paymentMethod = (radEspeces != null && radEspeces.isChecked()) ? "espece" : "virement";
 
         SaleHeader header = new SaleHeader();
-        header.setUserId(userId);
-        header.setClientId(clientId != null ? Long.valueOf(clientId) : null);
+        header.setSellerId(userId);
+        header.setClientId(clientId);
         header.setTotalPrice(totalAmount);
         header.setPaymentMethod(paymentMethod);
 
-        boolean isNegotiated = false;
-        for (SaleItemRow row : cartRows) {
-            Product p = productDao.getProductById(row.getProductId());
-            if (p != null && p.getPrice() != row.getUnitPrice()) {
-                isNegotiated = true; break;
-            }
-        }
-        header.setHasNegotiatedPrice(isNegotiated);
+        // Le drapeau « prix négocié » est calculé par recordSale
+        String saleId = saleDao.recordSale(header, cartRows);
 
-        long saleId = saleDao.recordSale(header, cartRows);
-
-        if (saleId != -1) {
+        if (saleId != null) {
             if (checkEditInvoice.isChecked() && clientObj != null) generateInvoice(saleId, clientObj);
             Toast.makeText(this, "Vente enregistrée ✅", Toast.LENGTH_LONG).show();
             cartRows.clear();
@@ -589,7 +577,7 @@ public class SellProductActivity extends BaseActivity {
         }
     }
 
-    private void generateInvoice(long saleId, Client client) {
+    private void generateInvoice(String saleId, Client client) {
         SaleHeader header = saleDao.getSaleHeaderById(saleId);
         List<SaleItemRow> items = saleDao.getSaleItems(saleId);
         new Thread(() -> PDFUtils.generateInvoicePdf(SellProductActivity.this, header, items, client, "A2 ELEC", "Moroni", "Tel", "Email")).start();

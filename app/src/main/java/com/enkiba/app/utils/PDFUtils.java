@@ -452,7 +452,7 @@ public class PDFUtils {
             // 🚨 CORRECTION : Remplacement de DatabaseHelper par UserDao 🚨
             UserDao userDao = new UserDao(ctx);
             String vendeurName= "—";
-            User vendeurUser = userDao.getUserById(header.getUserId());
+            User vendeurUser = userDao.getUserById(header.getSellerId());
             if (vendeurUser != null) {
                 vendeurName = vendeurUser.getUsername() + " " + vendeurUser.getLastname();
             }
@@ -641,7 +641,7 @@ public class PDFUtils {
             // 🚨 CORRECTION : Remplacement de DatabaseHelper par UserDao 🚨
             UserDao userDao = new UserDao(ctx);
             String vendeurName= "—";
-            User vendeurUser = userDao.getUserById(header.getUserId());
+            User vendeurUser = userDao.getUserById(header.getSellerId());
             if (vendeurUser != null) {
                 vendeurName = vendeurUser.getUsername() + " " + vendeurUser.getLastname();
             }

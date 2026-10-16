@@ -1,26 +1,17 @@
 package com.enkiba.app.database;
 
-import android.content.ContentValues;
 import android.content.Context;
-import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
-import android.util.Log;
-
-import com.enkiba.app.models.SaleItemRow;
-import com.enkiba.app.utils.DatabaseUtils;
-
-import java.util.List;
 
 /**
- * Gère la création de la base de données (schéma) et sa mise à jour.
- * Contient également les méthodes de transactions complexes impliquant plusieurs tables.
+ * Gère la création de la base de données locale (schéma) et sa mise à jour.
  */
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     public static final String DATABASE_NAME = "stock.db";
-    // 🚨 CHANGEMENT DE VERSION : Passage à 4 pour appliquer la contrainte UNIQUE sur l'email
-    private static final int DATABASE_VERSION = 6;
+    // v7 : schéma aligné sur Supabase v2 (UUID TEXT, shop_id, deleted_at, plus d'archives)
+    private static final int DATABASE_VERSION = 7;
 
     // --- CONSTANTES DE COLONNES INTERNES ---
     private static final String COL_ID = "id";
@@ -32,6 +23,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     // --- CONSTANTES DE SYNCHRONISATION ---
     public static final String COL_SYNC_STATUS = "sync_status"; // 'pending', 'synced', 'deleted'
     public static final String COL_UPDATED_AT = "updated_at";   // Horodatage ISO 8601
+    public static final String COL_DELETED_AT = "deleted_at";   // Suppression logique (NULL = actif)
+    public static final String COL_SHOP_ID = "shop_id";
 
     // --- CONSTANTES DE TABLES ---
     public static final String TABLE_PRODUCTS = "products";
@@ -89,51 +82,57 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         "WHERE " + COL_SYNC_STATUS + " != 'deleted'";
         db.execSQL(CREATE_UNIQUE_EMAIL_INDEX);
 
-        // 3. TABLE CLIENTS
-        String CREATE_CLIENT_TABLE ="CREATE TABLE " + TABLE_CLIENTS + " (" +
-                "id INTEGER PRIMARY KEY, " +
+        // 3. TABLE CLIENTS (id = UUID généré par le téléphone)
+        String CREATE_CLIENT_TABLE = "CREATE TABLE " + TABLE_CLIENTS + " (" +
+                "id TEXT PRIMARY KEY, " +
+                COL_SHOP_ID + " TEXT, " +
                 "firstname TEXT, " +
                 "lastname TEXT, " +
                 "address TEXT, " +
                 "phone TEXT, " +
-                "email TEXT," +
+                "email TEXT, " +
                 COL_UPDATED_AT + " TEXT NOT NULL, " +
+                COL_DELETED_AT + " TEXT, " +
                 COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'" +
                 ")";
         db.execSQL(CREATE_CLIENT_TABLE);
 
-        // 4. TABLE SALES (CORRIGÉ AVEC LA COLONNE DE NÉGOCIATION)
+        // 4. TABLE SALES (id = UUID ; seller_id = profiles.id)
         String CREATE_SALES_TABLE = "CREATE TABLE " + TABLE_SALES + " (" +
-                "id INTEGER PRIMARY KEY, " +
-                "user_id TEXT NOT NULL, " +
-                "client_id INTEGER, " +
+                "id TEXT PRIMARY KEY, " +
+                COL_SHOP_ID + " TEXT, " +
+                "seller_id TEXT NOT NULL, " +
+                "client_id TEXT, " +
                 "total_price REAL NOT NULL, " +
                 "payment_method TEXT NOT NULL, " +
-                "sale_date DATETIME DEFAULT CURRENT_TIMESTAMP, " +
-                "is_archived INTEGER DEFAULT 0, " +
-                "has_negotiation INTEGER DEFAULT 0, " + // [AJOUT IMPORTANT]
-                "updated_at TEXT NOT NULL, " +
-                "sync_status TEXT NOT NULL DEFAULT 'synced', " +
-                "FOREIGN KEY(user_id) REFERENCES users(id), " +
-                "FOREIGN KEY(client_id) REFERENCES clients(id)" +
+                "has_negotiation INTEGER NOT NULL DEFAULT 0, " +
+                "sale_date TEXT NOT NULL, " +
+                COL_UPDATED_AT + " TEXT NOT NULL, " +
+                COL_DELETED_AT + " TEXT, " +
+                COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'" +
                 ")";
         db.execSQL(CREATE_SALES_TABLE);
+        db.execSQL("CREATE INDEX idx_sales_date ON " + TABLE_SALES + "(sale_date)");
 
-        // 5. TABLE SALE_ITEMS
+        // 5. TABLE SALE_ITEMS (copie du nom et du prix catalogue au moment de la vente)
+        // initial_quantity est purement local : les retours ne sont pas encore synchronisés.
         String CREATE_SALE_ITEMS = "CREATE TABLE " + TABLE_SALE_ITEMS + " (" +
-                "id INTEGER PRIMARY KEY, " +
-                "sale_id INTEGER NOT NULL, " +
-                "product_id INTEGER NOT NULL, " +
+                "id TEXT PRIMARY KEY, " +
+                COL_SHOP_ID + " TEXT, " +
+                "sale_id TEXT NOT NULL, " +
+                "product_id TEXT NOT NULL, " +
+                "product_name TEXT NOT NULL, " +
                 "quantity INTEGER NOT NULL, " +
                 "initial_quantity INTEGER NOT NULL, " +
+                "list_price REAL NOT NULL, " +
                 "unit_price REAL NOT NULL, " +
-                "total_price REAL NOT NULL," +
+                "total_price REAL NOT NULL, " +
                 COL_UPDATED_AT + " TEXT NOT NULL, " +
-                COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'," +
-                "FOREIGN KEY(sale_id) REFERENCES " + TABLE_SALES + "(id), " +
-                "FOREIGN KEY(product_id) REFERENCES " + TABLE_PRODUCTS + "(id)" +
+                COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'" +
                 ")";
         db.execSQL(CREATE_SALE_ITEMS);
+        db.execSQL("CREATE INDEX idx_sale_items_sale ON " + TABLE_SALE_ITEMS + "(sale_id)");
+        db.execSQL("CREATE INDEX idx_sale_items_product ON " + TABLE_SALE_ITEMS + "(product_id)");
 
         // 6. TABLE HISTORY
         String CREATE_HISTORY_TABLE = "CREATE TABLE " + TABLE_HISTORY + " (" +
@@ -154,7 +153,10 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // Suppression des tables existantes pour recréation propre
+        // ⚠️ ATTENTION : supprime TOUTES les données locales, y compris les ventes non synchronisées.
+        // Acceptable tant qu'il n'y a aucun utilisateur réel (données jetables).
+        // TODO : remplacer par de vraies migrations (ALTER TABLE / copie) avant la première
+        // publication de la v2 (prévu avec Room à l'étape 6).
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_PRODUCTS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_USERS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_SALES);

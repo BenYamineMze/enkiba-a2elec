@@ -4,19 +4,26 @@ import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 
+/**
+ * En-tête de vente (table sales).
+ * L'id est un UUID généré par le téléphone : le même id est envoyé au serveur (push idempotent).
+ */
 public class SaleHeader implements Serializable {
     @Expose @SerializedName("id")
-    private long id;
+    private String id;
 
-    // 🚨 CORRECTION : userId doit être un String pour les UUID Supabase
-    @Expose @SerializedName("user_id")
-    private String userId;
+    @Expose @SerializedName("shop_id")
+    private String shopId;
+
+    // Vendeur : profiles.id (= auth.users.id)
+    @Expose @SerializedName("seller_id")
+    private String sellerId;
 
     @Expose @SerializedName("client_id")
-    private Long clientId; // nullable
+    private String clientId; // facultatif
 
     @Expose @SerializedName("total_price")
     private double totalPrice;
@@ -27,39 +34,52 @@ public class SaleHeader implements Serializable {
     @Expose @SerializedName("sale_date")
     private String saleDate;
 
-    // --- NOUVEAU CHAMP ---
-    // Indique si au moins un article de cette vente a été négocié
+    // Indique si au moins un article de cette vente a été vendu à un prix négocié
     @Expose @SerializedName("has_negotiation")
     private boolean hasNegotiatedPrice;
 
-    @Expose
-    private String username;
-
-    @Expose
-    private String authId;
-
-    private List<SaleItem> items = new ArrayList<>();
-
-    // --- Champs de Synchronisation ---
-    // Correspondance avec le champ 'updated_at' de Supabase
+    // --- Champs de synchronisation ---
     @Expose @SerializedName("updated_at")
     private String updatedAt;
+    @Expose @SerializedName("deleted_at")
+    private String deletedAt;
 
-    // Ce champ est purement LOCAL, le serveur n'a pas besoin de le voir
-    private String syncStatus;
+    // --- Champs locaux (affichage / synchro) ---
+    private transient String username;
+    private transient String syncStatus;
 
-    public SaleHeader() {}
+    /** Nouvelle vente : l'UUID est généré immédiatement. */
+    public SaleHeader() {
+        this.id = UUID.randomUUID().toString();
+    }
+
+    /**
+     * Référence courte pour l'affichage (« Vente #3F2A9C1B ») :
+     * les 8 premiers caractères de l'UUID, en majuscules.
+     */
+    public String getShortRef() {
+        return shortRef(id);
+    }
+
+    public static String shortRef(String uuid) {
+        if (uuid == null) return "";
+        String s = uuid.length() > 8 ? uuid.substring(0, 8) : uuid;
+        return s.toUpperCase(Locale.ROOT);
+    }
 
     // --- Getters & Setters ---
 
-    public long getId() { return id; }
-    public void setId(long id) { this.id = id; }
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 
-    public String getUserId() { return userId; }
-    public void setUserId(String userId) { this.userId = userId; }
+    public String getShopId() { return shopId; }
+    public void setShopId(String shopId) { this.shopId = shopId; }
 
-    public Long getClientId() { return clientId; }
-    public void setClientId(Long clientId) { this.clientId = clientId; }
+    public String getSellerId() { return sellerId; }
+    public void setSellerId(String sellerId) { this.sellerId = sellerId; }
+
+    public String getClientId() { return clientId; }
+    public void setClientId(String clientId) { this.clientId = clientId; }
 
     public double getTotalPrice() { return totalPrice; }
     public void setTotalPrice(double totalPrice) { this.totalPrice = totalPrice; }
@@ -70,23 +90,17 @@ public class SaleHeader implements Serializable {
     public String getSaleDate() { return saleDate; }
     public void setSaleDate(String saleDate) { this.saleDate = saleDate; }
 
-    // --- NOUVEAUX GETTERS/SETTERS POUR LA NÉGOCIATION ---
     public boolean isHasNegotiatedPrice() { return hasNegotiatedPrice; }
     public void setHasNegotiatedPrice(boolean hasNegotiatedPrice) { this.hasNegotiatedPrice = hasNegotiatedPrice; }
-    // ----------------------------------------------------
-
-    public List<SaleItem> getItems() { return items; }
-    public void setItems(List<SaleItem> items) { this.items = items; }
-    public void addItem(SaleItem item) { this.items.add(item); }
-
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
-
-    public String getAuthId() { return authId; }
-    public void setAuthId(String authId) { this.authId = authId; }
 
     public String getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }
+
+    public String getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(String deletedAt) { this.deletedAt = deletedAt; }
+
+    public String getUsername() { return username; }
+    public void setUsername(String username) { this.username = username; }
 
     public String getSyncStatus() { return syncStatus; }
     public void setSyncStatus(String syncStatus) { this.syncStatus = syncStatus; }
