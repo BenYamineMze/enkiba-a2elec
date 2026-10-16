@@ -360,7 +360,7 @@ public class SynchronizationManager {
             // Historique (la table "history" n'existe plus en v2 : réponse 404 attendue jusqu'à l'étape 4)
             Response<List<ProductHistory>> respHist = supabaseService.getHistorySince(filterDate, selectAll).execute();
             if (respHist.isSuccessful() && respHist.body() != null) {
-                for (ProductHistory h : respHist.body()) syncDao.insertOrUpdateHistory(h);
+                for (ProductHistory h : respHist.body()) syncDao.upsertHistory(h);
             }
 
         } catch (IOException e) {

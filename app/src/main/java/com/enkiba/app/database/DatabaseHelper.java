@@ -134,21 +134,21 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX idx_sale_items_sale ON " + TABLE_SALE_ITEMS + "(sale_id)");
         db.execSQL("CREATE INDEX idx_sale_items_product ON " + TABLE_SALE_ITEMS + "(product_id)");
 
-        // 6. TABLE HISTORY
+        // 6. TABLE HISTORY (id = UUID ; deviendra audit_log côté serveur à l'étape 4)
         String CREATE_HISTORY_TABLE = "CREATE TABLE " + TABLE_HISTORY + " (" +
-                "id INTEGER PRIMARY KEY, " +
-                "product_id INTEGER NOT NULL, " +
+                "id TEXT PRIMARY KEY, " +
+                COL_SHOP_ID + " TEXT, " +
+                "product_id TEXT NOT NULL, " +
                 "user_id TEXT NOT NULL, " +
                 "operation TEXT, " +
                 "old_value TEXT, " +
                 "new_value TEXT, " +
-                "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP," +
+                "timestamp TEXT NOT NULL, " +
                 COL_UPDATED_AT + " TEXT NOT NULL, " +
-                COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'," +
-                "FOREIGN KEY(product_id) REFERENCES " + TABLE_PRODUCTS + "(id), " +
-                "FOREIGN KEY(user_id) REFERENCES " + TABLE_USERS + "(id)" +
+                COL_SYNC_STATUS + " TEXT NOT NULL DEFAULT 'synced'" +
                 ")";
         db.execSQL(CREATE_HISTORY_TABLE);
+        db.execSQL("CREATE INDEX idx_history_timestamp ON " + TABLE_HISTORY + "(timestamp)");
     }
 
     @Override

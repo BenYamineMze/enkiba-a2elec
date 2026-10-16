@@ -232,8 +232,4 @@ public class ProductDao {
             return (result != -1) ? p.getId() : null;
         }
     }
-
-    // Méthodes obsolètes conservées pour compatibilité
-    public void updateLocalId(long oldTempId, long newServerId) {}
-    public void resetStuckProducts() {}
 }

@@ -182,15 +182,6 @@ public class UserDao {
         db.close();
     }
 
-    public void updateLocalId(String oldId, String newId) {
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put("id", newId);
-        values.put(DatabaseHelper.COL_SYNC_STATUS, "synced");
-        db.update(DatabaseHelper.TABLE_USERS, values, "id=?", new String[]{oldId});
-        db.close();
-    }
-
     public boolean markUserForDeletion(String id) {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
         ContentValues values = new ContentValues();

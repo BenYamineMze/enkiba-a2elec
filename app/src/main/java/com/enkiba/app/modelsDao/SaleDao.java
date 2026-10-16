@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
 
 import com.enkiba.app.database.DatabaseHelper;
+import com.enkiba.app.models.ProductHistory;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItemRow;
 import com.enkiba.app.utils.DatabaseUtils;
@@ -186,14 +187,14 @@ public class SaleDao {
                 if (listPrice[i] != row.getUnitPrice()) {
                     op += String.format(Locale.US, " (Négocié: %.0f -> %.0f)", listPrice[i], row.getUnitPrice());
                 }
-                ContentValues hist = new ContentValues();
-                hist.put("id", DatabaseUtils.generateTempId());
-                hist.put("product_id", row.getProductId());
-                hist.put("user_id", header.getSellerId());
-                hist.put("operation", op);
-                hist.put("old_value", "Stock: " + oldQty[i]);
-                hist.put("new_value", "Stock: " + newQty);
-                hist.put("timestamp", now);
+                ProductHistory entry = new ProductHistory();
+                entry.setProductId(row.getProductId());
+                entry.setUserId(header.getSellerId());
+                entry.setOperation(op);
+                entry.setOldValue("Stock: " + oldQty[i]);
+                entry.setNewValue("Stock: " + newQty);
+                entry.setTimestamp(now);
+                ContentValues hist = HistoryDao.toValues(entry, shopId);
                 hist.put(DatabaseHelper.COL_UPDATED_AT, now);
                 hist.put(DatabaseHelper.COL_SYNC_STATUS, "pending");
                 if (db.insert(DatabaseHelper.TABLE_HISTORY, null, hist) == -1) {

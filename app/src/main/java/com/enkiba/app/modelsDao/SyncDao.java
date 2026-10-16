@@ -48,7 +48,7 @@ public class SyncDao {
     public void upsertClient(Client c) { clientDao.upsertClientFromRemote(c); }
     public void upsertSale(SaleHeader s) { saleDao.upsertSaleFromRemote(s); }
     public void upsertSaleItem(SaleItem si) { saleItemDao.upsertSaleItemFromRemote(si); }
-    public long insertOrUpdateHistory(ProductHistory h) { return historyDao.insertOrUpdateHistoryFromRemote(h); }
+    public void upsertHistory(ProductHistory h) { historyDao.upsertHistoryFromRemote(h); }
 
     // ----------------------------------------------------------------------------------
     // C. MARQUER COMME SYNCHRONISÉ
@@ -58,5 +58,5 @@ public class SyncDao {
     public void markClientAsSynced(String id) { clientDao.markClientAsSynced(id); }
     public void markSaleAsSynced(String id) { saleDao.markSaleAsSynced(id); }
     public void markSaleItemAsSynced(String id) { saleItemDao.markSaleItemAsSynced(id); }
-    public void markHistoryAsSynced(long id) { historyDao.markHistoryAsSynced(id); }
+    public void markHistoryAsSynced(String id) { historyDao.markHistoryAsSynced(id); }
 }
