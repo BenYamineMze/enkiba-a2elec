@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.enkiba.app.BuildConfig
 import com.enkiba.app.activities.HistoryActivity
 import com.enkiba.app.activities.ProductListActivity
 import com.enkiba.app.activities.SaleDetailsActivity
@@ -57,6 +58,10 @@ class HomeActivity : ComponentActivity() {
                             startActivity(Intent(this, SaleDetailsActivity::class.java).putExtra("sale_id", sale.id))
                         },
                         onManageUsers = { open(UserManagementActivity::class.java) },
+                        // Le catalogue n'existe que dans le build debug (src/debug)
+                        onOpenDesignCatalog = if (BuildConfig.DEBUG) {
+                            { startActivity(Intent().setClassName(this, "com.enkiba.app.ui.catalog.DesignCatalogActivity")) }
+                        } else null,
                         onLogout = { session.logout() },
                     ),
                 )
