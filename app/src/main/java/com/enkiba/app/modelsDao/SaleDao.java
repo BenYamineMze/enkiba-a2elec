@@ -35,23 +35,6 @@ public class SaleDao {
 
     public SaleDao(Context context) {
         this.dbHelper = new DatabaseHelper(context);
-        // [MIGRATION AUTO] S'assurer que la colonne existe
-        ensureTableColumns();
-    }
-
-    /**
-     * Tente d'ajouter la colonne 'has_negotiation' si elle n'existe pas déjà.
-     * C'est une migration légère pour éviter de réinstaller l'app.
-     */
-    private void ensureTableColumns() {
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
-        try {
-            db.execSQL("ALTER TABLE " + TABLE_SALES + " ADD COLUMN " + COL_HAS_NEGOTIATION + " INTEGER DEFAULT 0");
-            Log.i(TAG, "Colonne 'has_negotiation' ajoutée avec succès.");
-        } catch (Exception e) {
-            // La colonne existe probablement déjà, on ignore l'erreur
-            // Log.d(TAG, "Colonne 'has_negotiation' déjà présente ou erreur mineure.");
-        }
     }
 
     // ----------------------------------------------------------------------
