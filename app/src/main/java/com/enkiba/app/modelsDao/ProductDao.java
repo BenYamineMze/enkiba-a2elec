@@ -265,6 +265,14 @@ public class ProductDao {
         db.close();
     }
 
+    /** Vrai si la ligne existe localement avec une modification pas encore envoyée. */
+    static boolean isPending(SQLiteDatabase db, String table, String id) {
+        try (Cursor c = db.rawQuery("SELECT " + DatabaseHelper.COL_SYNC_STATUS + " FROM " + table + " WHERE id = ?",
+                new String[]{id})) {
+            return c.moveToFirst() && "pending".equals(c.getString(0));
+        }
+    }
+
     /**
      * Écart entre le stock local et le stock serveur dû aux opérations locales
      * pas encore envoyées : mouvements, ventes et retours en attente.
@@ -292,6 +300,11 @@ public class ProductDao {
      */
     public String insertOrUpdateProductFromRemote(Product p) {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
+        // Une modification locale pas encore envoyée n'est jamais écrasée
+        if (isPending(db, TABLE_PRODUCTS, p.getId())) {
+            db.close();
+            return p.getId();
+        }
         ContentValues values = toValues(p);
         values.put("id", p.getId());
         values.put("quantity", p.getQuantity() + pendingLocalDelta(db, p.getId()));

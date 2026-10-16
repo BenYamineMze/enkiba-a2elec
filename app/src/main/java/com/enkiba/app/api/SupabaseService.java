@@ -1,5 +1,6 @@
 package com.enkiba.app.api;
 
+import com.enkiba.app.models.AuditLogEntry;
 import com.enkiba.app.models.AuthResponse;
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Membership;
@@ -59,38 +60,34 @@ public interface SupabaseService {
     Call<JsonObject> updateSeller(@Body JsonObject body);
 
     // ======================================================================
-    // 3. SYNCHRONISATION DESCENDANTE (PULL) : à réécrire à l'étape 4
+    // 3. SYNCHRONISATION DESCENDANTE (PULL)
+    // Incrémental : updated_at (ou created_at pour audit_log) >= curseur, trié, par pages.
+    // since = "gte.<horodatage serveur>", order = "updated_at.asc,id.asc"
     // ======================================================================
 
     @GET("rest/v1/products")
-    Call<List<Product>> getProductsSince(
-            @Query("updated_at") String filterTime,
-            @Query("select") String selectFields);
+    Call<List<Product>> pullProducts(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
+                                     @Query("order") String order, @Query("limit") int limit);
 
     @GET("rest/v1/clients")
-    Call<List<Client>> getClientsSince(
-            @Query("updated_at") String filterTime,
-            @Query("select") String selectFields);
+    Call<List<Client>> pullClients(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
+                                   @Query("order") String order, @Query("limit") int limit);
 
     @GET("rest/v1/sales")
-    Call<List<SaleHeader>> getSalesSince(
-            @Query("updated_at") String filterTime,
-            @Query("select") String selectFields);
+    Call<List<SaleHeader>> pullSales(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
+                                     @Query("order") String order, @Query("limit") int limit);
 
     @GET("rest/v1/sale_items")
-    Call<List<SaleItem>> getSaleItemsSince(
-            @Query("updated_at") String filterTime,
-            @Query("select") String selectFields);
+    Call<List<SaleItem>> pullSaleItems(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
+                                       @Query("order") String order, @Query("limit") int limit);
 
     @GET("rest/v1/sale_returns")
-    Call<List<SaleReturn>> getSaleReturnsSince(
-            @Query("updated_at") String filterTime,
-            @Query("select") String selectFields);
+    Call<List<SaleReturn>> pullSaleReturns(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
+                                           @Query("order") String order, @Query("limit") int limit);
 
-    @GET("rest/v1/history")
-    Call<List<ProductHistory>> getHistorySince(
-            @Query("updated_at") String filterTime,
-            @Query("select") String selectFields);
+    @GET("rest/v1/audit_log?entity=eq.product")
+    Call<List<AuditLogEntry>> pullProductAuditLog(@Query("shop_id") String shopFilter, @Query("created_at") String since,
+                                                  @Query("order") String order, @Query("limit") int limit);
 
     // ======================================================================
     // 4. SYNCHRONISATION ASCENDANTE (PUSH) : à réécrire à l'étape 4

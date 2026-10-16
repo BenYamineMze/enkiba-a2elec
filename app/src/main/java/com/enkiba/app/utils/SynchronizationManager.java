@@ -6,6 +6,7 @@ import android.util.Log;
 
 import com.enkiba.app.api.RetrofitClient;
 import com.enkiba.app.api.SupabaseService;
+import com.enkiba.app.models.AuditLogEntry;
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Product;
 import com.enkiba.app.models.ProductHistory;
@@ -13,16 +14,13 @@ import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItem;
 import com.enkiba.app.models.SaleReturn;
 import com.enkiba.app.models.StockMovement;
-import com.enkiba.app.modelsDao.ProductDao;
 import com.enkiba.app.modelsDao.SyncDao;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import retrofit2.Response;
 
@@ -48,11 +46,9 @@ public class SynchronizationManager {
     // Upsert : la ligne existante est mise à jour (clients).
     private static final String PREFER_MERGE_DUPLICATES = "resolution=merge-duplicates, return=minimal";
     private static final String PREFS_SYNC = "sync_prefs";
-    private static final String KEY_LAST_SYNC = "last_sync_time";
 
     private final SupabaseService supabaseService;
     private final SyncDao syncDao;
-    private final ProductDao productDao;
     private final Context context;
     private final SessionManager sessionManager;
 
@@ -65,22 +61,7 @@ public class SynchronizationManager {
         this.context = context;
         this.supabaseService = RetrofitClient.getSupabaseService(context);
         this.syncDao = new SyncDao(context);
-        this.productDao = new ProductDao(context);
         this.sessionManager = new SessionManager(context);
-    }
-
-    // ----------------------------------------------------------------------------------
-    // DATE DE DERNIÈRE SYNCHRO
-    // ----------------------------------------------------------------------------------
-
-    private String getLastSyncTime() {
-        SharedPreferences prefs = context.getSharedPreferences(PREFS_SYNC, Context.MODE_PRIVATE);
-        return prefs.getString(KEY_LAST_SYNC, "2000-01-01T00:00:00.000Z");
-    }
-
-    private void setLastSyncTime(String timestamp) {
-        SharedPreferences prefs = context.getSharedPreferences(PREFS_SYNC, Context.MODE_PRIVATE);
-        prefs.edit().putString(KEY_LAST_SYNC, timestamp).apply();
     }
 
     // ----------------------------------------------------------------------------------
@@ -151,16 +132,13 @@ public class SynchronizationManager {
 
     /** Un tour complet : PUSH puis PULL. Ne lève jamais d'exception. */
     private void runOnce() {
-        final String lastSyncTimestamp = getLastSyncTime();
-        final String currentSyncTime = DatabaseUtils.getCurrentIsoTime();
         try {
             // 1. PUSH : envoi des modifications locales
             pushLocalChangesSync();
 
             // 2. PULL : récupération des changements du serveur
-            pullRemoteChangesSynchronous(lastSyncTimestamp);
+            pullRemoteChangesSynchronous();
 
-            setLastSyncTime(currentSyncTime);
             Log.d(TAG, "--- SYNCHRO TERMINÉE ---");
         } catch (Exception e) {
             Log.e(TAG, "Erreur critique synchro : " + e.getMessage(), e);
@@ -413,68 +391,120 @@ public class SynchronizationManager {
     // PHASE PULL
     // ----------------------------------------------------------------------------------
 
-    /** Récupère les données du serveur et met à jour la base locale. */
-    private void pullRemoteChangesSynchronous(String lastSyncTime) {
-        String filterDate = "gt." + lastSyncTime;
-        String selectAll = "*";
-        try {
-            // Produits : récupération complète, puis suppression locale de ceux disparus du serveur
-            Response<List<Product>> respProducts =
-                    supabaseService.getProductsSince("gt.1970-01-01T00:00:00.000Z", selectAll).execute();
-            if (respProducts.isSuccessful() && respProducts.body() != null) {
-                Set<String> remoteIds = new HashSet<>();
-                for (Product p : respProducts.body()) {
-                    remoteIds.add(p.getId());
-                    // On ne remplace jamais une modification locale non encore envoyée
-                    Product localP = productDao.getProductById(p.getId());
-                    if (localP != null && !"synced".equalsIgnoreCase(localP.getSyncStatus())) continue;
-                    syncDao.insertOrUpdateProduct(p);
-                }
-                for (Product local : productDao.getAllProducts()) {
-                    if (local.getId() != null && !remoteIds.contains(local.getId())) {
-                        if (!"synced".equalsIgnoreCase(local.getSyncStatus())) continue;
-                        productDao.deleteProductPhysically(local.getId());
-                    }
-                }
-            } else {
-                logFailure("pull produits", respProducts);
-            }
+    private static final int PULL_PAGE_SIZE = 500;
+    private static final String PULL_ORDER = "updated_at.asc,id.asc";
+    private static final String EPOCH = "1970-01-01T00:00:00+00:00";
 
-            // Clients
-            Response<List<Client>> respClients = supabaseService.getClientsSince(filterDate, selectAll).execute();
-            if (respClients.isSuccessful() && respClients.body() != null) {
-                for (Client c : respClients.body()) syncDao.upsertClient(c);
-            }
+    /** Requête d'une page à partir d'un curseur (filtre PostgREST "gte.<horodatage>"). */
+    private interface PageFetcher<T> {
+        retrofit2.Call<List<T>> fetch(String since);
+    }
 
-            // Ventes
-            Response<List<SaleHeader>> respSales = supabaseService.getSalesSince(filterDate, selectAll).execute();
-            if (respSales.isSuccessful() && respSales.body() != null) {
-                for (SaleHeader s : respSales.body()) syncDao.upsertSale(s);
-            }
-
-            // Lignes de vente
-            Response<List<SaleItem>> respItems = supabaseService.getSaleItemsSince(filterDate, selectAll).execute();
-            if (respItems.isSuccessful() && respItems.body() != null) {
-                for (SaleItem i : respItems.body()) syncDao.upsertSaleItem(i);
-            }
-
-            // Retours
-            Response<List<SaleReturn>> respReturns = supabaseService.getSaleReturnsSince(filterDate, selectAll).execute();
-            if (respReturns.isSuccessful() && respReturns.body() != null) {
-                for (SaleReturn r : respReturns.body()) syncDao.upsertSaleReturn(r);
-            } else {
-                logFailure("pull retours", respReturns);
-            }
-
-            // Historique (la table "history" n'existe plus en v2 : réponse 404 attendue jusqu'à l'étape 4)
-            Response<List<ProductHistory>> respHist = supabaseService.getHistorySince(filterDate, selectAll).execute();
-            if (respHist.isSuccessful() && respHist.body() != null) {
-                for (ProductHistory h : respHist.body()) syncDao.upsertHistory(h);
-            }
-
-        } catch (IOException e) {
-            Log.e(TAG, "Erreur PULL synchrone : " + e.getMessage());
+    /**
+     * Récupère les changements du serveur, table par table, dans l'ordre des dépendances.
+     * Chaque table a son curseur : le plus grand horodatage SERVEUR déjà reçu (jamais
+     * l'horloge du téléphone). Les suppressions arrivent comme des lignes avec deleted_at.
+     */
+    private void pullRemoteChangesSynchronous() {
+        String shop = sessionManager.getShopId();
+        if (shop == null) {
+            Log.w(TAG, "Pull annulé : aucune boutique dans la session.");
+            return;
         }
+        String shopFilter = "eq." + shop;
+
+        pullTable(shop, "products",
+                since -> supabaseService.pullProducts(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
+                Product::getUpdatedAt, syncDao::insertOrUpdateProduct);
+        pullTable(shop, "clients",
+                since -> supabaseService.pullClients(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
+                Client::getUpdatedAt, syncDao::upsertClient);
+        pullTable(shop, "sales",
+                since -> supabaseService.pullSales(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
+                SaleHeader::getUpdatedAt, syncDao::upsertSale);
+        pullTable(shop, "sale_items",
+                since -> supabaseService.pullSaleItems(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
+                SaleItem::getUpdatedAt, syncDao::upsertSaleItem);
+        pullTable(shop, "sale_returns",
+                since -> supabaseService.pullSaleReturns(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
+                SaleReturn::getUpdatedAt, syncDao::upsertSaleReturn);
+        // audit_log n'a pas de updated_at (lignes jamais modifiées) : curseur sur created_at
+        pullTable(shop, "audit_log",
+                since -> supabaseService.pullProductAuditLog(shopFilter, since, "created_at.asc,id.asc", PULL_PAGE_SIZE),
+                AuditLogEntry::getCreatedAt, e -> syncDao.upsertHistory(e.toProductHistory()));
+    }
+
+    /**
+     * Pull paginé d'une table. Le curseur est enregistré après chaque page appliquée :
+     * une synchro interrompue reprend là où elle s'était arrêtée. Le filtre est "gte"
+     * (pas "gt") pour ne rien perdre entre deux pages au même horodatage ; les lignes
+     * déjà reçues sont simplement réécrites.
+     */
+    private <T> void pullTable(String shop, String table, PageFetcher<T> fetcher,
+                               java.util.function.Function<T, String> timestampOf,
+                               java.util.function.Consumer<T> apply) {
+        String cursor = getPullCursor(shop, table);
+        try {
+            while (true) {
+                Response<List<T>> res = fetcher.fetch("gte." + cursor).execute();
+                if (!res.isSuccessful() || res.body() == null) {
+                    logFailure("pull " + table, res);
+                    return;
+                }
+                List<T> rows = res.body();
+                String max = cursor;
+                for (T row : rows) {
+                    apply.accept(row);
+                    String ts = timestampOf.apply(row);
+                    if (ts != null && compareTimestamps(ts, max) > 0) max = ts;
+                }
+                setPullCursor(shop, table, max);
+                if (rows.size() < PULL_PAGE_SIZE) return;
+                if (compareTimestamps(max, cursor) == 0) {
+                    // Page pleine au même horodatage : on ne peut pas avancer sans boucler
+                    Log.w(TAG, "Pull " + table + " : page pleine au même horodatage " + max);
+                    return;
+                }
+                cursor = max;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Erreur pull " + table + " : " + e.getMessage(), e);
+        }
+    }
+
+    // --- Curseurs de pull (par boutique et par table) ---
+
+    private String getPullCursor(String shop, String table) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_SYNC, Context.MODE_PRIVATE);
+        return prefs.getString("cursor_" + shop + "_" + table, EPOCH);
+    }
+
+    private void setPullCursor(String shop, String table, String value) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_SYNC, Context.MODE_PRIVATE);
+        prefs.edit().putString("cursor_" + shop + "_" + table, value).apply();
+    }
+
+    /**
+     * Compare deux horodatages PostgreSQL au format ISO ("2026-10-16T10:09:06.12+00:00").
+     * PostgreSQL supprime les zéros finaux des microsecondes : la partie décimale est
+     * complétée à 6 chiffres avant la comparaison (les deux sont en UTC).
+     */
+    static int compareTimestamps(String a, String b) {
+        return normalizeTimestamp(a).compareTo(normalizeTimestamp(b));
+    }
+
+    private static String normalizeTimestamp(String ts) {
+        int tPos = ts.indexOf('T');
+        int dot = ts.indexOf('.', tPos);
+        int zoneStart = ts.length();
+        for (int i = (dot >= 0 ? dot + 1 : tPos + 1); i < ts.length(); i++) {
+            char c = ts.charAt(i);
+            if (c == '+' || c == '-' || c == 'Z') { zoneStart = i; break; }
+        }
+        String base = dot >= 0 ? ts.substring(0, dot) : ts.substring(0, zoneStart);
+        StringBuilder frac = new StringBuilder(dot >= 0 ? ts.substring(dot + 1, zoneStart) : "");
+        while (frac.length() < 6) frac.append('0');
+        return base + "." + frac;
     }
 
     // ----------------------------------------------------------------------------------
