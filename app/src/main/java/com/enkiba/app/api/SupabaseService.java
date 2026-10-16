@@ -2,8 +2,10 @@ package com.enkiba.app.api;
 
 import com.enkiba.app.models.AuthResponse;
 import com.enkiba.app.models.Client;
+import com.enkiba.app.models.Membership;
 import com.enkiba.app.models.Product;
 import com.enkiba.app.models.ProductHistory;
+import com.enkiba.app.models.Profile;
 import com.enkiba.app.models.SaleArchive;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItem;
@@ -25,6 +27,12 @@ import retrofit2.http.Query;
 
 public interface SupabaseService {
 
+    @GET("rest/v1/profiles")
+    Call<List<Profile>> getProfile(@Query("id") String idFilter, @Query("select") String select);
+
+    @GET("rest/v1/shop_members")
+    Call<List<Membership>> getMemberships(@Query("user_id") String userIdFilter, @Query("select") String select);
+
     // ----------------------------------------------------------------------
     // --- SECTION 1 : AUTHENTIFICATION ---
     // ----------------------------------------------------------------------
@@ -36,9 +44,6 @@ public interface SupabaseService {
     // ----------------------------------------------------------------------
     // --- SECTION 2 : SYNCHRONISATION DESCENDANTE (PULL / GET) ---
     // ----------------------------------------------------------------------
-
-    @GET("rest/v1/users")
-    Call<List<User>> getUsers(@Query("select") String select);
 
     @GET("rest/v1/users")
     Call<List<User>> getUserProfile(
