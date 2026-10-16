@@ -1,14 +1,18 @@
 package com.enkiba.app.modelsDao;
 
-import android.content.ContentValues;
 import android.content.Context;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
 
-import com.enkiba.app.database.DatabaseHelper;
+import com.enkiba.app.data.local.AppDatabase;
+import com.enkiba.app.data.local.Mappers;
+import com.enkiba.app.data.local.dao.SaleRoomDao;
+import com.enkiba.app.data.local.entity.EntitiesKt;
+import com.enkiba.app.data.local.entity.ProductEntity;
+import com.enkiba.app.data.local.entity.SaleEntity;
+import com.enkiba.app.data.local.entity.SaleItemEntity;
+import com.enkiba.app.data.local.entity.SaleItemWithReturned;
+import com.enkiba.app.data.local.entity.SaleWithExtras;
 import com.enkiba.app.models.ProductHistory;
-import com.enkiba.app.models.Quote;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItemRow;
 import com.enkiba.app.models.SaleReturn;
@@ -21,120 +25,46 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Accès local aux ventes (tables sales et sale_items).
- * Les ids sont des UUID générés par le téléphone.
+ * Accès local aux ventes (sales, sale_items, sale_returns), au-dessus de Room.
+ * Les ids sont des UUID générés par le téléphone. Une vente et ses lignes ne sont
+ * jamais modifiées après création : les retours vont dans sale_returns.
  */
 public class SaleDao {
 
-    private final DatabaseHelper dbHelper;
-    private final SessionManager sessionManager;
-    private static final String TABLE_SALES = DatabaseHelper.TABLE_SALES;
-    private static final String TABLE_SALE_ITEMS = DatabaseHelper.TABLE_SALE_ITEMS;
-    private static final String TABLE_USERS = DatabaseHelper.TABLE_USERS;
-    private static final String TABLE_PRODUCTS = DatabaseHelper.TABLE_PRODUCTS;
-
-    public static final String COL_HAS_NEGOTIATION = "has_negotiation";
-
-    // Ventes non supprimées (suppression logique)
-    private static final String ACTIVE_SALE = "s." + DatabaseHelper.COL_DELETED_AT + " IS NULL";
-
-    // Remboursements agrégés par vente (retours)
-    private static final String REFUNDS_BY_SALE =
-            "(SELECT sale_id, SUM(refund_amount) AS refunded FROM " + DatabaseHelper.TABLE_SALE_RETURNS
-            + " GROUP BY sale_id) r ON r.sale_id = s.id ";
-
-    // En-tête + nom du vendeur (table users locale, si elle le connaît) + montant remboursé
-    private static final String SELECT_SALE_WITH_SELLER =
-            "SELECT s.*, u.username, COALESCE(r.refunded, 0) AS refunded FROM " + TABLE_SALES + " s " +
-            "LEFT JOIN " + TABLE_USERS + " u ON s.seller_id = u.id OR s.seller_id = u.auth_id " +
-            "LEFT JOIN " + REFUNDS_BY_SALE;
-
     private static final String TAG = "SaleDao";
 
+    private final AppDatabase db;
+    private final SaleRoomDao dao;
+    private final SessionManager sessionManager;
+
     public SaleDao(Context context) {
-        this.dbHelper = new DatabaseHelper(context);
+        this.db = AppDatabase.get(context);
+        this.dao = db.saleDao();
         this.sessionManager = new SessionManager(context);
     }
 
-    // ----------------------------------------------------------------------
-    // --- LECTURE DU CURSEUR ---
-    // ----------------------------------------------------------------------
-
-    private SaleHeader buildSaleFromCursor(Cursor cursor) {
-        SaleHeader s = new SaleHeader();
-        s.setId(cursor.getString(cursor.getColumnIndexOrThrow("id")));
-        s.setShopId(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_SHOP_ID)));
-        s.setSellerId(cursor.getString(cursor.getColumnIndexOrThrow("seller_id")));
-        s.setClientId(cursor.getString(cursor.getColumnIndexOrThrow("client_id")));
-        s.setTotalPrice(cursor.getDouble(cursor.getColumnIndexOrThrow("total_price")));
-        s.setPaymentMethod(cursor.getString(cursor.getColumnIndexOrThrow("payment_method")));
-        s.setSaleDate(cursor.getString(cursor.getColumnIndexOrThrow("sale_date")));
-        s.setHasNegotiatedPrice(cursor.getInt(cursor.getColumnIndexOrThrow(COL_HAS_NEGOTIATION)) == 1);
-        s.setSourceQuoteId(cursor.getString(cursor.getColumnIndexOrThrow("source_quote_id")));
-        s.setUpdatedAt(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_UPDATED_AT)));
-        s.setDeletedAt(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_DELETED_AT)));
-        s.setSyncStatus(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_SYNC_STATUS)));
-
-        int userIndex = cursor.getColumnIndex("username");
-        if (userIndex != -1) s.setUsername(cursor.getString(userIndex));
-        int refundedIndex = cursor.getColumnIndex("refunded");
-        if (refundedIndex != -1) s.setRefundedAmount(cursor.getDouble(refundedIndex));
-        return s;
+    private static List<SaleHeader> toModels(List<SaleWithExtras> rows) {
+        List<SaleHeader> list = new ArrayList<>(rows.size());
+        for (SaleWithExtras r : rows) list.add(Mappers.toModel(r));
+        return list;
     }
 
-    private List<SaleHeader> querySales(String sql, String[] args) {
-        List<SaleHeader> list = new ArrayList<>();
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        try (Cursor c = db.rawQuery(sql, args)) {
-            while (c.moveToNext()) list.add(buildSaleFromCursor(c));
-        } catch (Exception e) {
-            Log.e(TAG, "Erreur de lecture des ventes : " + e.getMessage(), e);
-        }
-        db.close();
-        return list;
+    /** Entrée d'historique 'pending' pour un produit, à insérer dans la transaction en cours. */
+    private void insertHistory(String productId, String userId, String operation, String oldValue,
+                               String newValue, String shopId, String now) {
+        ProductHistory entry = new ProductHistory();
+        entry.setProductId(productId);
+        entry.setUserId(userId);
+        entry.setOperation(operation);
+        entry.setOldValue(oldValue);
+        entry.setNewValue(newValue);
+        entry.setTimestamp(now);
+        db.historyDao().insert(Mappers.toEntity(entry, shopId, now, EntitiesKt.SYNC_PENDING));
     }
 
     // ----------------------------------------------------------------------
     // --- ENREGISTREMENT D'UNE VENTE ---
     // ----------------------------------------------------------------------
-
-    /** Insère l'en-tête de vente (à appeler dans une transaction). */
-    private long insertSaleLocally(SQLiteDatabase db, SaleHeader sale, String now) {
-        ContentValues values = new ContentValues();
-        values.put("id", sale.getId());
-        values.put(DatabaseHelper.COL_SHOP_ID,
-                sale.getShopId() != null ? sale.getShopId() : sessionManager.getShopId());
-        values.put("seller_id", sale.getSellerId());
-        values.put("client_id", sale.getClientId());
-        values.put("total_price", sale.getTotalPrice());
-        values.put("payment_method", sale.getPaymentMethod());
-        values.put("sale_date", sale.getSaleDate() != null ? sale.getSaleDate() : now);
-        values.put(COL_HAS_NEGOTIATION, sale.isHasNegotiatedPrice() ? 1 : 0);
-        values.put("source_quote_id", sale.getSourceQuoteId());
-        values.put(DatabaseHelper.COL_UPDATED_AT, now);
-        values.put(DatabaseHelper.COL_SYNC_STATUS, "pending");
-        return db.insert(TABLE_SALES, null, values);
-    }
-
-    /** Insère une ligne de vente (à appeler dans une transaction). */
-    private long insertSaleItemLocally(SQLiteDatabase db, SaleItemRow item, String saleId,
-                                       String shopId, double listPrice, String now) {
-        if (item.getId() == null) item.setId(UUID.randomUUID().toString());
-        ContentValues values = new ContentValues();
-        values.put("id", item.getId());
-        values.put(DatabaseHelper.COL_SHOP_ID, shopId);
-        values.put("sale_id", saleId);
-        values.put("product_id", item.getProductId());
-        values.put("product_name", item.getProductName() != null ? item.getProductName() : "");
-        values.put("quantity", item.getQuantity());
-        values.put("list_price", listPrice);
-        // unit_price contient le prix négocié le cas échéant
-        values.put("unit_price", item.getUnitPrice());
-        values.put("total_price", item.getTotal());
-        values.put(DatabaseHelper.COL_UPDATED_AT, now);
-        values.put(DatabaseHelper.COL_SYNC_STATUS, "pending");
-        return db.insert(TABLE_SALE_ITEMS, null, values);
-    }
 
     /**
      * Enregistre une vente complète en une seule transaction :
@@ -160,98 +90,58 @@ public class SaleDao {
         String shopId = header.getShopId() != null ? header.getShopId() : sessionManager.getShopId();
         header.setShopId(shopId);
         header.setSourceQuoteId(quoteId);
+        if (header.getSaleDate() == null) header.setSaleDate(now);
 
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
-        db.beginTransaction();
         try {
-            // 0. Devis encore convertible ?
-            if (quoteId != null) {
-                try (Cursor c = db.rawQuery("SELECT status, " + DatabaseHelper.COL_DELETED_AT + " FROM "
-                        + DatabaseHelper.TABLE_QUOTES + " WHERE id = ?", new String[]{quoteId})) {
-                    if (!c.moveToFirst() || !c.isNull(1)
-                            || Quote.STATUS_CONVERTED.equals(c.getString(0)) || Quote.STATUS_REJECTED.equals(c.getString(0))) {
-                        throw new IllegalStateException("devis non convertible : " + quoteId);
+            db.runInTransaction(() -> {
+                // 1. Lecture des produits (stock avant vente, prix catalogue)
+                int n = rows.size();
+                ProductEntity[] products = new ProductEntity[n];
+                double[] listPrice = new double[n];
+                boolean negotiated = false;
+                for (int i = 0; i < n; i++) {
+                    SaleItemRow row = rows.get(i);
+                    products[i] = db.productDao().getEntity(row.getProductId());
+                    listPrice[i] = products[i] != null ? products[i].getPrice() : row.getUnitPrice();
+                    if (listPrice[i] != row.getUnitPrice()) negotiated = true;
+                }
+                header.setHasNegotiatedPrice(negotiated);
+
+                // 2. En-tête
+                dao.insertSale(Mappers.toEntity(header, now, EntitiesKt.SYNC_PENDING));
+
+                // 3. Lignes, stock local et historique
+                for (int i = 0; i < n; i++) {
+                    SaleItemRow row = rows.get(i);
+                    if (row.getId() == null) row.setId(UUID.randomUUID().toString());
+                    dao.insertItem(new SaleItemEntity(row.getId(), shopId, header.getId(), row.getProductId(),
+                            row.getProductName() != null ? row.getProductName() : "", row.getQuantity(),
+                            listPrice[i], row.getUnitPrice(), row.getTotal(), now, EntitiesKt.SYNC_PENDING));
+                    if (products[i] == null) continue; // produit supprimé entre-temps : la ligne reste
+
+                    // Stock local seulement : le serveur décrémente le sien à la réception de la ligne
+                    // (trigger stock_on_sale_item). Le produit n'est donc pas marqué 'pending'.
+                    int oldQty = products[i].getQuantity();
+                    int newQty = oldQty - row.getQuantity();
+                    db.productDao().setQuantity(row.getProductId(), newQty);
+
+                    String op = "Vente";
+                    if (listPrice[i] != row.getUnitPrice()) {
+                        op += String.format(Locale.US, " (Négocié: %.0f -> %.0f)", listPrice[i], row.getUnitPrice());
                     }
+                    insertHistory(row.getProductId(), header.getSellerId(), op,
+                            "Stock: " + oldQty, "Stock: " + newQty, shopId, now);
                 }
-            }
 
-            // 1. Lecture des produits (stock avant vente, prix catalogue)
-            int n = rows.size();
-            int[] oldQty = new int[n];
-            double[] listPrice = new double[n];
-            boolean[] found = new boolean[n];
-            boolean negotiated = false;
-            for (int i = 0; i < n; i++) {
-                SaleItemRow row = rows.get(i);
-                listPrice[i] = row.getUnitPrice();
-                try (Cursor c = db.rawQuery("SELECT quantity, price FROM " + TABLE_PRODUCTS + " WHERE id = ?",
-                        new String[]{row.getProductId()})) {
-                    if (c.moveToFirst()) {
-                        found[i] = true;
-                        oldQty[i] = c.getInt(0);
-                        listPrice[i] = c.getDouble(1);
-                    }
+                // 4. Devis converti (échoue s'il n'est plus convertible : tout est annulé)
+                if (quoteId != null && db.quoteDao().markConverted(quoteId, header.getId(), now) != 1) {
+                    throw new IllegalStateException("devis non convertible : " + quoteId);
                 }
-                if (listPrice[i] != row.getUnitPrice()) negotiated = true;
-            }
-            header.setHasNegotiatedPrice(negotiated);
-
-            // 2. En-tête
-            if (insertSaleLocally(db, header, now) == -1) {
-                throw new IllegalStateException("insertion de l'en-tête impossible");
-            }
-
-            // 3. Lignes, stock et historique
-            for (int i = 0; i < n; i++) {
-                SaleItemRow row = rows.get(i);
-                if (insertSaleItemLocally(db, row, header.getId(), shopId, listPrice[i], now) == -1) {
-                    throw new IllegalStateException("insertion de la ligne impossible : " + row.getProductName());
-                }
-                if (!found[i]) continue; // produit supprimé entre-temps : la ligne reste
-
-                // Stock local seulement : le serveur décrémente le sien à la réception de la ligne
-                // (trigger stock_on_sale_item). Le produit n'est donc pas marqué 'pending'.
-                int newQty = oldQty[i] - row.getQuantity();
-                db.execSQL("UPDATE " + TABLE_PRODUCTS + " SET quantity = ? WHERE id = ?",
-                        new Object[]{newQty, row.getProductId()});
-
-                String op = "Vente";
-                if (listPrice[i] != row.getUnitPrice()) {
-                    op += String.format(Locale.US, " (Négocié: %.0f -> %.0f)", listPrice[i], row.getUnitPrice());
-                }
-                ProductHistory entry = new ProductHistory();
-                entry.setProductId(row.getProductId());
-                entry.setUserId(header.getSellerId());
-                entry.setOperation(op);
-                entry.setOldValue("Stock: " + oldQty[i]);
-                entry.setNewValue("Stock: " + newQty);
-                entry.setTimestamp(now);
-                ContentValues hist = HistoryDao.toValues(entry, shopId);
-                hist.put(DatabaseHelper.COL_UPDATED_AT, now);
-                hist.put(DatabaseHelper.COL_SYNC_STATUS, "pending");
-                if (db.insert(DatabaseHelper.TABLE_HISTORY, null, hist) == -1) {
-                    throw new IllegalStateException("insertion de l'historique impossible");
-                }
-            }
-
-            // 4. Devis converti
-            if (quoteId != null) {
-                ContentValues qv = new ContentValues();
-                qv.put("status", Quote.STATUS_CONVERTED);
-                qv.put("converted_sale_id", header.getId());
-                qv.put(DatabaseHelper.COL_UPDATED_AT, now);
-                qv.put(DatabaseHelper.COL_SYNC_STATUS, "pending");
-                if (db.update(DatabaseHelper.TABLE_QUOTES, qv, "id = ?", new String[]{quoteId}) != 1) {
-                    throw new IllegalStateException("mise à jour du devis impossible");
-                }
-            }
-            db.setTransactionSuccessful();
+            });
             return header.getId();
         } catch (Exception e) {
             Log.e(TAG, "recordSale : " + e.getMessage(), e);
             return null;
-        } finally {
-            db.endTransaction();
         }
     }
 
@@ -263,45 +153,21 @@ public class SaleDao {
      */
     public void discardRejectedQuoteSale(String saleId, String quoteId) {
         String now = DatabaseUtils.getCurrentIsoTime();
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
-        db.beginTransaction();
-        try {
-            String shopId = sessionManager.getShopId();
-            try (Cursor c = db.rawQuery("SELECT product_id, quantity FROM " + TABLE_SALE_ITEMS
-                    + " WHERE sale_id = ?", new String[]{saleId})) {
-                while (c.moveToNext()) {
-                    String productId = c.getString(0);
-                    int qty = c.getInt(1);
-                    db.execSQL("UPDATE " + TABLE_PRODUCTS + " SET quantity = quantity + ? WHERE id = ?",
-                            new Object[]{qty, productId});
-                    ProductHistory entry = new ProductHistory();
-                    entry.setProductId(productId);
-                    entry.setUserId(sessionManager.getUserId());
-                    entry.setOperation("Vente annulée (devis déjà converti ailleurs)");
-                    entry.setOldValue("Vente #" + SaleHeader.shortRef(saleId));
-                    entry.setNewValue("+" + qty + " en stock");
-                    entry.setTimestamp(now);
-                    ContentValues hist = HistoryDao.toValues(entry, shopId);
-                    hist.put(DatabaseHelper.COL_UPDATED_AT, now);
-                    hist.put(DatabaseHelper.COL_SYNC_STATUS, "pending");
-                    db.insert(DatabaseHelper.TABLE_HISTORY, null, hist);
-                }
+        String shopId = sessionManager.getShopId();
+        db.runInTransaction(() -> {
+            for (SaleItemEntity item : dao.getItems(saleId)) {
+                db.productDao().addQuantity(item.getProductId(), item.getQuantity());
+                insertHistory(item.getProductId(), sessionManager.getUserId(),
+                        "Vente annulée (devis déjà converti ailleurs)",
+                        "Vente #" + SaleHeader.shortRef(saleId), "+" + item.getQuantity() + " en stock", shopId, now);
             }
-            db.delete(DatabaseHelper.TABLE_SALE_RETURNS, "sale_id = ?", new String[]{saleId});
-            db.delete(TABLE_SALE_ITEMS, "sale_id = ?", new String[]{saleId});
-            db.delete(TABLE_SALES, "id = ?", new String[]{saleId});
-            if (quoteId != null) {
-                // Le devis local n'est plus « à envoyer » : le pull apportera la version du serveur
-                ContentValues qv = new ContentValues();
-                qv.put(DatabaseHelper.COL_SYNC_STATUS, "synced");
-                db.update(DatabaseHelper.TABLE_QUOTES, qv, "id = ?", new String[]{quoteId});
-            }
-            db.setTransactionSuccessful();
-            Log.w(TAG, "Vente " + saleId + " annulée : devis " + quoteId + " déjà converti sur le serveur");
-        } finally {
-            db.endTransaction();
-            db.close();
-        }
+            db.stockDao().deleteReturnsOfSale(saleId);
+            dao.deleteItems(saleId);
+            dao.deleteSale(saleId);
+            // Le devis local n'est plus « à envoyer » : le pull apportera la version du serveur
+            if (quoteId != null) db.quoteDao().markQuoteSynced(quoteId);
+        });
+        Log.w(TAG, "Vente " + saleId + " annulée : devis " + quoteId + " déjà converti sur le serveur");
     }
 
     // ----------------------------------------------------------------------
@@ -319,81 +185,41 @@ public class SaleDao {
     public double processReturn(String itemId, int qtyToReturn, String userId) {
         if (qtyToReturn <= 0) return -1;
         String now = DatabaseUtils.getCurrentIsoTime();
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
-        db.beginTransaction();
         try {
-            String saleId, productId, shopId;
-            int soldQty;
-            double unitPrice;
-            try (Cursor c = db.rawQuery("SELECT sale_id, product_id, " + DatabaseHelper.COL_SHOP_ID
-                    + ", quantity, unit_price FROM " + TABLE_SALE_ITEMS + " WHERE id = ?", new String[]{itemId})) {
-                if (!c.moveToFirst()) return -1;
-                saleId = c.getString(0);
-                productId = c.getString(1);
-                shopId = c.getString(2);
-                soldQty = c.getInt(3);
-                unitPrice = c.getDouble(4);
-            }
+            return db.runInTransaction(() -> {
+                SaleItemEntity item = dao.getItem(itemId);
+                if (item == null) return -1.0;
+                int alreadyReturned = db.stockDao().returnedQuantity(itemId);
+                if (alreadyReturned + qtyToReturn > item.getQuantity()) {
+                    Log.e(TAG, "Retour refusé : dépassement de la quantité vendue");
+                    return -1.0;
+                }
 
-            int alreadyReturned = getReturnedQuantity(db, itemId);
-            if (alreadyReturned + qtyToReturn > soldQty) {
-                Log.e(TAG, "Retour refusé : dépassement de la quantité vendue");
-                return -1;
-            }
+                double refund = qtyToReturn * item.getUnitPrice();
+                String shopId = item.getShopId() != null ? item.getShopId() : sessionManager.getShopId();
+                SaleReturn ret = new SaleReturn();
+                ret.setShopId(shopId);
+                ret.setSaleId(item.getSaleId());
+                ret.setSaleItemId(itemId);
+                ret.setProductId(item.getProductId());
+                ret.setQuantity(qtyToReturn);
+                ret.setRefundAmount(refund);
+                ret.setCreatedBy(userId);
+                ret.setCreatedAt(now);
+                db.stockDao().insertReturn(Mappers.toEntity(ret, EntitiesKt.SYNC_PENDING));
 
-            double refund = qtyToReturn * unitPrice;
-            SaleReturn ret = new SaleReturn();
-            ret.setShopId(shopId != null ? shopId : sessionManager.getShopId());
-            ret.setSaleId(saleId);
-            ret.setSaleItemId(itemId);
-            ret.setProductId(productId);
-            ret.setQuantity(qtyToReturn);
-            ret.setRefundAmount(refund);
-            ret.setCreatedBy(userId);
-            ret.setCreatedAt(now);
-            ContentValues rv = SaleReturnDao.toValues(ret);
-            rv.put(DatabaseHelper.COL_SYNC_STATUS, "pending");
-            if (db.insert(DatabaseHelper.TABLE_SALE_RETURNS, null, rv) == -1) {
-                throw new IllegalStateException("insertion du retour impossible");
-            }
-
-            // Stock local seulement (le serveur remet le sien par trigger)
-            int oldQty = 0;
-            try (Cursor c = db.rawQuery("SELECT quantity FROM " + TABLE_PRODUCTS + " WHERE id = ?", new String[]{productId})) {
-                if (c.moveToFirst()) oldQty = c.getInt(0);
-            }
-            db.execSQL("UPDATE " + TABLE_PRODUCTS + " SET quantity = quantity + ? WHERE id = ?",
-                    new Object[]{qtyToReturn, productId});
-
-            ProductHistory entry = new ProductHistory();
-            entry.setProductId(productId);
-            entry.setUserId(userId);
-            entry.setOperation("RETOUR CLIENT");
-            entry.setOldValue("Stock: " + oldQty);
-            entry.setNewValue("Stock: " + (oldQty + qtyToReturn) + " (remboursé " + String.format(Locale.US, "%.0f", refund) + " KMF)");
-            entry.setTimestamp(now);
-            ContentValues hist = HistoryDao.toValues(entry, shopId);
-            hist.put(DatabaseHelper.COL_UPDATED_AT, now);
-            hist.put(DatabaseHelper.COL_SYNC_STATUS, "pending");
-            if (db.insert(DatabaseHelper.TABLE_HISTORY, null, hist) == -1) {
-                throw new IllegalStateException("insertion de l'historique impossible");
-            }
-
-            db.setTransactionSuccessful();
-            return refund;
+                // Stock local seulement (le serveur remet le sien par trigger)
+                ProductEntity product = db.productDao().getEntity(item.getProductId());
+                int oldQty = product != null ? product.getQuantity() : 0;
+                db.productDao().addQuantity(item.getProductId(), qtyToReturn);
+                insertHistory(item.getProductId(), userId, "RETOUR CLIENT", "Stock: " + oldQty,
+                        "Stock: " + (oldQty + qtyToReturn) + " (remboursé "
+                                + String.format(Locale.US, "%.0f", refund) + " KMF)", shopId, now);
+                return refund;
+            });
         } catch (Exception e) {
             Log.e(TAG, "processReturn : " + e.getMessage(), e);
             return -1;
-        } finally {
-            db.endTransaction();
-            db.close();
-        }
-    }
-
-    private int getReturnedQuantity(SQLiteDatabase db, String itemId) {
-        try (Cursor c = db.rawQuery("SELECT COALESCE(SUM(quantity), 0) FROM " + DatabaseHelper.TABLE_SALE_RETURNS
-                + " WHERE sale_item_id = ?", new String[]{itemId})) {
-            return c.moveToFirst() ? c.getInt(0) : 0;
         }
     }
 
@@ -408,80 +234,41 @@ public class SaleDao {
      */
     public List<SaleItemRow> getSaleItems(String saleId) {
         List<SaleItemRow> list = new ArrayList<>();
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        String query = "SELECT si.id, si.product_id, si.product_name, si.quantity, si.unit_price, " +
-                "COALESCE((SELECT SUM(r.quantity) FROM " + DatabaseHelper.TABLE_SALE_RETURNS + " r WHERE r.sale_item_id = si.id), 0) " +
-                "FROM " + TABLE_SALE_ITEMS + " si WHERE si.sale_id = ?";
-        try (Cursor c = db.rawQuery(query, new String[]{saleId})) {
-            while (c.moveToNext()) {
-                SaleItemRow row = new SaleItemRow();
-                row.setId(c.getString(0));
-                row.setProductId(c.getString(1));
-                row.setProductName(c.getString(2));
-                int returned = c.getInt(5);
-                int netQty = c.getInt(3) - returned;
-                row.setQuantity(netQty);
-                row.setReturnedQuantity(returned);
-                row.setUnitPrice(c.getDouble(4));
-                row.setTotal(netQty * c.getDouble(4));
-                list.add(row);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Erreur getSaleItems : " + e.getMessage(), e);
-        }
-        db.close();
+        for (SaleItemWithReturned r : dao.getItemsWithReturned(saleId)) list.add(Mappers.toRow(r));
         return list;
     }
 
     public SaleHeader getSaleHeaderById(String saleId) {
-        List<SaleHeader> list = querySales(SELECT_SALE_WITH_SELLER + "WHERE s.id = ?", new String[]{saleId});
-        return list.isEmpty() ? null : list.get(0);
+        SaleWithExtras s = dao.getById(saleId);
+        return s != null ? Mappers.toModel(s) : null;
     }
 
     public List<SaleHeader> getSaleHeadersByUser(String userId) {
-        return querySales(SELECT_SALE_WITH_SELLER + "WHERE s.seller_id = ? AND " + ACTIVE_SALE
-                + " ORDER BY s.sale_date DESC", new String[]{userId});
+        return toModels(dao.getActiveBySeller(userId));
     }
 
     public List<SaleHeader> getAllSaleHeaders() {
-        return querySales(SELECT_SALE_WITH_SELLER + "WHERE " + ACTIVE_SALE
-                + " ORDER BY s.sale_date DESC", null);
+        return toModels(dao.getActive());
     }
 
     // ----------------------------------------------------------------------
-    // --- STATISTIQUES ---
+    // --- STATISTIQUES (montants encaissés : total moins remboursements) ---
     // ----------------------------------------------------------------------
-
-    private double sumTotal(String where, String[] args) {
-        double total = 0.0;
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        // Montant encaissé : total des ventes moins les remboursements
-        try (Cursor c = db.rawQuery("SELECT SUM(s.total_price - COALESCE(r.refunded, 0)) FROM " + TABLE_SALES + " s "
-                + "LEFT JOIN " + REFUNDS_BY_SALE + "WHERE "
-                + ACTIVE_SALE + (where != null ? " AND " + where : ""), args)) {
-            if (c.moveToFirst()) total = c.getDouble(0);
-        } catch (Exception e) {
-            Log.e(TAG, "Erreur de calcul du total : " + e.getMessage(), e);
-        }
-        db.close();
-        return total;
-    }
 
     public double getTotalAchatsParVirement() {
-        return sumTotal("s.payment_method = ?", new String[]{"virement"});
+        return dao.netTotal("virement");
     }
 
     public double getTotalAchatsEnEspeces() {
-        return sumTotal("s.payment_method = ?", new String[]{"espece"});
+        return dao.netTotal("espece");
     }
 
     public double getTotalSalesMoney() {
-        return sumTotal(null, null);
+        return dao.netTotal(null);
     }
 
     public List<SaleHeader> getRecentSalesByPayment(String paymentMethod, int limit) {
-        return querySales(SELECT_SALE_WITH_SELLER + "WHERE s.payment_method = ? AND " + ACTIVE_SALE
-                + " ORDER BY s.sale_date DESC LIMIT ?", new String[]{paymentMethod, String.valueOf(limit)});
+        return toModels(dao.getRecentByPayment(paymentMethod, limit));
     }
 
     // ----------------------------------------------------------------------
@@ -489,35 +276,17 @@ public class SaleDao {
     // ----------------------------------------------------------------------
 
     public List<SaleHeader> getPendingSalesForSync() {
-        return querySales("SELECT * FROM " + TABLE_SALES + " WHERE "
-                + DatabaseHelper.COL_SYNC_STATUS + " = 'pending'", null);
+        List<SaleHeader> list = new ArrayList<>();
+        for (SaleEntity e : dao.getPendingSales()) list.add(Mappers.toModel(e));
+        return list;
     }
 
     public void markSaleAsSynced(String saleId) {
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put(DatabaseHelper.COL_SYNC_STATUS, "synced");
-        db.update(TABLE_SALES, values, "id = ?", new String[]{saleId});
-        db.close();
+        dao.markSaleSynced(saleId);
     }
 
     /** Insère ou remplace une vente reçue du serveur (PULL). */
     public void upsertSaleFromRemote(SaleHeader remoteSale) {
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put("id", remoteSale.getId());
-        values.put(DatabaseHelper.COL_SHOP_ID, remoteSale.getShopId());
-        values.put("seller_id", remoteSale.getSellerId());
-        values.put("client_id", remoteSale.getClientId());
-        values.put("total_price", remoteSale.getTotalPrice());
-        values.put("payment_method", remoteSale.getPaymentMethod());
-        values.put("sale_date", remoteSale.getSaleDate());
-        values.put(COL_HAS_NEGOTIATION, remoteSale.isHasNegotiatedPrice() ? 1 : 0);
-        values.put("source_quote_id", remoteSale.getSourceQuoteId());
-        values.put(DatabaseHelper.COL_UPDATED_AT, remoteSale.getUpdatedAt());
-        values.put(DatabaseHelper.COL_DELETED_AT, remoteSale.getDeletedAt());
-        values.put(DatabaseHelper.COL_SYNC_STATUS, "synced");
-        db.insertWithOnConflict(TABLE_SALES, null, values, SQLiteDatabase.CONFLICT_REPLACE);
-        db.close();
+        dao.upsertSale(Mappers.toEntity(remoteSale, remoteSale.getUpdatedAt(), EntitiesKt.SYNC_SYNCED));
     }
 }

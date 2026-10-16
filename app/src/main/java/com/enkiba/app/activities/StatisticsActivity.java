@@ -3,7 +3,6 @@ package com.enkiba.app.activities;
 import android.animation.ObjectAnimator;
 import android.app.AlertDialog;
 import android.content.Intent;
-import android.database.Cursor;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.os.Bundle;
@@ -17,6 +16,7 @@ import android.widget.TextView;
 import androidx.core.content.ContextCompat;
 
 import com.enkiba.app.R;
+import com.enkiba.app.models.Product;
 import com.enkiba.app.modelsDao.ProductDao;
 import com.enkiba.app.utils.NavigationHelper;
 import com.enkiba.app.utils.SessionManager;
@@ -29,6 +29,7 @@ import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.List;
 
 public class StatisticsActivity extends BaseActivity {
 
@@ -119,19 +120,16 @@ public class StatisticsActivity extends BaseActivity {
     }
 
     private void loadStatistics() {
-        Cursor cursor = productDao.getAllProductsCursor();
-        if (cursor == null) return;
+        List<Product> products = productDao.getAllProducts();
 
-        int totalProducts = cursor.getCount();
+        int totalProducts = products.size();
         int totalQuantityRemaining = 0;
         int totalQuantitySold = 0;
 
-        while (cursor.moveToNext()) {
-            totalQuantityRemaining += cursor.getInt(cursor.getColumnIndexOrThrow("quantity"));
-            totalQuantitySold += cursor.getInt(cursor.getColumnIndexOrThrow("sold_quantity"));
+        for (Product p : products) {
+            totalQuantityRemaining += p.getQuantity();
+            totalQuantitySold += p.getSoldQuantity();
         }
-
-        cursor.close();
 
         tvTotalProducts.setText("Total produits : " + totalProducts);
         tvTotalQuantity.setText("Quantité totale : " + totalQuantityRemaining);
@@ -160,26 +158,13 @@ public class StatisticsActivity extends BaseActivity {
         LinearLayout container = findViewById(R.id.container_stats);
         container.removeAllViews();
 
-        Cursor cursor = productDao.getAllProductsCursor();
-        if (cursor == null) return;
-
         ArrayList<ProductStockInfo> productList = new ArrayList<>();
 
-        while (cursor.moveToNext()) {
-            // Lecture des données étendues pour le popup
-            String id = cursor.getString(cursor.getColumnIndexOrThrow("id"));
-            String name = cursor.getString(cursor.getColumnIndexOrThrow("name"));
-            String category = cursor.getString(cursor.getColumnIndexOrThrow("category"));
-            int quantity = cursor.getInt(cursor.getColumnIndexOrThrow("quantity"));
-            int sold = cursor.getInt(cursor.getColumnIndexOrThrow("sold_quantity"));
-            int lowStockThreshold = cursor.getInt(cursor.getColumnIndexOrThrow("low_stock_threshold"));
-            int initialStock = cursor.getInt(cursor.getColumnIndexOrThrow("initial_stock"));
-            double price = cursor.getDouble(cursor.getColumnIndexOrThrow("price"));
-
-            productList.add(new ProductStockInfo(id, name, category, quantity, sold, initialStock, lowStockThreshold, price));
+        // Données étendues pour le popup
+        for (Product p : productDao.getAllProducts()) {
+            productList.add(new ProductStockInfo(p.getId(), p.getName(), p.getCategory(), p.getQuantity(),
+                    p.getSoldQuantity(), p.getInitial_stock(), p.getLowStockThreshold(), p.getPrice()));
         }
-
-        cursor.close();
 
         // Tri par pourcentage critique
         productList.sort((a, b) -> Integer.compare(a.percentage, b.percentage));
