@@ -25,7 +25,7 @@ class DisplayNameTest {
     fun prenomDuProfilSinonEmail() {
         org.junit.Assert.assertEquals("Mze", displayFirstName("Mze", "autre@x.km"))
         org.junit.Assert.assertEquals("Mze", displayFirstName("", "mze.ben.km@gmail.com"))
-        org.junit.Assert.assertEquals("Vendeur", displayFirstName(null, "vendeur_2@a2elec.km"))
+        org.junit.Assert.assertEquals("Vendeur", displayFirstName(null, "vendeur_2@exemple.km"))
         org.junit.Assert.assertNull(displayFirstName(" ", "123@x.km"))
         org.junit.Assert.assertNull(displayFirstName(null, null))
     }

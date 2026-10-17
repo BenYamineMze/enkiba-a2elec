@@ -1,4 +1,4 @@
-# Supabase — Enkiba-A2elec
+# Supabase — Enkiba
 
 ## Migrations
 
