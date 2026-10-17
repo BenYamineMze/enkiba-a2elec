@@ -54,6 +54,14 @@ begin
     values (v_shop_a, v_product, 10, 'initial', v_admin_a);
   select quantity into v_qty from public.products where id = v_product;
   if v_qty = 10 then ok := ok + 1; else failures := failures || 'mouvement initial appliqué'; end if;
+
+  -- Coordonnées de la boutique : modifiables par son admin
+  update public.shops set address = 'Moroni', phone = '269 000 00 00', email = 'contact@a.km' where id = v_shop_a;
+  get diagnostics v_n = row_count;
+  if v_n = 1 then ok := ok + 1; else failures := failures || 'admin modifie les coordonnées de sa boutique'; end if;
+  update public.shops set name = 'Piratée' where id = v_shop_b;
+  get diagnostics v_n = row_count;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'admin A modifie la boutique B'; end if;
   execute 'reset role';
 
   -- ---------------------------------------------------------------- vendeur A
@@ -122,6 +130,10 @@ begin
   end;
 
   -- Profil : nom modifiable, état actif non
+  update public.shops set phone = '000' where id = v_shop_a;
+  get diagnostics v_n = row_count;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'vendeur modifie les coordonnées de la boutique'; end if;
+
   update public.profiles set username = 'Ali' where id = v_seller_a;
   get diagnostics v_n = row_count;
   if v_n = 1 then ok := ok + 1; else failures := failures || 'vendeur modifie son prénom'; end if;
