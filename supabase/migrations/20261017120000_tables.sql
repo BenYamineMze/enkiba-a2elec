@@ -1,14 +1,11 @@
--- Nettoyage de l'ancien schéma (v1)
-drop trigger if exists on_auth_user_created on auth.users;
-drop view if exists public.user_names;
-drop table if exists public.sale_items_archive, public.sale_archive, public.sale_items,
-  public.sales, public.history, public.clients, public.products, public.users cascade;
-drop function if exists public.delete_product_by_id(text);
-drop function if exists public.handle_new_user();
-drop function if exists public.handle_new_sync_user();
-drop function if exists public.set_updated_at();
+-- Enkiba-A2elec — schéma v2, partie 1/3 : tables et index.
+-- Regroupe les migrations du 15 et du 16/10/2026 (init_tables, sale_returns,
+-- quote_conversion). À appliquer sur une base neuve (supabase db reset).
+-- Partie 2 : logique (triggers) ; partie 3 : sécurité (RLS, policies, droits).
 
+-- ---------------------------------------------------------------------------
 -- Boutiques, profils, appartenance
+-- ---------------------------------------------------------------------------
 create table public.shops (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -17,6 +14,7 @@ create table public.shops (
   deleted_at timestamptz
 );
 
+-- Un profil par compte Auth (créé par trigger, voir partie 2)
 create table public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   username text not null default '',
@@ -28,6 +26,7 @@ create table public.profiles (
   updated_at timestamptz not null default now()
 );
 
+-- Rôle dans la boutique : admin ou vendeur
 create table public.shop_members (
   shop_id uuid not null references public.shops (id) on delete cascade,
   user_id uuid not null references public.profiles (id) on delete cascade,
@@ -37,7 +36,9 @@ create table public.shop_members (
   primary key (shop_id, user_id)
 );
 
+-- ---------------------------------------------------------------------------
 -- Catalogue et stock
+-- ---------------------------------------------------------------------------
 create table public.products (
   id uuid primary key default gen_random_uuid(),
   shop_id uuid not null references public.shops (id),
@@ -57,6 +58,7 @@ create table public.products (
 create unique index products_qr_uniq on public.products (shop_id, qr_code)
   where qr_code is not null and deleted_at is null;
 
+-- Toute variation de stock est un mouvement (la quantité du produit en découle)
 create table public.stock_movements (
   id uuid primary key default gen_random_uuid(),
   shop_id uuid not null,
@@ -69,10 +71,13 @@ create table public.stock_movements (
   updated_at timestamptz not null default now(),
   foreign key (product_id, shop_id) references public.products (id, shop_id)
 );
+-- Un seul mouvement par ligne de vente, retour ou annulation (envoi idempotent)
 create unique index stock_movements_ref_uniq on public.stock_movements (reason, ref_id)
   where ref_id is not null;
 
+-- ---------------------------------------------------------------------------
 -- Clients
+-- ---------------------------------------------------------------------------
 create table public.clients (
   id uuid primary key default gen_random_uuid(),
   shop_id uuid not null references public.shops (id),
@@ -87,7 +92,9 @@ create table public.clients (
   unique (id, shop_id)
 );
 
+-- ---------------------------------------------------------------------------
 -- Ventes
+-- ---------------------------------------------------------------------------
 create table public.sales (
   id uuid primary key default gen_random_uuid(),
   shop_id uuid not null references public.shops (id),
@@ -100,9 +107,15 @@ create table public.sales (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz,
+  -- Devis d'origine. Pas de clé étrangère : la vente est envoyée avant la mise à jour du devis
+  source_quote_id uuid,
   unique (id, shop_id),
   foreign key (client_id, shop_id) references public.clients (id, shop_id)
 );
+-- Un devis ne donne qu'une vente (deux téléphones qui convertissent hors ligne :
+-- la deuxième vente est refusée avant toute ligne, donc sans mouvement de stock)
+create unique index sales_source_quote_uniq on public.sales (source_quote_id)
+  where source_quote_id is not null;
 
 create table public.sale_items (
   id uuid primary key default gen_random_uuid(),
@@ -120,7 +133,25 @@ create table public.sale_items (
   foreign key (product_id, shop_id) references public.products (id, shop_id)
 );
 
+-- Retours : une ligne par retour, la vente d'origine reste intacte
+create table public.sale_returns (
+  id uuid primary key default gen_random_uuid(),
+  shop_id uuid not null references public.shops (id),
+  sale_id uuid not null,
+  sale_item_id uuid not null references public.sale_items (id),
+  product_id uuid not null,
+  quantity integer not null check (quantity > 0),
+  refund_amount numeric(12,2) not null check (refund_amount >= 0),
+  created_by uuid not null references public.profiles (id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  foreign key (sale_id, shop_id) references public.sales (id, shop_id),
+  foreign key (product_id, shop_id) references public.products (id, shop_id)
+);
+
+-- ---------------------------------------------------------------------------
 -- Devis
+-- ---------------------------------------------------------------------------
 create table public.quotes (
   id uuid primary key default gen_random_uuid(),
   shop_id uuid not null references public.shops (id),
@@ -155,7 +186,9 @@ create table public.quote_items (
   foreign key (product_id, shop_id) references public.products (id, shop_id)
 );
 
--- Journal d'audit (remplace history)
+-- ---------------------------------------------------------------------------
+-- Journal d'audit (ajout seul)
+-- ---------------------------------------------------------------------------
 create table public.audit_log (
   id uuid primary key default gen_random_uuid(),
   shop_id uuid not null references public.shops (id),
@@ -168,7 +201,9 @@ create table public.audit_log (
   created_at timestamptz not null default now()
 );
 
--- Index (pull incrémental par boutique + clés étrangères)
+-- ---------------------------------------------------------------------------
+-- Index : pull incrémental par boutique (shop_id, updated_at) et clés étrangères
+-- ---------------------------------------------------------------------------
 create index idx_shop_members_user on public.shop_members (user_id);
 create index idx_products_sync on public.products (shop_id, updated_at);
 create index idx_stock_mov_sync on public.stock_movements (shop_id, updated_at);
@@ -181,6 +216,8 @@ create index idx_sales_client on public.sales (client_id);
 create index idx_sale_items_sync on public.sale_items (shop_id, updated_at);
 create index idx_sale_items_sale on public.sale_items (sale_id);
 create index idx_sale_items_product on public.sale_items (product_id);
+create index idx_sale_returns_sync on public.sale_returns (shop_id, updated_at);
+create index idx_sale_returns_item on public.sale_returns (sale_item_id);
 create index idx_quotes_sync on public.quotes (shop_id, updated_at);
 create index idx_quote_items_sync on public.quote_items (shop_id, updated_at);
 create index idx_quote_items_quote on public.quote_items (quote_id);
