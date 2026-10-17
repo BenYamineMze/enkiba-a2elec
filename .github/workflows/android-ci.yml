@@ -60,6 +60,11 @@ jobs:
         if: steps.detect.outputs.found == 'true'
         run: ./gradlew assembleDebug --stacktrace
 
+      # Release non signée : détecte les problèmes R8 / réduction des ressources avant la fusion
+      - name: Build release
+        if: steps.detect.outputs.found == 'true'
+        run: ./gradlew assembleRelease --stacktrace
+
       - name: Lint
         if: steps.detect.outputs.found == 'true'
         run: ./gradlew lintDebug --stacktrace
