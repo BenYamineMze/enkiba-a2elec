@@ -41,6 +41,8 @@
         <activity android:name=".ui.sale.SaleActivity"
             android:windowSoftInputMode="adjustResize"/>
         <activity android:name=".ui.users.TeamActivity" />
+        <activity android:name=".ui.shop.ShopActivity"
+            android:windowSoftInputMode="adjustResize"/>
         <activity android:name=".ui.users.UserFormActivity"
             android:windowSoftInputMode="adjustResize"/>
 

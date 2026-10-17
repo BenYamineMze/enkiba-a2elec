@@ -1,6 +1,7 @@
 package com.enkiba.app.data.repository
 
 import android.content.Context
+import com.enkiba.app.data.local.ShopStore
 import android.util.Log
 import com.enkiba.app.api.RetrofitClient
 import com.enkiba.app.models.User
@@ -56,6 +57,12 @@ class AuthRepository(context: Context) {
             // Le local garde 'admin' / 'user' : seller → user
             val localRole = if (membership.role == "admin") "admin" else "user"
             session.saveSession(userId, profile.username, profile.lastname, profile.email ?: email, localRole, membership.shopId)
+
+            // Coordonnées de la boutique pour les PDF (la synchro les tiendra à jour) ; pas bloquant
+            runCatching {
+                api.getShop("eq.${membership.shopId}", "id,name,address,phone,email,updated_at").awaitResponse().body()
+                    ?.firstOrNull()?.let { ShopStore.save(appContext, it) }
+            }
 
             // Cache local des noms (affichage des vendeurs) : aucun mot de passe
             userDao.insertOrUpdateUserFromRemote(User().apply {

@@ -1,6 +1,7 @@
 package com.enkiba.app.data.repository
 
 import android.content.Context
+import com.enkiba.app.data.local.ShopStore
 import com.enkiba.app.models.Client
 import com.enkiba.app.models.SaleHeader
 import com.enkiba.app.models.SaleItemRow
@@ -9,7 +10,6 @@ import com.enkiba.app.modelsDao.SaleDao
 import com.enkiba.app.modelsDao.UserDao
 import com.enkiba.app.utils.PDFUtils
 import com.enkiba.app.utils.SessionManager
-import com.enkiba.app.utils.ShopInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -49,8 +49,9 @@ class SaleDetailRepository(context: Context) {
     /** Facture PDF (lignes nettes des retours). `activityContext` : une Activity. */
     suspend fun openInvoice(activityContext: Context, detail: SaleDetail): Boolean = withContext(Dispatchers.IO) {
         runCatching {
+            val shop = ShopStore.current(appContext)
             PDFUtils.generateInvoicePdf(activityContext, detail.sale, detail.items, detail.client,
-                ShopInfo.NAME, ShopInfo.ADDRESS, ShopInfo.PHONE, ShopInfo.EMAIL) != null
+                shop.name, shop.address, shop.phone, shop.email) != null
         }.getOrDefault(false)
     }
 }

@@ -6,6 +6,7 @@ import android.util.Log;
 
 import com.enkiba.app.api.RetrofitClient;
 import com.enkiba.app.api.SupabaseService;
+import com.enkiba.app.data.local.ShopStore;
 import com.enkiba.app.models.AuditLogEntry;
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Product;
@@ -15,6 +16,7 @@ import com.enkiba.app.models.QuoteItem;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItem;
 import com.enkiba.app.models.SaleReturn;
+import com.enkiba.app.models.Shop;
 import com.enkiba.app.models.StockMovement;
 import com.enkiba.app.modelsDao.SyncDao;
 
@@ -480,6 +482,7 @@ public class SynchronizationManager {
         }
         String shopFilter = "eq." + shop;
 
+        pullShopDetails(shopFilter);
         pullTable(shop, "products",
                 since -> supabaseService.pullProducts(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
                 Product::getUpdatedAt, syncDao::insertOrUpdateProduct);
@@ -505,6 +508,20 @@ public class SynchronizationManager {
         pullTable(shop, "audit_log",
                 since -> supabaseService.pullProductAuditLog(shopFilter, since, "created_at.asc,id.asc", PULL_PAGE_SIZE),
                 AuditLogEntry::getCreatedAt, e -> syncDao.upsertHistory(e.toProductHistory()));
+    }
+
+    /** Nom et coordonnées de la boutique (factures et devis hors ligne). Une seule ligne : pas de curseur. */
+    private void pullShopDetails(String shopFilter) {
+        try {
+            Response<List<Shop>> res = supabaseService.getShop(shopFilter, "id,name,address,phone,email,updated_at").execute();
+            if (res.isSuccessful() && res.body() != null && !res.body().isEmpty()) {
+                ShopStore.save(context, res.body().get(0));
+            } else {
+                Log.w(TAG, "Boutique non reçue (code " + res.code() + ")");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Pull de la boutique impossible", e);
+        }
     }
 
     /**

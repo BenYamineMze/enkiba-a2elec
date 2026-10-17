@@ -75,6 +75,7 @@ data class HomeActions(
     val onOpenSale: (SaleHeader) -> Unit = {},
     val onManageUsers: () -> Unit = {},
     val onProfile: () -> Unit = {},
+    val onShop: () -> Unit = {},
     /** Build debug seulement (null en release) : ouvre le catalogue du système de design. */
     val onOpenDesignCatalog: (() -> Unit)? = null,
     val onLogout: () -> Unit = {},
@@ -156,6 +157,7 @@ private fun Header(state: HomeUiState, actions: HomeActions) {
                     onClick = { menuOpen = false; themeDialog = true },
                 )
                 if (state.isAdmin) {
+                    DropdownMenuItem(text = { Text("Ma boutique") }, onClick = { menuOpen = false; actions.onShop() })
                     DropdownMenuItem(text = { Text("Gestion des utilisateurs") }, onClick = { menuOpen = false; actions.onManageUsers() })
                 }
                 actions.onOpenDesignCatalog?.let { open ->

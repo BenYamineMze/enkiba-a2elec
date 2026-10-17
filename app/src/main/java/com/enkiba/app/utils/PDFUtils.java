@@ -33,6 +33,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -362,13 +363,7 @@ public class PDFUtils {
 
             paint.setColor(Color.WHITE);
             paint.setTextSize(10);
-            canvas.drawText(shopAddress, pageWidth - margin - 170, 25, paint);
-
-            canvas.drawText("Tél : " + shopContact, pageWidth - margin - 170, 40, paint);
-
-            if (shopEmail != null && !shopEmail.isEmpty()) {
-                canvas.drawText("Email : " + shopEmail, pageWidth - margin - 170, 55, paint);
-            }
+            drawShopContact(canvas, paint, pageWidth - margin - 170, shopAddress, shopContact, shopEmail);
 
 
             // --------------------------------------------------------------------
@@ -474,10 +469,7 @@ public class PDFUtils {
             paint.setColor(0xFF777777);
             paint.setTextSize(9);
 
-            String footer = shopName + " • " + shopAddress + " • " + shopContact;
-            if (shopEmail != null && !shopEmail.isEmpty()) {
-                footer += " • " + shopEmail;
-            }
+            String footer = shopFooter(shopName, shopAddress, shopContact, shopEmail);
 
             canvas.drawText(footer, (pageWidth - paint.measureText(footer)) / 2, pageHeight - 30, paint);
 
@@ -550,13 +542,7 @@ public class PDFUtils {
 
             paint.setColor(Color.WHITE);
             paint.setTextSize(10);
-            canvas.drawText(shopAddress, pageWidth - margin - 170, 25, paint);
-
-            canvas.drawText("Tél : " + shopContact, pageWidth - margin - 170, 40, paint);
-
-            if (shopEmail != null && !shopEmail.isEmpty()) {
-                canvas.drawText("Email : " + shopEmail, pageWidth - margin - 170, 55, paint);
-            }
+            drawShopContact(canvas, paint, pageWidth - margin - 170, shopAddress, shopContact, shopEmail);
 
 
             // --------------------------------------------------------------------
@@ -662,10 +648,7 @@ public class PDFUtils {
             paint.setColor(0xFF777777);
             paint.setTextSize(9);
 
-            String footer = shopName + " • " + shopAddress + " • " + shopContact;
-            if (shopEmail != null && !shopEmail.isEmpty()) {
-                footer += " • " + shopEmail;
-            }
+            String footer = shopFooter(shopName, shopAddress, shopContact, shopEmail);
 
             canvas.drawText(footer, (pageWidth - paint.measureText(footer)) / 2, pageHeight - 30, paint);
 
@@ -778,6 +761,31 @@ public class PDFUtils {
 
 
 
+
+    /** Coordonnées de la boutique en haut à droite : seules les lignes renseignées, sans trou. */
+    private static void drawShopContact(Canvas canvas, Paint paint, float x,
+                                        String address, String phone, String email) {
+        List<String> lines = new ArrayList<>();
+        if (address != null && !address.trim().isEmpty()) lines.add(address.trim());
+        if (phone != null && !phone.trim().isEmpty()) lines.add("Tél : " + phone.trim());
+        if (email != null && !email.trim().isEmpty()) lines.add("Email : " + email.trim());
+        float y = 25;
+        for (String line : lines) {
+            canvas.drawText(line, x, y, paint);
+            y += 15;
+        }
+    }
+
+    /** Pied de page : nom et coordonnées renseignées, séparés par « • ». */
+    static String shopFooter(String name, String address, String phone, String email) {
+        StringBuilder sb = new StringBuilder();
+        for (String part : new String[]{name, address, phone, email}) {
+            if (part == null || part.trim().isEmpty()) continue;
+            if (sb.length() > 0) sb.append(" • ");
+            sb.append(part.trim());
+        }
+        return sb.toString();
+    }
 
     private static void openPdf(Context ctx, File file) {
         try {

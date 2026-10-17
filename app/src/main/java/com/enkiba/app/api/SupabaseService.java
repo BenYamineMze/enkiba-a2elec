@@ -6,6 +6,7 @@ import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Membership;
 import com.enkiba.app.models.Product;
 import com.enkiba.app.models.Profile;
+import com.enkiba.app.models.Shop;
 import com.enkiba.app.models.Quote;
 import com.enkiba.app.models.QuoteItem;
 import com.enkiba.app.models.SaleHeader;
@@ -40,6 +41,15 @@ public interface SupabaseService {
 
     @GET("rest/v1/shop_members")
     Call<List<Membership>> getMemberships(@Query("user_id") String userIdFilter, @Query("select") String select);
+
+    /** Boutique de l'utilisateur : nom et coordonnées (factures, devis, « Ma boutique »). */
+    @GET("rest/v1/shops")
+    Call<List<Shop>> getShop(@Query("id") String idFilter, @Query("select") String select);
+
+    /** « Ma boutique » : la policy shops_update limite la modification à l'admin de la boutique. */
+    @Headers({"Content-Type: application/json", "Prefer: return=representation"})
+    @PATCH("rest/v1/shops")
+    Call<List<Shop>> updateShop(@Query("id") String idFilter, @Body Map<String, Object> fields);
 
     /** « Mon profil » : prénom, nom, téléphone (la policy limite à son propre profil). */
     @Headers({"Content-Type: application/json", "Prefer: return=representation"})

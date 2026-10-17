@@ -1,6 +1,7 @@
 package com.enkiba.app.data.repository
 
 import android.content.Context
+import com.enkiba.app.data.local.ShopStore
 import com.enkiba.app.models.Client
 import com.enkiba.app.models.Quote
 import com.enkiba.app.models.SaleHeader
@@ -12,7 +13,6 @@ import com.enkiba.app.modelsDao.SaleDao
 import com.enkiba.app.modelsDao.UserDao
 import com.enkiba.app.utils.PDFUtils
 import com.enkiba.app.utils.SessionManager
-import com.enkiba.app.utils.ShopInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -83,8 +83,9 @@ class QuoteDetailRepository(context: Context) {
 
     suspend fun openPdf(activityContext: Context, detail: QuoteDetail): Boolean = withContext(Dispatchers.IO) {
         runCatching {
+            val shop = ShopStore.current(appContext)
             PDFUtils.generateQuotePdf(activityContext, detail.quote, detail.items, detail.client,
-                ShopInfo.NAME, ShopInfo.ADDRESS, ShopInfo.PHONE, ShopInfo.EMAIL) != null
+                shop.name, shop.address, shop.phone, shop.email) != null
         }.getOrDefault(false)
     }
 }
