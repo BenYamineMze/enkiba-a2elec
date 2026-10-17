@@ -1,6 +1,7 @@
 package com.enkiba.app.ui.theme
 
 import android.content.Context
+import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,7 +46,7 @@ object ThemePreferences {
     }
 
     fun set(context: Context, mode: ThemeMode) {
-        prefs(context).edit().putString(KEY_MODE, mode.name).apply()
+        prefs(context).edit { putString(KEY_MODE, mode.name) }
         loaded = true
         state.value = mode
     }

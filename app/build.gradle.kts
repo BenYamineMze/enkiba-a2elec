@@ -38,6 +38,8 @@ android {
             buildConfigField("String", "SUPABASE_URL", "\"https://brnlbtlhuamtvpwbwypm.supabase.co/\"")
             buildConfigField("String", "SUPABASE_KEY", "\"sb_publishable_Q7w6vjWFs5S7Gm1_28FWlA_bwQroePU\"")
             isMinifyEnabled = true
+            // Retire les ressources que R8 a rendues inutiles (vérifié sur émulateur avec un build release branché sur dev)
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -73,29 +75,18 @@ room {
 }
 
 dependencies {
-    implementation(libs.appcompat)
-    implementation(libs.material)
-    implementation(libs.activity)
-    implementation(libs.constraintlayout)
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
 
-    implementation("androidx.recyclerview:recyclerview:1.3.2")
-
-    implementation("androidx.cardview:cardview:1.0.0")
-
     implementation ("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation ("com.google.zxing:core:3.5.1")
 
-    // ... autres dépendances
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
-    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
-
 
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 

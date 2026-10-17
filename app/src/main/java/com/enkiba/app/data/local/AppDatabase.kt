@@ -79,9 +79,6 @@ abstract class AppDatabase : RoomDatabase() {
                 .addMigrations(*MIGRATIONS)
                 // Anciennes versions SQLiteOpenHelper : recréation (aucune donnée réelle)
                 .fallbackToDestructiveMigrationFrom(true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
-                // TODO étape 6b : à retirer quand les écrans passeront par des ViewModel
-                // (accès base hors du thread principal)
-                .allowMainThreadQueries()
                 .addCallback(object : Callback() {
                     // Base neuve : les curseurs de pull repartent de zéro
                     override fun onCreate(db: SupportSQLiteDatabase) {
