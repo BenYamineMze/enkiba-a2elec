@@ -1,5 +1,5 @@
 <resources>
     <!-- Thème de fenêtre (affiché avant Compose) : thème natif, sans dépendance Material Components.
          Les écrans sont dessinés par EnkibaTheme (Compose). -->
-    <style name="Theme.GStock" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Enkiba" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>

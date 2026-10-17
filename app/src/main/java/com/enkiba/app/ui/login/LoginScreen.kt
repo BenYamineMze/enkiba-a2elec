@@ -139,6 +139,6 @@ fun LoginScreen(
 @Composable
 private fun LoginPreview() {
     EnkibaTheme {
-        LoginScreen(LoginUiState(email = "vendeur@a2elec.km", error = "Identifiants incorrects"), {}, {}, {})
+        LoginScreen(LoginUiState(email = "vendeur@exemple.km", error = "Identifiants incorrects"), {}, {}, {})
     }
 }

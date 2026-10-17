@@ -20,6 +20,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "GStock"
+rootProject.name = "Enkiba"
 include(":app")
  

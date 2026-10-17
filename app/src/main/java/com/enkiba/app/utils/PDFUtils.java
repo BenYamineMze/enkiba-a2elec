@@ -160,7 +160,7 @@ public class PDFUtils {
             pdf.finishPage(page);
 
             // SAVING
-            File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "GStock");
+            File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "Enkiba");
             if (!folder.exists()) folder.mkdirs();
 
             String fileName = "Historique_ventes_" +
@@ -293,7 +293,7 @@ public class PDFUtils {
 
             pdf.finishPage(page);
 
-            File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "GStock");
+            File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "Enkiba");
             if (!folder.exists()) folder.mkdirs();
 
             String fileName = "historique_produits_" + new SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(new Date()) + ".pdf";
@@ -484,7 +484,7 @@ public class PDFUtils {
             // Finish & save
             pdf.finishPage(page);
 
-            File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "GStock/Invoices");
+            File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "Enkiba/Factures");
             if (!folder.exists()) folder.mkdirs();
 
             File file = new File(folder, "facture_" + header.getShortRef() + ".pdf");
@@ -672,7 +672,7 @@ public class PDFUtils {
             // Finish & save
             pdf.finishPage(page);
 
-            File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "GStock/Invoices");
+            File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "Enkiba/Factures");
             if (!folder.exists()) folder.mkdirs();
 
             File file = new File(folder, "devis_" + quote.getShortRef() + ".pdf");
@@ -758,7 +758,7 @@ public class PDFUtils {
             doc.finishPage(page);
 
             // Dossier de l'app (l'écriture directe dans Téléchargements échoue depuis Android 10)
-            File folder = new File(context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "GStock");
+            File folder = new File(context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "Enkiba");
             if (!folder.exists()) folder.mkdirs();
             File file = new File(folder, "QR_codes_" +
                     new SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(new Date()) + ".pdf");

@@ -6,7 +6,7 @@ import org.junit.Test
 
 class UserFormTest {
 
-    private val complete = UserForm("Ali", "Said", "3331234", "ali@a2elec.km", "motdepasse", isNew = true)
+    private val complete = UserForm("Ali", "Said", "3331234", "ali@exemple.km", "motdepasse", isNew = true)
 
     @Test
     fun creationComplete() = assertNull(complete.validate())
@@ -18,7 +18,7 @@ class UserFormTest {
 
     @Test
     fun emailEtMotDePasseALaCreation() {
-        assertEquals("Adresse e-mail invalide", complete.copy(email = "ali@a2elec").validate())
+        assertEquals("Adresse e-mail invalide", complete.copy(email = "ali@exemple").validate())
         assertEquals("Le mot de passe doit faire au moins 8 caractères", complete.copy(password = "court").validate())
     }
 

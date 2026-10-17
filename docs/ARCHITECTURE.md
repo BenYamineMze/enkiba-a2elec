@@ -1,4 +1,4 @@
-# 📱 Contexte du Projet : Enkiba-A2elec (anciennement GStock)
+# 📱 Contexte du Projet : Enkiba (anciennement GStock)
 *Ce document sert de "Super-Prompt" pour résumer l'architecture et les fonctionnalités de l'application.*
 
 ## 1. Identité de l'Application
