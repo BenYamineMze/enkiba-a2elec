@@ -1,10 +1,11 @@
-# Enkiba-A2elec
+# Enkiba
 
 Application Android de gestion de stock et point de vente (POS), fonctionnant
-hors-ligne avec synchronisation Supabase. Anciennement nommée « GStock ».
+hors ligne avec synchronisation Supabase, pour une ou plusieurs boutiques.
+Anciennement nommée « GStock ».
 
 ## Stack
-Java (migration Kotlin progressive) · SQLite → Room · Retrofit2 · Supabase (PostgreSQL)
+Kotlin et Java · Jetpack Compose (Material 3) · Room · Retrofit2 · Supabase (PostgreSQL)
 
 ## Documentation
 - [Architecture](docs/ARCHITECTURE.md)

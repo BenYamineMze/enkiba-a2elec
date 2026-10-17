@@ -1,0 +1,89 @@
+name: Sauvegarde de la base
+
+# Sauvegarde quotidienne de la base Supabase de production (lecture seule) :
+# rôles, schéma, données (schémas auth et public), chiffrés avec GPG avant d'être
+# conservés 30 jours comme artefact. Le dépôt est PUBLIC : un artefact peut être
+# téléchargé par n'importe quel compte GitHub, il ne doit donc jamais être en clair.
+# Restauration : voir supabase/README.md.
+on:
+  schedule:
+    - cron: '0 1 * * *'   # 01:00 UTC = 04:00 aux Comores
+  workflow_dispatch:
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: pg_dump chiffré
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+
+    steps:
+      - name: Vérifier les secrets
+        run: |
+          missing=""
+          [ -z "$SUPABASE_DB_URL" ] && missing="$missing SUPABASE_DB_URL"
+          [ -z "$BACKUP_PASSPHRASE" ] && missing="$missing BACKUP_PASSPHRASE"
+          if [ -n "$missing" ]; then
+            echo "::error::Secrets manquants :$missing (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+          if [ "${#BACKUP_PASSPHRASE}" -lt 20 ]; then
+            echo "::error::BACKUP_PASSPHRASE doit faire au moins 20 caractères."
+            exit 1
+          fi
+
+      - name: Installer la CLI Supabase
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.121.0
+
+      - name: Sauvegarder (rôles, schéma, données)
+        run: |
+          dir="$RUNNER_TEMP/backup"
+          mkdir -p "$dir"
+          supabase db dump --db-url "$SUPABASE_DB_URL" --role-only -f "$dir/roles.sql"
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f "$dir/schema.sql"
+          # Données : comptes (auth) et métier (public) ; storage n'est pas utilisé
+          supabase db dump --db-url "$SUPABASE_DB_URL" --data-only --use-copy -s auth,public -f "$dir/data.sql"
+
+      - name: Vérifier le contenu
+        run: |
+          dir="$RUNNER_TEMP/backup"
+          for f in roles schema data; do
+            [ -s "$dir/$f.sql" ] || { echo "::error::$f.sql est vide"; exit 1; }
+          done
+          grep -q 'COPY "auth"."users"' "$dir/data.sql" || { echo "::error::auth.users absent de data.sql"; exit 1; }
+          grep -q 'COPY "public"."sales"' "$dir/data.sql" || { echo "::error::public.sales absent de data.sql"; exit 1; }
+          grep -q 'session_replication_role = replica' "$dir/data.sql" || { echo "::error::triggers non désactivés dans data.sql"; exit 1; }
+          ls -l "$dir"
+
+      - name: Chiffrer
+        run: |
+          stamp=$(date -u +%Y-%m-%d-%H%M)
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+          mkdir -p dist
+          tar -czf "$RUNNER_TEMP/enkiba-prod-$stamp.tar.gz" -C "$RUNNER_TEMP/backup" roles.sql schema.sql data.sql
+          printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 \
+            -o "dist/enkiba-prod-$stamp.tar.gz.gpg" "$RUNNER_TEMP/enkiba-prod-$stamp.tar.gz"
+          # Contrôle : l'archive chiffrée se déchiffre et contient les trois fichiers
+          printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --quiet --pinentry-mode loopback --passphrase-fd 0 \
+            -d "dist/enkiba-prod-$stamp.tar.gz.gpg" | tar -tzf - | sort | tr '\n' ' '
+          rm -rf "$RUNNER_TEMP/backup" "$RUNNER_TEMP/enkiba-prod-$stamp.tar.gz"
+
+      - name: Conserver la sauvegarde chiffrée (30 jours)
+        uses: actions/upload-artifact@v7
+        with:
+          name: enkiba-prod-${{ env.STAMP }}
+          path: dist/*.gpg
+          retention-days: 30
+          if-no-files-found: error

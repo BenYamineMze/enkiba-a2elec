@@ -2,77 +2,66 @@ package com.enkiba.app.models;
 
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
-import java.io.Serializable;
 
+import java.io.Serializable;
+import java.util.UUID;
+
+/**
+ * Ligne de vente (table sale_items), telle qu'échangée avec le serveur.
+ * Garde une copie du nom et du prix catalogue au moment de la vente.
+ */
 public class SaleItem implements Serializable {
 
-    // ID principal de l'article de vente (reste Long car la table sale_items n'a pas changé de PK)
     @Expose @SerializedName("id")
-    private Long id;
+    private String id;
 
-    // --- CLÉS ÉTRANGÈRES ---
+    @Expose @SerializedName("shop_id")
+    private String shopId;
 
-    // Clé vers la table parente 'sales' (reste Long)
     @Expose @SerializedName("sale_id")
-    private Long saleId;
+    private String saleId;
 
-    // [MODIFICATION UUID] Clé vers la table 'products' qui est maintenant un UUID (String)
     @Expose @SerializedName("product_id")
     private String productId;
 
-    @Expose @SerializedName("auth_id")
-    private String authId;
-
-    // --- CHAMPS DE DONNÉES ---
+    @Expose @SerializedName("product_name")
+    private String productName;
 
     @Expose @SerializedName("quantity")
     private int quantity;
 
-    @Expose @SerializedName("initial_quantity")
-    private int initial_quantity;
+    // Prix catalogue au moment de la vente
+    @Expose @SerializedName("list_price")
+    private double listPrice;
 
+    // Prix réellement appliqué (négocié ou non)
     @Expose @SerializedName("unit_price")
     private double unitPrice;
 
     @Expose @SerializedName("total_price")
     private double totalPrice;
 
-    // --- CHAMPS LOCAUX/SYNCHRO ---
-
-    @Expose(serialize = false)
-    private String productName;
-
     @Expose @SerializedName("updated_at")
     private String updatedAt;
 
-    @Expose(serialize = false)
-    private String syncStatus;
+    // --- Champ local ---
+    private transient String syncStatus;
 
-    // -----------------------------------------------------------
-    // CONSTRUCTEURS
-    // -----------------------------------------------------------
-
-    public SaleItem() {}
-
-    public SaleItem(Long saleId, String productId, int quantity, double unitPrice) {
-        this.saleId = saleId;
-        this.productId = productId;
-        this.quantity = quantity;
-        this.unitPrice = unitPrice;
-        this.totalPrice = unitPrice * quantity;
+    public SaleItem() {
+        this.id = UUID.randomUUID().toString();
     }
 
     // -----------------------------------------------------------
     // LOGIQUE MÉTIER
     // -----------------------------------------------------------
 
-    // Mise à jour de la quantité doit impacter le total
+    // La mise à jour de la quantité recalcule le total
     public void setQuantity(int quantity) {
         this.quantity = quantity;
         this.totalPrice = this.unitPrice * quantity;
     }
 
-    // Mise à jour du prix unitaire doit impacter le total
+    // La mise à jour du prix unitaire recalcule le total
     public void setUnitPrice(double unitPrice) {
         this.unitPrice = unitPrice;
         this.totalPrice = this.unitPrice * this.quantity;
@@ -82,20 +71,25 @@ public class SaleItem implements Serializable {
     // GETTERS / SETTERS
     // -----------------------------------------------------------
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 
-    // [MODIFICATION UUID] Getter/Setter adaptés pour String
+    public String getShopId() { return shopId; }
+    public void setShopId(String shopId) { this.shopId = shopId; }
+
+    public String getSaleId() { return saleId; }
+    public void setSaleId(String saleId) { this.saleId = saleId; }
+
     public String getProductId() { return productId; }
     public void setProductId(String productId) { this.productId = productId; }
-
-    public Long getSaleId() { return saleId; }
-    public void setSaleId(Long saleId) { this.saleId = saleId; }
 
     public String getProductName() { return productName; }
     public void setProductName(String productName) { this.productName = productName; }
 
     public int getQuantity() { return quantity; }
+
+    public double getListPrice() { return listPrice; }
+    public void setListPrice(double listPrice) { this.listPrice = listPrice; }
 
     public double getUnitPrice() { return unitPrice; }
 
@@ -107,10 +101,4 @@ public class SaleItem implements Serializable {
 
     public String getSyncStatus() { return syncStatus; }
     public void setSyncStatus(String syncStatus) { this.syncStatus = syncStatus; }
-
-    public String getAuthId() { return authId; }
-    public void setAuthId(String authId) { this.authId = authId; }
-
-    public int getInitialQuantity() { return initial_quantity; }
-    public void setInitialQuantity(int initial_quantity) { this.initial_quantity = initial_quantity; }
 }

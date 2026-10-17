@@ -1,8 +1,36 @@
+import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.room)
+    alias(libs.plugins.kotlin.compose)
 }
 
+// Clé de signature de la release : variables d'environnement (CI, secrets GitHub) ou
+// keystore.properties à la racine (poste local, jamais commité). Sans clé, la release
+// est construite non signée (builds des PR).
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun signingValue(env: String, prop: String): String? =
+    System.getenv(env)?.takeIf { it.isNotBlank() } ?: keystoreProps.getProperty(prop)?.takeIf { it.isNotBlank() }
+val releaseStoreFile = signingValue("ENKIBA_KEYSTORE_FILE", "storeFile")
+val releaseStorePassword = signingValue("ENKIBA_KEYSTORE_PASSWORD", "storePassword")
+val releaseKeyAlias = signingValue("ENKIBA_KEY_ALIAS", "keyAlias")
+val releaseKeyPassword = signingValue("ENKIBA_KEY_PASSWORD", "keyPassword")
+val hasReleaseSigning = listOf(releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword).all { it != null }
+
 android {
+
+    buildFeatures {
+        buildConfig = true
+        compose = true
+    }
+
     namespace = "com.enkiba.app"
     compileSdk {
         version = release(36)
@@ -12,20 +40,48 @@ android {
         applicationId = "com.enkiba.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 10
-        versionName = "10.0"
+        // versionCode : toujours supérieur à la version publiée (v1 = 10).
+        // versionName : doit correspondre au tag de release (vX.Y.Z), vérifié par la CI.
+        versionCode = 11
+        versionName = "2.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            buildConfigField("String", "SUPABASE_URL", "\"https://kjggrqklyptngpfyuuon.supabase.co/\"")
+            buildConfigField("String", "SUPABASE_KEY", "\"sb_publishable__OvL970ysqZ_0qBlvtrrCg_hcH7uCe8\"")
+        }
         release {
+            buildConfigField("String", "SUPABASE_URL", "\"https://brnlbtlhuamtvpwbwypm.supabase.co/\"")
+            buildConfigField("String", "SUPABASE_KEY", "\"sb_publishable_Q7w6vjWFs5S7Gm1_28FWlA_bwQroePU\"")
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
+            // Retire les ressources que R8 a rendues inutiles (vérifié sur émulateur avec un build release branché sur dev)
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
     }
+
+    // Tests unitaires Robolectric (base Room en mémoire)
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -37,32 +93,52 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_11)
+    }
+}
+
+// Schéma Room exporté et versionné (base des migrations et de leurs tests)
+room {
+    schemaDirectory("$projectDir/schemas")
+}
+
 dependencies {
-    implementation(libs.appcompat)
-    implementation(libs.material)
-    implementation(libs.activity)
-    implementation(libs.constraintlayout)
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
 
-    implementation("androidx.recyclerview:recyclerview:1.3.2")
-    implementation("com.google.android.material:material:1.12.0")
-    implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
-
-    implementation("androidx.cardview:cardview:1.0.0")
-
     implementation ("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation ("com.google.zxing:core:3.5.1")
 
-    // ... autres dépendances
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-    implementation("com.squareup.okhttp3:okhttp:4.9.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
-    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // Interface : Jetpack Compose (Material 3)
+    val composeBom = platform(libs.compose.bom)
+    implementation(composeBom)
+    implementation(libs.compose.ui)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.material.icons)
+    implementation(libs.compose.ui.tooling.preview)
+    implementation(libs.activity.compose)
+    implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.lifecycle.runtime.compose)
+    debugImplementation(libs.compose.ui.tooling)
+
+    // Base locale : Room (entités et DAO en Kotlin)
+    implementation(libs.room.runtime)
+    ksp(libs.room.compiler)
+    testImplementation(libs.room.testing)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.test.core)
     // Simplification des dépendances redondantes de Material
     // implementation ("com.google.android.material:material:1.12.0")
     // Note: 'material' est déjà inclus deux fois via libs.material et directement ci-dessus.

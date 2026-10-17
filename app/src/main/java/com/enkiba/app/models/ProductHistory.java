@@ -3,11 +3,16 @@ package com.enkiba.app.models;
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 import java.io.Serializable;
+import java.util.UUID;
 
 public class ProductHistory implements Serializable {
 
+    // UUID généré par le téléphone
     @Expose @SerializedName("id")
-    private long id;
+    private String id;
+
+    @Expose @SerializedName("shop_id")
+    private String shopId;
 
     // --- CLÉS ÉTRANGÈRES ---
 
@@ -50,26 +55,20 @@ public class ProductHistory implements Serializable {
     // CONSTRUCTEURS
     // -----------------------------------------------------------
 
+    /** Nouvelle entrée : l'UUID est généré immédiatement (écrasé par Gson ou le DAO à la lecture). */
     public ProductHistory() {
-        // Constructeur vide nécessaire pour la désérialisation Retrofit/Gson et les DAOs
-    }
-
-    public ProductHistory(long id, String productName, String operation, String oldValue, String newValue, String timestamp, String username) {
-        this.id = id;
-        this.productName = productName;
-        this.operation = operation;
-        this.oldValue = oldValue;
-        this.newValue = newValue;
-        this.timestamp = timestamp;
-        this.username = username;
+        this.id = UUID.randomUUID().toString();
     }
 
     // -----------------------------------------------------------
     // GETTERS & SETTERS
     // -----------------------------------------------------------
 
-    public long getId() { return id; }
-    public void setId(long id) { this.id = id; }
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
+
+    public String getShopId() { return shopId; }
+    public void setShopId(String shopId) { this.shopId = shopId; }
 
     // [MODIFICATION UUID] Getter mis à jour pour String
     public String getProductId() { return productId; }

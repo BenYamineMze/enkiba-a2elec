@@ -9,6 +9,8 @@ import com.google.gson.annotations.Expose;
 public class Product implements Serializable {
     @Expose @SerializedName("id")
     private String id;
+    @Expose @SerializedName("shop_id")
+    private String shopId;
     @Expose @SerializedName("name")
     private String name;
     @Expose @SerializedName("category")
@@ -23,8 +25,8 @@ public class Product implements Serializable {
     private String description;
     @Expose @SerializedName("qr_code")
     private String qr_code;
-    @Expose @SerializedName("sold_quantity")
-    private int soldQuantity;
+    // Calculé localement depuis les ventes (SUM des sale_items) : n'existe pas côté serveur
+    private transient int soldQuantity;
     @Expose @SerializedName("low_stock_threshold")
     private int lowStockThreshold;
 
@@ -32,6 +34,8 @@ public class Product implements Serializable {
     // Correspondance avec le champ 'updated_at' de Supabase
     @Expose @SerializedName("updated_at")
     private String updatedAt;
+    @Expose @SerializedName("deleted_at")
+    private String deletedAt;
 
     // Ce champ est purement LOCAL, le serveur n'a pas besoin de le voir
     @Expose(serialize = false)
@@ -41,6 +45,12 @@ public class Product implements Serializable {
 
     public String getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }
+
+    public String getShopId() { return shopId; }
+    public void setShopId(String shopId) { this.shopId = shopId; }
+
+    public String getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(String deletedAt) { this.deletedAt = deletedAt; }
 
     // Pour la gestion SQLite locale
     public String getSyncStatus() { return syncStatus; }
@@ -64,6 +74,7 @@ public class Product implements Serializable {
     // ✅ Constructeur de copie (clone)
     public Product(Product other) {
         this.id = other.id;
+        this.shopId = other.shopId;
         this.name = other.name;
         this.category = other.category;
         this.quantity = other.quantity;
@@ -78,7 +89,7 @@ public class Product implements Serializable {
     // [IMPORTANT] C'est le constructeur utilisé pour CRÉER un nouveau produit
     // AVANT : l'id n'était pas défini (null)
     // APRÈS : On génère l'UUID immédiatement. C'est ça qui empêche les doublons.
-    public Product(String name, String category, int quantity, double price, String description, int soldQuantity, int lowStockThreshold, int initialStock) {
+    public Product(String name, String category, int quantity, double price, String description, int lowStockThreshold, int initialStock) {
         this.id = UUID.randomUUID().toString(); // <--- LA CLÉ DU SUCCÈS EST ICI
         this.name = name;
         this.category = category;
@@ -86,7 +97,6 @@ public class Product implements Serializable {
         this.initial_stock = initialStock; // Ajout du stock initial
         this.price = price;
         this.description = description;
-        this.soldQuantity = soldQuantity;
         this.lowStockThreshold = lowStockThreshold;
     }
 

@@ -19,9 +19,9 @@ import android.util.Log;
 import androidx.core.content.FileProvider;
 
 import com.enkiba.app.R;
-import com.enkiba.app.database.DatabaseHelper;
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Product;
+import com.enkiba.app.models.Quote;
 import com.enkiba.app.models.ProductHistory;
 import com.enkiba.app.models.SaleHeader;
 import com.enkiba.app.models.SaleItemRow;
@@ -33,6 +33,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -134,16 +135,16 @@ public class PDFUtils {
                     currentY = 30;
                 }
 
-                canvas.drawText("N° " + s.getId(), colVente, currentY, paint);
+                canvas.drawText("N° " + s.getShortRef(), colVente, currentY, paint);
                 canvas.drawText(CurrencyUtils.formatSaleDate(s.getSaleDate()), colDate, currentY, paint);
                 //canvas.drawText(DatabaseUtils.formatIsoToDisplay(s.getSaleDate()), colDate, currentY, paint);
                 canvas.drawText(s.getPaymentMethod(), colPayment, currentY, paint);
-                canvas.drawText(df.format(s.getTotalPrice()), colTotal, currentY, paint);
+                canvas.drawText(df.format(s.getNetTotal()), colTotal, currentY, paint);
 
                 // Le nom d'utilisateur est censé être déjà chargé dans SaleHeader.username
                 canvas.drawText(s.getUsername(), colSeller, currentY, paint);
 
-                grandTotal += s.getTotalPrice();
+                grandTotal += s.getNetTotal();
                 currentY += rowHeight;
             }
 
@@ -160,7 +161,7 @@ public class PDFUtils {
             pdf.finishPage(page);
 
             // SAVING
-            File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "GStock");
+            File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "Enkiba");
             if (!folder.exists()) folder.mkdirs();
 
             String fileName = "Historique_ventes_" +
@@ -293,7 +294,7 @@ public class PDFUtils {
 
             pdf.finishPage(page);
 
-            File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "GStock");
+            File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "Enkiba");
             if (!folder.exists()) folder.mkdirs();
 
             String fileName = "historique_produits_" + new SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(new Date()) + ".pdf";
@@ -362,13 +363,7 @@ public class PDFUtils {
 
             paint.setColor(Color.WHITE);
             paint.setTextSize(10);
-            canvas.drawText(shopAddress, pageWidth - margin - 170, 25, paint);
-
-            canvas.drawText("Tél : " + shopContact, pageWidth - margin - 170, 40, paint);
-
-            if (shopEmail != null && !shopEmail.isEmpty()) {
-                canvas.drawText("Email : " + shopEmail, pageWidth - margin - 170, 55, paint);
-            }
+            drawShopContact(canvas, paint, pageWidth - margin - 170, shopAddress, shopContact, shopEmail);
 
 
             // --------------------------------------------------------------------
@@ -376,7 +371,7 @@ public class PDFUtils {
             // --------------------------------------------------------------------
             bold.setColor(Color.BLACK);
             bold.setTextSize(16);
-            canvas.drawText("FACTURE #" + header.getId(), x, 130, bold);
+            canvas.drawText("FACTURE #" + header.getShortRef(), x, 130, bold);
 
             paint.setTextSize(12);
             paint.setColor(0xFF000000);
@@ -449,10 +444,9 @@ public class PDFUtils {
             cy += 25;
             canvas.drawText("Mode de paiement : " + header.getPaymentMethod(), x, cy, paint);
 
-            // 🚨 CORRECTION : Remplacement de DatabaseHelper par UserDao 🚨
             UserDao userDao = new UserDao(ctx);
             String vendeurName= "—";
-            User vendeurUser = userDao.getUserById(header.getUserId());
+            User vendeurUser = userDao.getUserById(header.getSellerId());
             if (vendeurUser != null) {
                 vendeurName = vendeurUser.getUsername() + " " + vendeurUser.getLastname();
             }
@@ -463,9 +457,9 @@ public class PDFUtils {
             // --------------------------------------------------------------------
             cy += 40;
             bold.setTextSize(14);
-            canvas.drawText("Total : " + df.format(header.getTotalPrice()) + " KMF", colTotal - 40, cy, bold);
+            canvas.drawText("Total : " + df.format(header.getNetTotal()) + " KMF", colTotal - 40, cy, bold);
 
-            double euroTotal = kmfToEur(header.getTotalPrice());
+            double euroTotal = kmfToEur(header.getNetTotal());
             paint.setTextSize(12);
             canvas.drawText("Total en Euro : " + df.format(euroTotal) + " €", colTotal - 40, cy + 20, paint);
 
@@ -475,20 +469,17 @@ public class PDFUtils {
             paint.setColor(0xFF777777);
             paint.setTextSize(9);
 
-            String footer = shopName + " • " + shopAddress + " • " + shopContact;
-            if (shopEmail != null && !shopEmail.isEmpty()) {
-                footer += " • " + shopEmail;
-            }
+            String footer = shopFooter(shopName, shopAddress, shopContact, shopEmail);
 
             canvas.drawText(footer, (pageWidth - paint.measureText(footer)) / 2, pageHeight - 30, paint);
 
             // Finish & save
             pdf.finishPage(page);
 
-            File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "GStock/Invoices");
+            File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "Enkiba/Factures");
             if (!folder.exists()) folder.mkdirs();
 
-            File file = new File(folder, "facture_" + header.getId() + ".pdf");
+            File file = new File(folder, "facture_" + header.getShortRef() + ".pdf");
             FileOutputStream fos = new FileOutputStream(file);
 
             pdf.writeTo(fos);
@@ -506,7 +497,7 @@ public class PDFUtils {
     }
 
     public static File generateQuotePdf(Context ctx,
-                                          SaleHeader header,
+                                          Quote quote,
                                           List<SaleItemRow> items,
                                           Client client,
                                           String shopName,
@@ -515,7 +506,7 @@ public class PDFUtils {
                                           String shopEmail) {
 
         try {
-            if (header == null || items == null || items.isEmpty())
+            if (quote == null || items == null || items.isEmpty())
                 return null;
 
             int pageWidth = 595, pageHeight = 842, margin = 20;
@@ -551,13 +542,7 @@ public class PDFUtils {
 
             paint.setColor(Color.WHITE);
             paint.setTextSize(10);
-            canvas.drawText(shopAddress, pageWidth - margin - 170, 25, paint);
-
-            canvas.drawText("Tél : " + shopContact, pageWidth - margin - 170, 40, paint);
-
-            if (shopEmail != null && !shopEmail.isEmpty()) {
-                canvas.drawText("Email : " + shopEmail, pageWidth - margin - 170, 55, paint);
-            }
+            drawShopContact(canvas, paint, pageWidth - margin - 170, shopAddress, shopContact, shopEmail);
 
 
             // --------------------------------------------------------------------
@@ -565,11 +550,11 @@ public class PDFUtils {
             // --------------------------------------------------------------------
             bold.setColor(Color.BLACK);
             bold.setTextSize(16);
-            canvas.drawText("DEVIS N° DEV-" + header.getId(), x, 130, bold);
+            canvas.drawText("DEVIS N° " + quote.getShortRef(), x, 130, bold);
 
             paint.setTextSize(12);
             paint.setColor(0xFF000000);
-            canvas.drawText("Date : " + header.getSaleDate(), x, 150, paint);
+            canvas.drawText("Date : " + DatabaseUtils.formatIsoToDisplay(quote.getCreatedAt()), x, 150, paint);
 
             // --------------------------------------------------------------------
             // CLIENT
@@ -636,12 +621,11 @@ public class PDFUtils {
             // MODE DE PAIEMENT + VENDEUR
             // --------------------------------------------------------------------
             cy += 25;
-            canvas.drawText("Mode de paiement : " + header.getPaymentMethod(), x, cy, paint);
+            canvas.drawText("Valable jusqu'au : " + (quote.getValidUntil() != null ? quote.getValidUntil() : "—"), x, cy, paint);
 
-            // 🚨 CORRECTION : Remplacement de DatabaseHelper par UserDao 🚨
             UserDao userDao = new UserDao(ctx);
             String vendeurName= "—";
-            User vendeurUser = userDao.getUserById(header.getUserId());
+            User vendeurUser = userDao.getUserById(quote.getSellerId());
             if (vendeurUser != null) {
                 vendeurName = vendeurUser.getUsername() + " " + vendeurUser.getLastname();
             }
@@ -652,9 +636,9 @@ public class PDFUtils {
             // --------------------------------------------------------------------
             cy += 40;
             bold.setTextSize(14);
-            canvas.drawText("Total : " + df.format(header.getTotalPrice()) + " KMF", colTotal - 40, cy, bold);
+            canvas.drawText("Total : " + df.format(quote.getTotalPrice()) + " KMF", colTotal - 40, cy, bold);
 
-            double euroTotal = kmfToEur(header.getTotalPrice());
+            double euroTotal = kmfToEur(quote.getTotalPrice());
             paint.setTextSize(12);
             canvas.drawText("Total en Euro : " + df.format(euroTotal) + " €", colTotal - 40, cy + 20, paint);
 
@@ -664,20 +648,17 @@ public class PDFUtils {
             paint.setColor(0xFF777777);
             paint.setTextSize(9);
 
-            String footer = shopName + " • " + shopAddress + " • " + shopContact;
-            if (shopEmail != null && !shopEmail.isEmpty()) {
-                footer += " • " + shopEmail;
-            }
+            String footer = shopFooter(shopName, shopAddress, shopContact, shopEmail);
 
             canvas.drawText(footer, (pageWidth - paint.measureText(footer)) / 2, pageHeight - 30, paint);
 
             // Finish & save
             pdf.finishPage(page);
 
-            File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "GStock/Invoices");
+            File folder = new File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "Enkiba/Factures");
             if (!folder.exists()) folder.mkdirs();
 
-            File file = new File(folder, "facture_" + header.getId() + ".pdf");
+            File file = new File(folder, "devis_" + quote.getShortRef() + ".pdf");
             FileOutputStream fos = new FileOutputStream(file);
 
             pdf.writeTo(fos);
@@ -694,11 +675,12 @@ public class PDFUtils {
         }
     }
 
-    public static void generateQrListPdf(Context context, List<Product> products) {
-
-        String pdfPath = Environment.getExternalStoragePublicDirectory(
-                Environment.DIRECTORY_DOWNLOADS
-        ) + "/qr_codes_produits.pdf";
+    /**
+     * Planche des codes QR (nom de l'article + code), enregistrée dans le dossier
+     * de l'app puis ouverte. Le contexte doit être une activité.
+     * @return false si la génération a échoué
+     */
+    public static boolean generateQrListPdf(Context context, List<Product> products) {
 
         try {
 
@@ -758,20 +740,52 @@ public class PDFUtils {
 
             doc.finishPage(page);
 
-            File file = new File(pdfPath);
-            FileOutputStream out = new FileOutputStream(file);
-            doc.writeTo(out);
+            // Dossier de l'app (l'écriture directe dans Téléchargements échoue depuis Android 10)
+            File folder = new File(context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "Enkiba");
+            if (!folder.exists()) folder.mkdirs();
+            File file = new File(folder, "QR_codes_" +
+                    new SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(new Date()) + ".pdf");
 
+            try (FileOutputStream out = new FileOutputStream(file)) {
+                doc.writeTo(out);
+            }
             doc.close();
-            out.close();
+            openPdf(context, file);
+            return true;
 
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e(TAG, "PDF des codes QR impossible", e);
+            return false;
         }
     }
 
 
 
+
+    /** Coordonnées de la boutique en haut à droite : seules les lignes renseignées, sans trou. */
+    private static void drawShopContact(Canvas canvas, Paint paint, float x,
+                                        String address, String phone, String email) {
+        List<String> lines = new ArrayList<>();
+        if (address != null && !address.trim().isEmpty()) lines.add(address.trim());
+        if (phone != null && !phone.trim().isEmpty()) lines.add("Tél : " + phone.trim());
+        if (email != null && !email.trim().isEmpty()) lines.add("Email : " + email.trim());
+        float y = 25;
+        for (String line : lines) {
+            canvas.drawText(line, x, y, paint);
+            y += 15;
+        }
+    }
+
+    /** Pied de page : nom et coordonnées renseignées, séparés par « • ». */
+    static String shopFooter(String name, String address, String phone, String email) {
+        StringBuilder sb = new StringBuilder();
+        for (String part : new String[]{name, address, phone, email}) {
+            if (part == null || part.trim().isEmpty()) continue;
+            if (sb.length() > 0) sb.append(" • ");
+            sb.append(part.trim());
+        }
+        return sb.toString();
+    }
 
     private static void openPdf(Context ctx, File file) {
         try {

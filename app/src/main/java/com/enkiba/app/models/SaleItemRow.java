@@ -4,16 +4,19 @@ import java.io.Serializable;
 
 public class SaleItemRow implements Serializable {
 
-    private long id;
+    private String id;
 
     // [MODIFICATION UUID] L'ID produit est maintenant une chaîne (UUID)
     private String productId;
 
     private String productName;
     private double unitPrice;
+    // Prix catalogue au moment de la vente ou du devis (0 = inconnu : on affiche le prix appliqué)
+    private double listPrice;
     private int quantity;
     private double total;
-    private int initial_quantity;
+    // Quantité déjà retournée (quantity est la quantité nette, après retours)
+    private int returnedQuantity;
 
     public SaleItemRow() {}
 
@@ -26,11 +29,11 @@ public class SaleItemRow implements Serializable {
         this.total = unitPrice * quantity;
     }
 
-    public long getId() {
+    public String getId() {
         return id;
     }
 
-    public void setId(long id) {
+    public void setId(String id) {
         this.id = id;
     }
 
@@ -44,6 +47,10 @@ public class SaleItemRow implements Serializable {
 
     public String getProductName() { return productName; }
     public double getUnitPrice() { return unitPrice; }
+    public double getListPrice() { return listPrice > 0 ? listPrice : unitPrice; }
+    public void setListPrice(double listPrice) { this.listPrice = listPrice; }
+    /** Vrai si l'article a été vendu (ou proposé) à un autre prix que le prix catalogue. */
+    public boolean isNegotiated() { return listPrice > 0 && listPrice != unitPrice; }
     public int getQuantity() { return quantity; }
     public double getTotal() { return total; }
 
@@ -63,11 +70,11 @@ public class SaleItemRow implements Serializable {
         this.total = total;
     }
 
-    public int getInitialQuantity() {
-        return initial_quantity;
+    public int getReturnedQuantity() {
+        return returnedQuantity;
     }
 
-    public void setInitialQuantity(int initial_quantity) {
-        this.initial_quantity = initial_quantity;
+    public void setReturnedQuantity(int returnedQuantity) {
+        this.returnedQuantity = returnedQuantity;
     }
 }

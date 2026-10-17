@@ -1,19 +1,22 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Règles de sauvegarde pour Android 12 et plus (API 31+).
+    Android 11 et moins lisent backup_rules.xml : garder les deux fichiers alignés.
+
+    Liste blanche, identique pour la sauvegarde cloud et le transfert entre
+    appareils : seul enkiba_ui.xml (choix du thème) est conservé.
+
+    Exclus volontairement :
+    - user_session_secure.xml et __androidx_security_crypto_encrypted_prefs__.xml :
+      chiffrés avec une clé de l'Android Keystore qui ne quitte pas l'appareil.
+    - sync_prefs.xml et la base Room stock.db : état de synchronisation propre à
+      l'appareil (lignes « pending », curseurs de pull), reconstruit depuis Supabase.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <include domain="sharedpref" path="enkiba_ui.xml" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <include domain="sharedpref" path="enkiba_ui.xml" />
     </device-transfer>
-    -->
 </data-extraction-rules>

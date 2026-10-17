@@ -1,239 +1,181 @@
 package com.enkiba.app.modelsDao;
 
-import android.content.ContentValues;
 import android.content.Context;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
 
-import com.enkiba.app.database.DatabaseHelper;
+import com.enkiba.app.data.local.AppDatabase;
+import com.enkiba.app.data.local.Mappers;
+import com.enkiba.app.data.local.dao.ProductRoomDao;
+import com.enkiba.app.data.local.entity.EntitiesKt;
+import com.enkiba.app.data.local.entity.ProductWithSold;
 import com.enkiba.app.models.Product;
+import com.enkiba.app.models.StockMovement;
 import com.enkiba.app.utils.DatabaseUtils;
+import com.enkiba.app.utils.SessionManager;
 
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Accès local aux produits (ids UUID), au-dessus de Room.
+ * La quantité vendue n'est plus stockée : elle est recalculée depuis les ventes non supprimées.
+ *
+ * Le stock (quantity) n'est jamais envoyé au serveur : il y est calculé à partir des
+ * mouvements de stock. Localement, il est modifié uniquement par :
+ * - createProduct / applyStockMovement (admin : un mouvement local 'pending' est créé),
+ * - les ventes et les retours (le serveur génère lui-même les mouvements correspondants).
+ */
 public class ProductDao {
 
-    private final DatabaseHelper dbHelper;
-    private static final String TABLE_PRODUCTS = DatabaseHelper.TABLE_PRODUCTS;
     private static final String TAG = "ProductDao";
 
+    private final AppDatabase db;
+    private final ProductRoomDao dao;
+    private final SessionManager sessionManager;
+
     public ProductDao(Context context) {
-        this.dbHelper = new DatabaseHelper(context);
+        this.db = AppDatabase.get(context);
+        this.dao = db.productDao();
+        this.sessionManager = new SessionManager(context);
     }
 
-    private Product buildProductFromCursor(Cursor cursor) {
-        Product p = new Product();
-        // [MODIF UUID] Lecture de l'ID en tant que String
-        p.setId(cursor.getString(cursor.getColumnIndexOrThrow("id")));
-        p.setName(cursor.getString(cursor.getColumnIndexOrThrow("name")));
-        p.setCategory(cursor.getString(cursor.getColumnIndexOrThrow("category")));
-        p.setQuantity(cursor.getInt(cursor.getColumnIndexOrThrow("quantity")));
-        p.setSoldQuantity(cursor.getInt(cursor.getColumnIndexOrThrow("sold_quantity")));
-        p.setPrice(cursor.getDouble(cursor.getColumnIndexOrThrow("price")));
-        p.setDescription(cursor.getString(cursor.getColumnIndexOrThrow("description")));
-        p.setQr_code(cursor.getString(cursor.getColumnIndexOrThrow("qr_code")));
-        p.setInitial_stock(cursor.getInt(cursor.getColumnIndexOrThrow("initial_stock")));
-        p.setLowStockThreshold(cursor.getInt(cursor.getColumnIndexOrThrow("low_stock_threshold")));
-        p.setUpdatedAt(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_UPDATED_AT)));
-        p.setSyncStatus(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_SYNC_STATUS)));
-        return p;
-    }
-
-    // [MODIF UUID] Retourne l'UUID (String)
-    public String insertProduct(Product product) {
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
-        ContentValues values = new ContentValues();
-
-        values.put("id", product.getId());
-        values.put("name", product.getName());
-        values.put("category", product.getCategory());
-        values.put("quantity", product.getQuantity());
-        values.put("sold_quantity", product.getSoldQuantity());
-        values.put("price", product.getPrice());
-        values.put("description", product.getDescription());
-        values.put("qr_code", product.getQr_code());
-        values.put("initial_stock", product.getInitial_stock());
-        values.put("low_stock_threshold", product.getLowStockThreshold());
-        values.put(DatabaseHelper.COL_UPDATED_AT, DatabaseUtils.getCurrentIsoTime());
-        values.put(DatabaseHelper.COL_SYNC_STATUS, "pending");
-
-        long result = db.insert(TABLE_PRODUCTS, null, values);
-        db.close();
-
-        return (result == -1) ? null : product.getId();
-    }
-
-    public boolean updateProduct(Product product) {
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put("name", product.getName());
-        values.put("category", product.getCategory());
-        values.put("quantity", product.getQuantity());
-
-        // 🚨 CORRECTION : Mise à jour du stock initial
-        // Indispensable pour réinitialiser la jauge (barre de progression) à 100%
-        values.put("initial_stock", product.getInitial_stock());
-
-        values.put("price", product.getPrice());
-        values.put("description", product.getDescription());
-        values.put("qr_code", product.getQr_code());
-        values.put("low_stock_threshold", product.getLowStockThreshold());
-        values.put(DatabaseHelper.COL_UPDATED_AT, DatabaseUtils.getCurrentIsoTime());
-        values.put(DatabaseHelper.COL_SYNC_STATUS, "pending");
-
-        int rows = db.update(TABLE_PRODUCTS, values, "id = ?", new String[]{product.getId()});
-        db.close();
-        return rows > 0;
-    }
-
-    public boolean markProductForDeletion(String id) {
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put(DatabaseHelper.COL_UPDATED_AT, DatabaseUtils.getCurrentIsoTime());
-        values.put(DatabaseHelper.COL_SYNC_STATUS, "deleted"); // Marqué pour suppression
-
-        int rows = db.update(TABLE_PRODUCTS, values, "id = ?", new String[]{id});
-        db.close();
-        return rows > 0;
-    }
-
-    public void deleteProductPhysically(String id) {
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
-        db.delete(TABLE_PRODUCTS, "id = ?", new String[]{id});
-        db.close();
-    }
-
-    public Product getProductById(String id) {
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        Product product = null;
-        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_PRODUCTS + " WHERE id = ?", new String[]{id});
-        if (cursor.moveToFirst()) {
-            product = buildProductFromCursor(cursor);
-        }
-        cursor.close();
-        db.close();
-        return product;
-    }
-
-    // 🚨 CORRECTION MAJEURE : Ne jamais afficher les produits marqués 'deleted'
-    public List<Product> getAllProducts() {
-        List<Product> products = new ArrayList<>();
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        // AJOUT DU FILTRE WHERE sync_status != 'deleted'
-        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_PRODUCTS + " WHERE sync_status != 'deleted'", null);
-        if (cursor.moveToFirst()) {
-            do { products.add(buildProductFromCursor(cursor)); } while (cursor.moveToNext());
-        }
-        cursor.close();
-        db.close();
-        return products;
-    }
-
-    // 🚨 CORRECTION MAJEURE : Idem pour la liste triée
-    public List<Product> getAllProductsList() {
-        List<Product> products = new ArrayList<>();
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        // AJOUT DU FILTRE
-        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_PRODUCTS + " WHERE sync_status != 'deleted' ORDER BY name ASC", null);
-        if (cursor != null && cursor.moveToFirst()) {
-            do { products.add(buildProductFromCursor(cursor)); } while (cursor.moveToNext());
-            cursor.close();
-        }
-        db.close();
-        return products;
-    }
-
-    public Cursor getAllProductsCursor() {
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        return db.rawQuery("SELECT * FROM " + TABLE_PRODUCTS + " WHERE sync_status != 'deleted'", null);
-    }
-
-    public Product getProductByQr(String qrCode) {
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        Product p = null;
-        // On vérifie aussi que le produit scanné n'est pas supprimé
-        Cursor c = db.query(TABLE_PRODUCTS, null, "qr_code = ? AND sync_status != 'deleted'", new String[]{ qrCode }, null, null, null);
-        if (c != null) {
-            if (c.moveToFirst()) { p = buildProductFromCursor(c); }
-            c.close();
-        }
-        db.close();
-        return p;
-    }
-
-    public double getTotalStockValue() {
-        double total = 0;
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        // On ne compte pas la valeur des produits supprimés
-        Cursor cursor = db.rawQuery("SELECT SUM(price * quantity) FROM " + TABLE_PRODUCTS + " WHERE sync_status != 'deleted'", null);
-        if (cursor.moveToFirst()) { total = cursor.getDouble(0); }
-        cursor.close();
-        db.close();
-        return total;
-    }
-
-    public int getLowStockCount() {
-        int count = 0;
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT COUNT(*) FROM " + TABLE_PRODUCTS + " WHERE quantity <= low_stock_threshold AND sync_status != 'deleted'", null);
-        if (cursor.moveToFirst()) { count = cursor.getInt(0); }
-        cursor.close();
-        db.close();
-        return count;
-    }
-
-    // Cette méthode doit TOUT renvoyer pour que le SyncManager puisse trouver les éléments à supprimer sur le serveur
-    public List<Product> getPendingProductsForSync() {
-        List<Product> list = new ArrayList<>();
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_PRODUCTS + " WHERE sync_status IN ('pending', 'deleted')", null);
-        if (cursor.moveToFirst()) {
-            do { list.add(buildProductFromCursor(cursor)); } while (cursor.moveToNext());
-        }
-        cursor.close();
-        db.close();
+    private static List<Product> toModels(List<ProductWithSold> rows) {
+        List<Product> list = new ArrayList<>(rows.size());
+        for (ProductWithSold r : rows) list.add(Mappers.toModel(r));
         return list;
     }
 
-    public void markProductAsSynced(String id) {
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put(DatabaseHelper.COL_SYNC_STATUS, "synced");
-        db.update(TABLE_PRODUCTS, values, "id = ?", new String[]{id});
-        db.close();
-    }
+    // ----------------------------------------------------------------------
+    // --- ÉCRITURE LOCALE (marquée 'pending') ---
+    // ----------------------------------------------------------------------
 
-    public String insertOrUpdateProductFromRemote(Product p) {
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put("id", p.getId());
-        values.put("name", p.getName());
-        values.put("category", p.getCategory());
-        values.put("quantity", p.getQuantity());
-        values.put("sold_quantity", p.getSoldQuantity());
-        values.put("price", p.getPrice());
-        values.put("description", p.getDescription());
-        values.put("qr_code", p.getQr_code());
-        values.put("initial_stock", p.getInitial_stock());
-        values.put("low_stock_threshold", p.getLowStockThreshold());
-        values.put(DatabaseHelper.COL_UPDATED_AT, p.getUpdatedAt());
-        values.put(DatabaseHelper.COL_SYNC_STATUS, "synced");
-
-        int rows = db.update(TABLE_PRODUCTS, values, "id = ?", new String[]{p.getId()});
-
-        if (rows > 0) {
-            db.close();
-            return p.getId();
-        } else {
-            long result = db.insert(TABLE_PRODUCTS, null, values);
-            db.close();
-            return (result != -1) ? p.getId() : null;
+    /**
+     * Crée un produit avec son stock initial, en une transaction :
+     * le produit et, si le stock est non nul, un mouvement 'initial' en attente d'envoi.
+     *
+     * @return l'UUID du produit, ou null en cas d'échec (rien n'est écrit).
+     */
+    public String createProduct(Product product, int initialQuantity, String userId) {
+        String now = DatabaseUtils.getCurrentIsoTime();
+        if (product.getShopId() == null) product.setShopId(sessionManager.getShopId());
+        try {
+            db.runInTransaction(() -> {
+                dao.insert(Mappers.toEntity(product, initialQuantity, now, EntitiesKt.SYNC_PENDING));
+                if (initialQuantity != 0) {
+                    StockMovement m = new StockMovement(product.getId(), initialQuantity, StockMovement.REASON_INITIAL, userId);
+                    m.setShopId(product.getShopId());
+                    db.stockDao().insertMovement(Mappers.toEntity(m, now, EntitiesKt.SYNC_PENDING));
+                }
+            });
+            product.setQuantity(initialQuantity);
+            return product.getId();
+        } catch (Exception e) {
+            Log.e(TAG, "createProduct : " + e.getMessage(), e);
+            return null;
         }
     }
 
-    // Méthodes obsolètes conservées pour compatibilité
-    public void updateLocalId(long oldTempId, long newServerId) {}
-    public void resetStuckProducts() {}
+    /** Met à jour les informations du produit (jamais le stock : voir applyStockMovement). */
+    public boolean updateProduct(Product product) {
+        // initial_stock est mis à jour aussi : il sert de base à la jauge de stock
+        String shopId = product.getShopId() != null ? product.getShopId() : sessionManager.getShopId();
+        return dao.updateDetails(product.getId(), shopId, product.getName(), product.getCategory(),
+                product.getPrice(), product.getDescription(), product.getQr_code(), product.getInitial_stock(),
+                product.getLowStockThreshold(), DatabaseUtils.getCurrentIsoTime()) > 0;
+    }
+
+    /**
+     * Correction de stock par un admin : crée un mouvement local en attente d'envoi
+     * et applique le delta au stock local, en une transaction.
+     */
+    public boolean applyStockMovement(String productId, int delta, String reason, String userId) {
+        if (delta == 0) return true;
+        String now = DatabaseUtils.getCurrentIsoTime();
+        try {
+            db.runInTransaction(() -> {
+                StockMovement m = new StockMovement(productId, delta, reason, userId);
+                m.setShopId(sessionManager.getShopId());
+                db.stockDao().insertMovement(Mappers.toEntity(m, now, EntitiesKt.SYNC_PENDING));
+                dao.addQuantity(productId, delta);
+            });
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "applyStockMovement : " + e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * Applique au stock local une variation dont le serveur génère lui-même le mouvement
+     * (vente, retour). Le produit n'est pas marqué 'pending'.
+     */
+    public void addLocalQuantity(String productId, int delta) {
+        dao.addQuantity(productId, delta);
+    }
+
+    /** Suppression logique : deleted_at est renseigné et sera envoyé au serveur. */
+    public boolean markProductForDeletion(String id) {
+        return dao.markDeleted(id, DatabaseUtils.getCurrentIsoTime()) > 0;
+    }
+
+    public void deleteProductPhysically(String id) {
+        dao.deletePhysically(id);
+    }
+
+    // ----------------------------------------------------------------------
+    // --- LECTURE ---
+    // ----------------------------------------------------------------------
+
+    /** Produit par id, même supprimé (utile pour l'historique et les ventes passées). */
+    public Product getProductById(String id) {
+        ProductWithSold p = dao.getById(id);
+        return p != null ? Mappers.toModel(p) : null;
+    }
+
+    public List<Product> getAllProducts() {
+        return toModels(dao.getActive());
+    }
+
+    public List<Product> getAllProductsList() {
+        return toModels(dao.getActiveByName());
+    }
+
+    public Product getProductByQr(String qrCode) {
+        ProductWithSold p = dao.getByQr(qrCode);
+        return p != null ? Mappers.toModel(p) : null;
+    }
+
+    public double getTotalStockValue() {
+        return dao.totalStockValue();
+    }
+
+    public int getLowStockCount() {
+        return dao.lowStockCount();
+    }
+
+    // ----------------------------------------------------------------------
+    // --- SUPPORT SYNCHRONISATION ---
+    // ----------------------------------------------------------------------
+
+    /** Produits modifiés localement, y compris les suppressions logiques (deleted_at renseigné). */
+    public List<Product> getPendingProductsForSync() {
+        return toModels(dao.getPending());
+    }
+
+    public void markProductAsSynced(String id) {
+        dao.markSynced(id);
+    }
+
+    /**
+     * Insère ou remplace un produit reçu du serveur (PULL), sauf modification locale
+     * non envoyée. Le stock local = stock serveur + opérations locales pas encore envoyées.
+     */
+    public String insertOrUpdateProductFromRemote(Product p) {
+        db.runInTransaction(() -> {
+            if (EntitiesKt.SYNC_PENDING.equals(dao.getSyncStatus(p.getId()))) return;
+            int quantity = p.getQuantity() + dao.pendingLocalDelta(p.getId());
+            dao.upsert(Mappers.toEntity(p, quantity, p.getUpdatedAt(), EntitiesKt.SYNC_SYNCED));
+        });
+        return p.getId();
+    }
 }

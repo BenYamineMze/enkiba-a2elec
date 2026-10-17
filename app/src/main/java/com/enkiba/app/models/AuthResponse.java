@@ -22,6 +22,19 @@ public class AuthResponse {
     @SerializedName("user")
     private UserData user; // Utilise maintenant com.enkiba.app.models.UserData (global)
 
+
+    @Expose @SerializedName("refresh_token") private String refreshToken;
+    @Expose @SerializedName("expires_in") private long expiresIn;
+    @Expose @SerializedName("expires_at") private long expiresAt;
+
+    public String getRefreshToken() { return refreshToken; }
+    public long getExpiresIn() { return expiresIn; }
+
+    /** Date d'expiration en secondes epoch. */
+    public long computeExpiresAt() {
+        return expiresAt > 0 ? expiresAt : (System.currentTimeMillis() / 1000L) + expiresIn;
+    }
+
     // Getters
     public String getAccessToken() {
         return accessToken;

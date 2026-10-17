@@ -7,9 +7,6 @@ import java.util.TimeZone;
 
 public class DatabaseUtils {
 
-    // Pour garantir l'unicité de l'ID temporaire dans une session
-    private static final java.util.concurrent.atomic.AtomicLong tempIdCounter = new java.util.concurrent.atomic.AtomicLong(-1);
-
     // Retourne un horodatage au format ISO 8601 (requis par Supabase/PostgreSQL)
     // Fonctionne sur toutes les versions d'API Android.
     public static String getCurrentIsoTime() {
@@ -51,12 +48,5 @@ public class DatabaseUtils {
             // En cas d'erreur de parsing, on retourne la chaîne brute pour éviter un crash
             return isoDate;
         }
-    }
-
-    // Génère un ID négatif temporaire pour les insertions hors ligne
-    public static long generateTempId() {
-        // Utiliser un ID basé sur le décrément du compteur
-        // Assurez-vous d'utiliser un type long ici pour correspondre à la méthode de synchronisation
-        return tempIdCounter.decrementAndGet();
     }
 }
