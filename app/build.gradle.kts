@@ -42,8 +42,8 @@ android {
         targetSdk = 36
         // versionCode : toujours supérieur à la version publiée (v1 = 10).
         // versionName : doit correspondre au tag de release (vX.Y.Z), vérifié par la CI.
-        versionCode = 11
-        versionName = "2.0.0"
+        versionCode = 12
+        versionName = "2.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
