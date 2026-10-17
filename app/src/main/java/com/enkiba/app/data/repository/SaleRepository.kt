@@ -2,6 +2,7 @@ package com.enkiba.app.data.repository
 
 import android.content.Context
 import android.util.Log
+import com.enkiba.app.data.local.ShopStore
 import com.enkiba.app.models.Client
 import com.enkiba.app.models.Product
 import com.enkiba.app.models.Quote
@@ -14,7 +15,6 @@ import com.enkiba.app.modelsDao.SaleDao
 import com.enkiba.app.ui.sale.CartLine
 import com.enkiba.app.utils.PDFUtils
 import com.enkiba.app.utils.SessionManager
-import com.enkiba.app.utils.ShopInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -105,15 +105,17 @@ class SaleRepository(context: Context) {
     suspend fun openInvoicePdf(activityContext: Context, sale: SaleHeader, client: Client?): Boolean =
         withContext(Dispatchers.IO) {
             runCatching {
+                val shop = ShopStore.current(appContext)
                 PDFUtils.generateInvoicePdf(activityContext, sale, saleDao.getSaleItems(sale.id), client,
-                    ShopInfo.NAME, ShopInfo.ADDRESS, ShopInfo.PHONE, ShopInfo.EMAIL) != null
+                    shop.name, shop.address, shop.phone, shop.email) != null
             }.onFailure { Log.e(TAG, "Facture : ${it.message}", it) }.getOrDefault(false)
         }
 
     suspend fun openQuotePdf(activityContext: Context, saved: SavedQuote): Boolean = withContext(Dispatchers.IO) {
         runCatching {
+            val shop = ShopStore.current(appContext)
             PDFUtils.generateQuotePdf(activityContext, saved.quote, saved.rows, saved.client,
-                ShopInfo.NAME, ShopInfo.ADDRESS, ShopInfo.PHONE, ShopInfo.EMAIL) != null
+                shop.name, shop.address, shop.phone, shop.email) != null
         }.onFailure { Log.e(TAG, "Devis PDF : ${it.message}", it) }.getOrDefault(false)
     }
 
