@@ -1,9 +1,5 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.GStock" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
-    </style>
-
-    <style name="Theme.GStock" parent="Base.Theme.GStock" />
+<resources>
+    <!-- Thème de fenêtre (affiché avant Compose) : thème natif, sans dépendance Material Components.
+         Les écrans sont dessinés par EnkibaTheme (Compose). -->
+    <style name="Theme.GStock" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>

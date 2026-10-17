@@ -73,7 +73,7 @@ public class SessionManager {
                 .putString(KEY_USER_ID, userId)
                 .putString(KEY_USER, username != null ? username : "")
                 .putString(KEY_USER_LASTNAME, lastname != null ? lastname : "")
-                .putString(KEY_ROLE, role != null ? role.toLowerCase() : "user")
+                .putString(KEY_ROLE, role != null ? role.toLowerCase(java.util.Locale.ROOT) : "user")
                 .putString(KEY_SHOP_ID, shopId)
                 .apply();
     }
@@ -119,6 +119,8 @@ public class SessionManager {
     public void updateLastActiveTime() { /* conservé pour compatibilité */ }
 
     public void clearSession() {
+        // commit() voulu : la session doit être effacée avant de rouvrir l'écran de connexion
+        //noinspection ApplySharedPref
         prefs.edit().clear().commit();
         Log.i(TAG, "Session effacée.");
     }
