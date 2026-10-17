@@ -1,8 +1,8 @@
 name: Android CI
 
 on:
+  # Toutes les PR, quelle que soit leur base (y compris une PR empilée sur une autre)
   pull_request:
-    branches: [develop, main]
   push:
     branches: [develop]
   workflow_dispatch:
