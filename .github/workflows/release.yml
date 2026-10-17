@@ -1,0 +1,117 @@
+name: Release
+
+# Une release = un tag vX.Y.Z posé sur main (voir docs/WORKFLOW.md).
+# Produit l'AAB signé et une release GitHub en brouillon ; l'envoi sur le Play Store
+# reste manuel (Play Console → Test interne).
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # création de la release GitHub
+
+jobs:
+  release:
+    name: AAB signé
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ENKIBA_KEYSTORE_FILE: ${{ github.workspace }}/../upload.jks
+      ENKIBA_KEYSTORE_PASSWORD: ${{ secrets.ENKIBA_KEYSTORE_PASSWORD }}
+      ENKIBA_KEY_ALIAS: ${{ secrets.ENKIBA_KEY_ALIAS }}
+      ENKIBA_KEY_PASSWORD: ${{ secrets.ENKIBA_KEY_PASSWORD }}
+
+    steps:
+      - name: Récupérer le code (historique complet pour vérifier la branche)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Vérifier le tag (sur main, identique à versionName)
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          name=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          code=$(grep -oP 'versionCode = \K[0-9]+' app/build.gradle.kts)
+          echo "Tag : $GITHUB_REF_NAME · versionName : $name · versionCode : $code"
+          if [ "$version" != "$name" ]; then
+            echo "::error::Le tag $GITHUB_REF_NAME ne correspond pas à versionName ($name)."
+            exit 1
+          fi
+          if ! git branch -r --contains "$GITHUB_SHA" | grep -qE '^\s*origin/main$'; then
+            echo "::error::Le tag doit être posé sur un commit de main."
+            exit 1
+          fi
+          echo "VERSION_NAME=$name" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$code" >> "$GITHUB_ENV"
+
+      - name: Vérifier les secrets de signature
+        env:
+          KEYSTORE_B64: ${{ secrets.ENKIBA_KEYSTORE_BASE64 }}
+        run: |
+          missing=""
+          [ -z "$KEYSTORE_B64" ] && missing="$missing ENKIBA_KEYSTORE_BASE64"
+          [ -z "$ENKIBA_KEYSTORE_PASSWORD" ] && missing="$missing ENKIBA_KEYSTORE_PASSWORD"
+          [ -z "$ENKIBA_KEY_ALIAS" ] && missing="$missing ENKIBA_KEY_ALIAS"
+          [ -z "$ENKIBA_KEY_PASSWORD" ] && missing="$missing ENKIBA_KEY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::Secrets manquants :$missing (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+          # Hors du dossier du dépôt : le keystore ne peut pas finir dans un artefact
+          echo "$KEYSTORE_B64" | base64 --decode > "$ENKIBA_KEYSTORE_FILE"
+
+      - name: Installer Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Configurer Gradle (cache)
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Créer un local.properties factice
+        run: |
+          echo "supabase.url=https://example.supabase.co" > local.properties
+          echo "supabase.anon.key=ci-dummy-key" >> local.properties
+
+      - name: Tests unitaires
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Construire l'AAB signé
+        run: ./gradlew bundleRelease --stacktrace
+
+      - name: Vérifier la signature
+        run: |
+          aab=app/build/outputs/bundle/release/app-release.aab
+          jarsigner -verify "$aab" | tail -1
+          jarsigner -verify "$aab" | grep -q "jar verified"
+          mkdir -p dist
+          cp "$aab" "dist/enkiba-${VERSION_NAME}-${VERSION_CODE}.aab"
+          # Mapping R8 : indispensable pour lire les plantages de la version publiée
+          cp app/build/outputs/mapping/release/mapping.txt "dist/mapping-${VERSION_NAME}-${VERSION_CODE}.txt"
+
+      - name: Conserver l'AAB et le mapping
+        uses: actions/upload-artifact@v7
+        with:
+          name: enkiba-${{ env.VERSION_NAME }}
+          path: dist/
+          retention-days: 90
+
+      - name: Créer la release GitHub (brouillon)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --draft \
+            --title "Enkiba $VERSION_NAME" \
+            --notes "Version $VERSION_NAME (versionCode $VERSION_CODE). AAB à envoyer sur la piste Test interne de la Play Console ; garder le fichier mapping avec la release."
+
+      - name: Supprimer le keystore
+        if: always()
+        run: rm -f "$ENKIBA_KEYSTORE_FILE"
