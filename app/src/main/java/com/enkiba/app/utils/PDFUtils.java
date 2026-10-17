@@ -317,14 +317,27 @@ public class PDFUtils {
         }
     }
 
-    public static File generateInvoicePdf(Context ctx,
+    /** Génère le PDF (facture) et l'ouvre dans le lecteur. `ctx` : une Activity. */
+    public static File generateInvoicePdf(Context ctx, SaleHeader header, List<SaleItemRow> items, Client client,
+                                          String shopName, String shopAddress, String shopContact, String shopEmail) {
+        return invoicePdf(ctx, header, items, client, shopName, shopAddress, shopContact, shopEmail, true);
+    }
+
+    /** Génère le PDF sans l'ouvrir (partage). @return le fichier, ou null en cas d'échec */
+    public static File buildInvoicePdf(Context ctx, SaleHeader header, List<SaleItemRow> items, Client client,
+                                       String shopName, String shopAddress, String shopContact, String shopEmail) {
+        return invoicePdf(ctx, header, items, client, shopName, shopAddress, shopContact, shopEmail, false);
+    }
+
+    private static File invoicePdf(Context ctx,
                                           SaleHeader header,
                                           List<SaleItemRow> items,
                                           Client client,
                                           String shopName,
                                           String shopAddress,
                                           String shopContact,
-                                          String shopEmail) {
+                                          String shopEmail,
+                                          boolean open) {
 
         try {
             if (header == null || items == null || items.isEmpty())
@@ -486,7 +499,7 @@ public class PDFUtils {
             fos.close();
             pdf.close();
 
-            openPdf(ctx, file);
+            if (open) openPdf(ctx, file);
 
             return file;
 
@@ -496,14 +509,27 @@ public class PDFUtils {
         }
     }
 
-    public static File generateQuotePdf(Context ctx,
+    /** Génère le PDF (devis) et l'ouvre dans le lecteur. `ctx` : une Activity. */
+    public static File generateQuotePdf(Context ctx, Quote quote, List<SaleItemRow> items, Client client,
+                                          String shopName, String shopAddress, String shopContact, String shopEmail) {
+        return quotePdf(ctx, quote, items, client, shopName, shopAddress, shopContact, shopEmail, true);
+    }
+
+    /** Génère le PDF sans l'ouvrir (partage). @return le fichier, ou null en cas d'échec */
+    public static File buildQuotePdf(Context ctx, Quote quote, List<SaleItemRow> items, Client client,
+                                       String shopName, String shopAddress, String shopContact, String shopEmail) {
+        return quotePdf(ctx, quote, items, client, shopName, shopAddress, shopContact, shopEmail, false);
+    }
+
+    private static File quotePdf(Context ctx,
                                           Quote quote,
                                           List<SaleItemRow> items,
                                           Client client,
                                           String shopName,
                                           String shopAddress,
                                           String shopContact,
-                                          String shopEmail) {
+                                          String shopEmail,
+                                          boolean open) {
 
         try {
             if (quote == null || items == null || items.isEmpty())
@@ -665,7 +691,7 @@ public class PDFUtils {
             fos.close();
             pdf.close();
 
-            openPdf(ctx, file);
+            if (open) openPdf(ctx, file);
 
             return file;
 
