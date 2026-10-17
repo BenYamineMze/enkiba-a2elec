@@ -20,7 +20,8 @@ permissions:
 jobs:
   backup:
     name: pg_dump chiffré
-    runs-on: ubuntu-latest
+    # Version fixée : ubuntu-latest passe à Ubuntu 26 le 19/10/2026 ; monter à la main, après test
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
@@ -40,6 +41,15 @@ jobs:
             echo "::error::BACKUP_PASSPHRASE doit faire au moins 20 caractères."
             exit 1
           fi
+          # Connexion directe (db.<ref>.supabase.co) : IPv6 seulement, injoignable depuis GitHub
+          if printf '%s' "$SUPABASE_DB_URL" | grep -qE '@db\.[a-z0-9]+\.supabase\.co'; then
+            echo "::error::SUPABASE_DB_URL est une connexion directe (IPv6, injoignable depuis GitHub). Prendre la chaîne « Session pooler » (Connect → Connection String) : utilisateur postgres.<ref>, hôte *.pooler.supabase.com, port 5432."
+            exit 1
+          fi
+          if ! printf '%s' "$SUPABASE_DB_URL" | grep -qE '^postgres(ql)?://postgres\.[a-z0-9]+:.+@[^/]+\.pooler\.supabase\.com:5432/'; then
+            echo "::error::SUPABASE_DB_URL ne ressemble pas à une chaîne « Session pooler » (postgresql://postgres.<ref>:<mot de passe>@<hôte>.pooler.supabase.com:5432/postgres)."
+            exit 1
+          fi
 
       - name: Installer la CLI Supabase
         uses: supabase/setup-cli@v1
@@ -54,6 +64,11 @@ jobs:
           supabase db dump --db-url "$SUPABASE_DB_URL" -f "$dir/schema.sql"
           # Données : comptes (auth) et métier (public) ; storage n'est pas utilisé
           supabase db dump --db-url "$SUPABASE_DB_URL" --data-only --use-copy -s auth,public -f "$dir/data.sql"
+
+      - name: Aide en cas d'échec de connexion
+        if: failure()
+        run: |
+          echo "::notice::Échec avant la fin de la sauvegarde. « password authentication failed » : mot de passe de la base faux ou mal encodé dans l'URL (@ → %40, # → %23, / → %2F, % → %25). Le plus simple : redéfinir un mot de passe sans symbole (Project Settings → Database) puis mettre à jour SUPABASE_DB_URL."
 
       - name: Vérifier le contenu
         run: |
