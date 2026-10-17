@@ -41,8 +41,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -97,15 +99,27 @@ data class SaleActions(
     val onCheckoutSubmit: () -> Unit = {},
     val onCheckoutDismiss: () -> Unit = {},
     val onMessageShown: () -> Unit = {},
+    /** Envoi par WhatsApp de la facture ou du devis qui vient d'être créé. */
+    val onShareOffer: (SaleEvent) -> Unit = {},
+    val onShareOfferDismissed: () -> Unit = {},
 )
 
 @Composable
 fun SaleScreen(state: SaleUiState, actions: SaleActions) {
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(state.message) {
-        state.message?.let {
-            snackbar.showSnackbar(it)
+        state.message?.let { msg ->
+            val offer = state.shareOffer
             actions.onMessageShown()
+            if (offer == null) {
+                snackbar.showSnackbar(msg)
+            } else {
+                // L'offre ne vaut que pour ce message : retirée tout de suite de l'état
+                actions.onShareOfferDismissed()
+                // Reste affiché : le PDF s'ouvre aussitôt, le message doit encore être là au retour
+                val result = snackbar.showSnackbar(msg, actionLabel = "WhatsApp", withDismissAction = true, duration = SnackbarDuration.Indefinite)
+                if (result == SnackbarResult.ActionPerformed) actions.onShareOffer(offer)
+            }
         }
     }
 

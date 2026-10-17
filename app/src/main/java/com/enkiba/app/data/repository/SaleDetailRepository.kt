@@ -10,6 +10,7 @@ import com.enkiba.app.modelsDao.SaleDao
 import com.enkiba.app.modelsDao.UserDao
 import com.enkiba.app.utils.PDFUtils
 import com.enkiba.app.utils.SessionManager
+import com.enkiba.app.utils.WhatsAppShare
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -44,6 +45,21 @@ class SaleDetailRepository(context: Context) {
     /** Retour d'articles (transaction : retour, stock local, historique). @return montant remboursé ou -1. */
     suspend fun returnItems(itemId: String, quantity: Int): Double = withContext(Dispatchers.IO) {
         saleDao.processReturn(itemId, quantity, session.userId)
+    }
+
+    /** Facture PDF à partager (non ouverte) et son message ; null si la génération échoue. */
+    suspend fun invoiceToShare(activityContext: Context, detail: SaleDetail): SharedPdf? = withContext(Dispatchers.IO) {
+        runCatching {
+            val shop = ShopStore.current(appContext)
+            PDFUtils.buildInvoicePdf(activityContext, detail.sale, detail.items, detail.client,
+                shop.name, shop.address, shop.phone, shop.email)?.let { file ->
+                SharedPdf(
+                    file = file,
+                    phone = detail.client?.phone,
+                    message = WhatsAppShare.invoiceMessage(detail.client?.firstname, detail.sale.shortRef, detail.sale.netTotal, shop.name),
+                )
+            }
+        }.getOrNull()
     }
 
     /** Facture PDF (lignes nettes des retours). `activityContext` : une Activity. */

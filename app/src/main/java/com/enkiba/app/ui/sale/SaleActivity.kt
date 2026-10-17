@@ -13,6 +13,7 @@ import androidx.lifecycle.lifecycleScope
 import com.enkiba.app.ui.history.HistoryActivity
 import com.enkiba.app.ui.theme.EnkibaTheme
 import com.enkiba.app.utils.SessionManager
+import com.enkiba.app.utils.WhatsAppShare
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.launch
@@ -78,6 +79,8 @@ class SaleActivity : ComponentActivity() {
                         onCheckoutSubmit = viewModel::submitCheckout,
                         onCheckoutDismiss = viewModel::dismissCheckout,
                         onMessageShown = viewModel::consumeMessage,
+                        onShareOffer = ::shareOffer,
+                        onShareOfferDismissed = viewModel::consumeShareOffer,
                     ),
                 )
             }
@@ -88,6 +91,21 @@ class SaleActivity : ComponentActivity() {
         super.onResume()
         // Le stock a pu changer (synchro, retour, autre écran)
         lifecycleScope.launch { viewModel.reloadProducts() }
+    }
+
+    /** Envoie par WhatsApp la facture ou le devis qui vient d'être créé. */
+    private fun shareOffer(offer: SaleEvent) {
+        viewModel.consumeShareOffer()
+        lifecycleScope.launch {
+            val repo = viewModel.repositoryForPdf
+            val pdf = when (offer) {
+                is SaleEvent.SaleRecorded -> repo.invoiceToShare(this@SaleActivity, offer.sale, viewModel.clientOf(offer.sale))
+                is SaleEvent.QuoteRecorded -> repo.quoteToShare(this@SaleActivity, offer.saved)
+            }
+            if (pdf == null || !WhatsAppShare.share(this@SaleActivity, pdf.file, pdf.phone, pdf.message)) {
+                viewModel.showMessage("Impossible de partager le document")
+            }
+        }
     }
 
     private fun startScan() {

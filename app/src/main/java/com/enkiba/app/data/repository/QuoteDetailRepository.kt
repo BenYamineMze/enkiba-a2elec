@@ -13,6 +13,7 @@ import com.enkiba.app.modelsDao.SaleDao
 import com.enkiba.app.modelsDao.UserDao
 import com.enkiba.app.utils.PDFUtils
 import com.enkiba.app.utils.SessionManager
+import com.enkiba.app.utils.WhatsAppShare
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -79,6 +80,22 @@ class QuoteDetailRepository(context: Context) {
             this.paymentMethod = paymentMethod
         }
         saleDao.recordSale(sale, detail.items, detail.quote.id)
+    }
+
+    /** Devis PDF à partager (non ouvert) et son message ; null si la génération échoue. */
+    suspend fun quoteToShare(activityContext: Context, detail: QuoteDetail): SharedPdf? = withContext(Dispatchers.IO) {
+        runCatching {
+            val shop = ShopStore.current(appContext)
+            PDFUtils.buildQuotePdf(activityContext, detail.quote, detail.items, detail.client,
+                shop.name, shop.address, shop.phone, shop.email)?.let { file ->
+                SharedPdf(
+                    file = file,
+                    phone = detail.client?.phone,
+                    message = WhatsAppShare.quoteMessage(detail.client?.firstname, detail.quote.shortRef,
+                        detail.quote.totalPrice, shop.name, detail.quote.validUntil),
+                )
+            }
+        }.getOrNull()
     }
 
     suspend fun openPdf(activityContext: Context, detail: QuoteDetail): Boolean = withContext(Dispatchers.IO) {

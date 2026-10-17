@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.PictureAsPdf
 import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -39,6 +40,7 @@ import com.enkiba.app.ui.components.EmptyState
 import com.enkiba.app.ui.components.InfoGrid
 import com.enkiba.app.ui.components.PrimaryButton
 import com.enkiba.app.ui.components.ScreenHeader
+import com.enkiba.app.ui.components.SecondaryButton
 import com.enkiba.app.ui.components.SectionHeader
 import com.enkiba.app.ui.components.SquareIconButton
 import com.enkiba.app.ui.components.StatusChip
@@ -54,6 +56,7 @@ fun SaleDetailScreen(
     state: SaleDetailUiState,
     onBack: () -> Unit,
     onInvoice: () -> Unit,
+    onShare: () -> Unit,
     onReturn: (SaleItemRow) -> Unit,
     onReturnQuantity: (Int) -> Unit,
     onConfirmReturn: () -> Unit,
@@ -73,7 +76,12 @@ fun SaleDetailScreen(
                 actions = {
                     if (d != null) {
                         if (state.pdfBusy) CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                        else SquareIconButton(Icons.Rounded.PictureAsPdf, "Facture PDF", onClick = onInvoice)
+                        else {
+                            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                                SquareIconButton(Icons.Rounded.Share, "Partager la facture", onClick = onShare)
+                                SquareIconButton(Icons.Rounded.PictureAsPdf, "Facture PDF", onClick = onInvoice)
+                            }
+                        }
                     }
                 },
             )
@@ -117,7 +125,10 @@ fun SaleDetailScreen(
                     SectionHeader("Articles")
                     d.items.forEach { item -> ItemRow(item, onReturn = { onReturn(item) }) }
 
-                    PrimaryButton("Facture PDF", onClick = onInvoice, enabled = !state.pdfBusy, modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.xl))
+                    Column(Modifier.padding(bottom = Spacing.xl), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        PrimaryButton("Envoyer par WhatsApp", onClick = onShare, enabled = !state.pdfBusy, modifier = Modifier.fillMaxWidth())
+                        SecondaryButton("Facture PDF", onClick = onInvoice, enabled = !state.pdfBusy, modifier = Modifier.fillMaxWidth())
+                    }
                 }
             }
         }

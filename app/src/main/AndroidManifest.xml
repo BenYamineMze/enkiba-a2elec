@@ -7,6 +7,9 @@
 
     <queries>
         <package android:name="com.sec.spp.push" />
+        <!-- Partage des factures et devis : savoir si WhatsApp est installé (Android 11+) -->
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
     </queries>
 
     <application
