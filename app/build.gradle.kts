@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -7,6 +8,21 @@ plugins {
     alias(libs.plugins.room)
     alias(libs.plugins.kotlin.compose)
 }
+
+// Clé de signature de la release : variables d'environnement (CI, secrets GitHub) ou
+// keystore.properties à la racine (poste local, jamais commité). Sans clé, la release
+// est construite non signée (builds des PR).
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun signingValue(env: String, prop: String): String? =
+    System.getenv(env)?.takeIf { it.isNotBlank() } ?: keystoreProps.getProperty(prop)?.takeIf { it.isNotBlank() }
+val releaseStoreFile = signingValue("ENKIBA_KEYSTORE_FILE", "storeFile")
+val releaseStorePassword = signingValue("ENKIBA_KEYSTORE_PASSWORD", "storePassword")
+val releaseKeyAlias = signingValue("ENKIBA_KEY_ALIAS", "keyAlias")
+val releaseKeyPassword = signingValue("ENKIBA_KEY_PASSWORD", "keyPassword")
+val hasReleaseSigning = listOf(releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword).all { it != null }
 
 android {
 
@@ -24,9 +40,22 @@ android {
         applicationId = "com.enkiba.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 10
-        versionName = "10.0"
+        // versionCode : toujours supérieur à la version publiée (v1 = 10).
+        // versionName : doit correspondre au tag de release (vX.Y.Z), vérifié par la CI.
+        versionCode = 11
+        versionName = "2.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
     }
 
     buildTypes {
@@ -37,6 +66,7 @@ android {
         release {
             buildConfigField("String", "SUPABASE_URL", "\"https://brnlbtlhuamtvpwbwypm.supabase.co/\"")
             buildConfigField("String", "SUPABASE_KEY", "\"sb_publishable_Q7w6vjWFs5S7Gm1_28FWlA_bwQroePU\"")
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             // Retire les ressources que R8 a rendues inutiles (vérifié sur émulateur avec un build release branché sur dev)
             isShrinkResources = true
