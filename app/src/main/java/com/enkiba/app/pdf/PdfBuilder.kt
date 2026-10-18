@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
+import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import com.enkiba.app.R
 import com.enkiba.app.data.local.ShopDetails
@@ -100,19 +101,23 @@ class PdfBuilder(private val context: Context, private val shop: ShopDetails) {
     fun wrap(s: String, maxWidth: Float, p: Paint, maxLines: Int = Int.MAX_VALUE) =
         PdfText.wrap(s, maxWidth, { p.measureText(it) }, maxLines)
 
+    /** Petit logo Enkiba (vectoriel : il reste net à l'impression), dessiné dans le pied de page. */
+    private val logo = ContextCompat.getDrawable(context, R.drawable.enkiba_logo)
+
     /** Écrit le PDF dans [file] avec le pied de page sur chaque page. */
     fun writeTo(file: File): Boolean {
         val doc = PdfDocument()
         return try {
-            val footer = PdfText.wrap(shop.footerLine, contentWidth - 120, { paint(8f).measureText(it) }, maxLines = 1).first()
+            val footer = PdfText.wrap(shop.footerLine, contentWidth - 200, { paint(8f).measureText(it) }, maxLines = 1).first()
+            val faint = paint(8f, PdfColors.FAINT)
             pages.forEachIndexed { index, ops ->
                 val page = doc.startPage(PdfDocument.PageInfo.Builder(width.toInt(), height.toInt(), index + 1).create())
                 val c = page.canvas
                 ops.forEach { it(c) }
                 val fy = height - 30f
                 c.drawLine(margin, fy - 14f, width - margin, fy - 14f, Paint().apply { color = PdfColors.RULE; strokeWidth = 0.6f })
-                c.drawText(footer, margin, fy, paint(8f, PdfColors.FAINT))
-                c.drawText("Page ${index + 1} / ${pages.size} · Enkiba", width - margin, fy, paint(8f, PdfColors.FAINT, align = Paint.Align.RIGHT))
+                c.drawText(footer, margin, fy, faint)
+                drawSignature(c, fy, "Page ${index + 1} / ${pages.size}", faint)
                 doc.finishPage(page)
             }
             FileOutputStream(file).use { doc.writeTo(it) }
@@ -120,5 +125,20 @@ class PdfBuilder(private val context: Context, private val shop: ShopDetails) {
         } finally {
             doc.close()
         }
+    }
+
+    /** À droite du pied de page : « Page x / n  ·  [logo] Édité avec Enkiba ». L'en-tête reste à la boutique. */
+    private fun drawSignature(c: Canvas, baseline: Float, pageLabel: String, p: Paint) {
+        val signature = "Édité avec Enkiba"
+        val logoSize = 11f
+        var x = width - margin - p.measureText(signature)
+        c.drawText(signature, x, baseline, p)
+        logo?.let {
+            x -= logoSize + 4f
+            val top = (baseline - 8.5f).toInt()
+            it.setBounds(x.toInt(), top, (x + logoSize).toInt(), top + logoSize.toInt())
+            it.draw(c)
+        }
+        c.drawText("$pageLabel  ·  ", x - 3f, baseline, Paint(p).apply { textAlign = Paint.Align.RIGHT })
     }
 }
