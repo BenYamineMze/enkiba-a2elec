@@ -76,6 +76,7 @@ data class HomeActions(
     val onManageUsers: () -> Unit = {},
     val onProfile: () -> Unit = {},
     val onShop: () -> Unit = {},
+    val onShops: () -> Unit = {},
     /** Build debug seulement (null en release) : ouvre le catalogue du système de design. */
     val onOpenDesignCatalog: (() -> Unit)? = null,
     val onLogout: () -> Unit = {},
@@ -159,6 +160,10 @@ private fun Header(state: HomeUiState, actions: HomeActions) {
                 if (state.isAdmin) {
                     DropdownMenuItem(text = { Text("Ma boutique") }, onClick = { menuOpen = false; actions.onShop() })
                     DropdownMenuItem(text = { Text("Gestion des utilisateurs") }, onClick = { menuOpen = false; actions.onManageUsers() })
+                }
+                // Super-administrateur : toutes les boutiques de la plateforme
+                if (state.isSuperAdmin) {
+                    DropdownMenuItem(text = { Text("Toutes les boutiques") }, onClick = { menuOpen = false; actions.onShops() })
                 }
                 actions.onOpenDesignCatalog?.let { open ->
                     DropdownMenuItem(text = { Text("Catalogue design (dev)") }, onClick = { menuOpen = false; open() })

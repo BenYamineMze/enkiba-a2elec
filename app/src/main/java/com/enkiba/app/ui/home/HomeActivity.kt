@@ -2,6 +2,7 @@ package com.enkiba.app.ui.home
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -12,6 +13,7 @@ import com.enkiba.app.BuildConfig
 import com.enkiba.app.ui.history.HistoryActivity
 import com.enkiba.app.ui.profile.ProfileActivity
 import com.enkiba.app.ui.sale.SaleDetailActivity
+import com.enkiba.app.ui.platform.ShopsActivity
 import com.enkiba.app.ui.shop.ShopActivity
 import com.enkiba.app.ui.stats.StatsActivity
 import com.enkiba.app.ui.users.TeamActivity
@@ -63,6 +65,7 @@ class HomeActivity : ComponentActivity() {
                         onManageUsers = { open(TeamActivity::class.java) },
                         onProfile = { open(ProfileActivity::class.java) },
                         onShop = { open(ShopActivity::class.java) },
+                        onShops = { open(ShopsActivity::class.java) },
                         // Le catalogue n'existe que dans le build debug (src/debug)
                         onOpenDesignCatalog = if (BuildConfig.DEBUG) {
                             { startActivity(Intent().setClassName(this, "com.enkiba.app.ui.catalog.DesignCatalogActivity")) }
@@ -77,6 +80,12 @@ class HomeActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         // Les chiffres changent au retour d'une vente, d'un retour, d'une synchro…
+        // Boutique suspendue (constaté par la synchro) : on ferme la session
+        if (session.isLoggedIn && session.isShopUnavailable) {
+            Toast.makeText(this, "Votre boutique est suspendue. Contactez l'administrateur d'Enkiba.", Toast.LENGTH_LONG).show()
+            session.logout()
+            return
+        }
         if (session.isLoggedIn) viewModel.refresh() else session.logout()
     }
 

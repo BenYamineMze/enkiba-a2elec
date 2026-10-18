@@ -30,6 +30,8 @@ public class SessionManager {
     private static final String KEY_REFRESH_TOKEN = "refresh_token";
     private static final String KEY_EXPIRES_AT = "expires_at";
     private static final String KEY_IS_LOGGED_IN = "is_logged_in";
+    private static final String KEY_SUPER_ADMIN = "super_admin";
+    private static final String KEY_SHOP_UNAVAILABLE = "shop_unavailable";
 
     private static SharedPreferences sPrefs;
 
@@ -162,6 +164,14 @@ public class SessionManager {
     /** E-mail de connexion (repli d'affichage quand le profil n'a pas de nom). */
     public String getEmail() { return readString(KEY_EMAIL, ""); }
     public boolean isAdmin() { return "admin".equalsIgnoreCase(getRole()); }
+
+    /** Super-administrateur de la plateforme (écran « Boutiques ») : lu à la connexion. */
+    public boolean isSuperAdmin() { return readBoolean(KEY_SUPER_ADMIN, false); }
+    public void setSuperAdmin(boolean value) { prefs.edit().putBoolean(KEY_SUPER_ADMIN, value).apply(); }
+
+    /** Boutique suspendue ou supprimée, constaté par la synchro : déconnexion au prochain écran. */
+    public boolean isShopUnavailable() { return readBoolean(KEY_SHOP_UNAVAILABLE, false); }
+    public void setShopUnavailable(boolean value) { prefs.edit().putBoolean(KEY_SHOP_UNAVAILABLE, value).apply(); }
 
     public String getUsername() {
         String u = readString(KEY_USER, "");

@@ -54,15 +54,22 @@ class AuthRepository(context: Context) {
             val membership = memberRes.body()?.firstOrNull() // une seule boutique pour l'instant
             if (!memberRes.isSuccessful || membership == null) return@withContext fail("Compte non rattaché à une boutique")
 
+            // Boutique invisible pour un membre = suspendue ou supprimée (règles du serveur)
+            val shopRes = api.getShop("eq.${membership.shopId}", "id,name,address,phone,email,updated_at").awaitResponse()
+            val shop = shopRes.body()?.firstOrNull()
+            if (shopRes.isSuccessful && shop == null) {
+                return@withContext fail("Cette boutique est suspendue. Contactez l'administrateur d'Enkiba.")
+            }
+
             // Le local garde 'admin' / 'user' : seller → user
             val localRole = if (membership.role == "admin") "admin" else "user"
             session.saveSession(userId, profile.username, profile.lastname, profile.email ?: email, localRole, membership.shopId)
+            // Coordonnées de la boutique pour les PDF (la synchro les tiendra à jour)
+            shop?.let { ShopStore.save(appContext, it) }
 
-            // Coordonnées de la boutique pour les PDF (la synchro les tiendra à jour) ; pas bloquant
-            runCatching {
-                api.getShop("eq.${membership.shopId}", "id,name,address,phone,email,updated_at").awaitResponse().body()
-                    ?.firstOrNull()?.let { ShopStore.save(appContext, it) }
-            }
+            // Super-administrateur : la table ne renvoie que sa propre ligne (policy platform_admins_self)
+            val superRes = runCatching { api.getPlatformAdmin("eq.$userId", "user_id").awaitResponse() }.getOrNull()
+            session.setSuperAdmin(superRes?.isSuccessful == true && !superRes.body().isNullOrEmpty())
 
             // Cache local des noms (affichage des vendeurs) : aucun mot de passe
             userDao.insertOrUpdateUserFromRemote(User().apply {
