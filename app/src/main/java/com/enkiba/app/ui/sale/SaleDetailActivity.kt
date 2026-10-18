@@ -10,6 +10,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.enkiba.app.ui.theme.EnkibaTheme
 import com.enkiba.app.utils.SessionManager
+import com.enkiba.app.utils.WhatsAppShare
 import kotlinx.coroutines.launch
 
 /** Détail d'une vente ([EXTRA_SALE_ID]) : retours et facture. */
@@ -36,6 +37,7 @@ class SaleDetailActivity : ComponentActivity() {
                     state = state,
                     onBack = ::finish,
                     onInvoice = ::openInvoice,
+                    onShare = ::shareInvoice,
                     onReturn = viewModel::openReturn,
                     onReturnQuantity = viewModel::setReturnQuantity,
                     onConfirmReturn = viewModel::confirmReturn,
@@ -57,6 +59,17 @@ class SaleDetailActivity : ComponentActivity() {
             viewModel.setPdfBusy(true)
             val ok = viewModel.repositoryForPdf.openInvoice(this@SaleDetailActivity, detail)
             viewModel.setPdfBusy(false, if (ok) null else "Erreur lors de la génération de la facture")
+        }
+    }
+
+    /** Facture envoyée par WhatsApp (conversation du client si son numéro est connu). */
+    private fun shareInvoice() {
+        val detail = viewModel.state.value.detail ?: return
+        lifecycleScope.launch {
+            viewModel.setPdfBusy(true)
+            val pdf = viewModel.repositoryForPdf.invoiceToShare(this@SaleDetailActivity, detail)
+            val ok = pdf != null && WhatsAppShare.share(this@SaleDetailActivity, pdf.file, pdf.phone, pdf.message)
+            viewModel.setPdfBusy(false, if (ok) null else "Impossible de partager la facture")
         }
     }
 

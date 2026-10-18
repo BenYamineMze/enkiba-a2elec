@@ -14,6 +14,7 @@ import com.enkiba.app.models.Quote
 import com.enkiba.app.ui.sale.SaleDetailActivity
 import com.enkiba.app.ui.theme.EnkibaTheme
 import com.enkiba.app.utils.SessionManager
+import com.enkiba.app.utils.WhatsAppShare
 import kotlinx.coroutines.launch
 
 /** Détail d'un devis ([EXTRA_QUOTE_ID]) : PDF, statut, suppression, conversion en vente. */
@@ -45,6 +46,7 @@ class QuoteDetailActivity : ComponentActivity() {
                     actions = QuoteDetailActions(
                         onBack = ::finish,
                         onPdf = ::openPdf,
+                        onShare = ::sharePdf,
                         onAccept = { viewModel.setStatus(Quote.STATUS_ACCEPTED, "accepté") },
                         onReject = { viewModel.setStatus(Quote.STATUS_REJECTED, "refusé") },
                         onAskDelete = viewModel::askDelete,
@@ -76,6 +78,17 @@ class QuoteDetailActivity : ComponentActivity() {
             viewModel.setPdfBusy(true)
             val ok = viewModel.repositoryForPdf.openPdf(this@QuoteDetailActivity, detail)
             viewModel.setPdfBusy(false, if (ok) null else "Erreur lors de la génération du PDF")
+        }
+    }
+
+    /** Devis envoyé par WhatsApp (conversation du client si son numéro est connu). */
+    private fun sharePdf() {
+        val detail = viewModel.state.value.detail ?: return
+        lifecycleScope.launch {
+            viewModel.setPdfBusy(true)
+            val pdf = viewModel.repositoryForPdf.quoteToShare(this@QuoteDetailActivity, detail)
+            val ok = pdf != null && WhatsAppShare.share(this@QuoteDetailActivity, pdf.file, pdf.phone, pdf.message)
+            viewModel.setPdfBusy(false, if (ok) null else "Impossible de partager le devis")
         }
     }
 

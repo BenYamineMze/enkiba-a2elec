@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.PictureAsPdf
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +55,7 @@ import com.enkiba.app.ui.theme.Tile
 data class QuoteDetailActions(
     val onBack: () -> Unit = {},
     val onPdf: () -> Unit = {},
+    val onShare: () -> Unit = {},
     val onAccept: () -> Unit = {},
     val onReject: () -> Unit = {},
     val onAskDelete: () -> Unit = {},
@@ -94,7 +96,10 @@ fun QuoteDetailScreen(state: QuoteDetailUiState, actions: QuoteDetailActions) {
                 actions = {
                     if (d != null) {
                         if (state.pdfBusy) CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                        else SquareIconButton(Icons.Rounded.PictureAsPdf, "PDF du devis", onClick = actions.onPdf)
+                        else Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                            SquareIconButton(Icons.Rounded.Share, "Partager le devis", onClick = actions.onShare)
+                            SquareIconButton(Icons.Rounded.PictureAsPdf, "PDF du devis", onClick = actions.onPdf)
+                        }
                     }
                 },
             )
@@ -160,6 +165,8 @@ fun QuoteDetailScreen(state: QuoteDetailUiState, actions: QuoteDetailActions) {
                         }
                     }
 
+                    PrimaryButton("Envoyer par WhatsApp", onClick = actions.onShare, enabled = !state.pdfBusy,
+                        modifier = Modifier.fillMaxWidth())
                     if (state.canConvert) {
                         PrimaryButton("Convertir en vente", onClick = actions.onStartConversion, modifier = Modifier.fillMaxWidth(),
                             trailingIcon = Icons.AutoMirrored.Rounded.ArrowForward)

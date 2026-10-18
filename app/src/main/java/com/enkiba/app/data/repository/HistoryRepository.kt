@@ -40,10 +40,10 @@ class HistoryRepository(context: Context) {
 
     /** Exports PDF : `activityContext` doit être une Activity (ouverture du lecteur PDF). */
     suspend fun exportSales(activityContext: Context, sales: List<SaleHeader>): Boolean = withContext(Dispatchers.IO) {
-        runCatching { PDFUtils.generateSalesReportPdf(activityContext, sales, "A2 ELEC - Historique des ventes") }.getOrDefault(false)
+        runCatching { PDFUtils.generateSalesReportPdf(activityContext, sales) }.getOrDefault(false)
     }
 
     suspend fun exportOperations(activityContext: Context, ops: List<ProductHistory>): Boolean = withContext(Dispatchers.IO) {
-        runCatching { PDFUtils.generateProductHistoryPdf(activityContext, ops, "A2 ELEC - Opérations sur les articles") }.getOrDefault(false)
+        runCatching { PDFUtils.generateProductHistoryPdf(activityContext, ops) }.getOrDefault(false)
     }
 }

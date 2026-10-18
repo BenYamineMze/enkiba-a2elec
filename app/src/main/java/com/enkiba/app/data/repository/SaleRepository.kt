@@ -15,6 +15,7 @@ import com.enkiba.app.modelsDao.SaleDao
 import com.enkiba.app.ui.sale.CartLine
 import com.enkiba.app.utils.PDFUtils
 import com.enkiba.app.utils.SessionManager
+import com.enkiba.app.utils.WhatsAppShare
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -96,6 +97,30 @@ class SaleRepository(context: Context) {
         val rows = lines.map { it.toRow() }
         if (quoteDao.createQuote(quote, rows) == null) return@withContext null
         SavedQuote(quote, rows, c)
+    }
+
+    /** Facture d'une vente à partager (PDF non ouvert + message) ; null si échec. */
+    suspend fun invoiceToShare(activityContext: Context, sale: SaleHeader, client: Client?): SharedPdf? =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val shop = ShopStore.current(appContext)
+                PDFUtils.buildInvoicePdf(activityContext, sale, saleDao.getSaleItems(sale.id), client,
+                    shop.name, shop.address, shop.phone, shop.email)?.let {
+                    SharedPdf(it, client?.phone, WhatsAppShare.invoiceMessage(client?.firstname, sale.shortRef, sale.netTotal, shop.name))
+                }
+            }.onFailure { Log.e(TAG, "Partage facture : ${it.message}", it) }.getOrNull()
+        }
+
+    /** Devis à partager (PDF non ouvert + message) ; null si échec. */
+    suspend fun quoteToShare(activityContext: Context, saved: SavedQuote): SharedPdf? = withContext(Dispatchers.IO) {
+        runCatching {
+            val shop = ShopStore.current(appContext)
+            PDFUtils.buildQuotePdf(activityContext, saved.quote, saved.rows, saved.client,
+                shop.name, shop.address, shop.phone, shop.email)?.let {
+                SharedPdf(it, saved.client.phone,
+                    WhatsAppShare.quoteMessage(saved.client.firstname, saved.quote.shortRef, saved.quote.totalPrice, shop.name, saved.quote.validUntil))
+            }
+        }.onFailure { Log.e(TAG, "Partage devis : ${it.message}", it) }.getOrNull()
     }
 
     /**

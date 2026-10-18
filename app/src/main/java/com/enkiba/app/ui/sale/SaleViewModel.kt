@@ -67,6 +67,8 @@ data class SaleUiState(
     val checkout: Checkout? = null,
     val message: String? = null,
     val event: SaleEvent? = null,
+    /** Facture ou devis qu'on propose d'envoyer par WhatsApp (bouton du message de confirmation). */
+    val shareOffer: SaleEvent? = null,
 ) {
     val categories: List<String>
         get() = products.mapNotNull { it.category?.trim()?.takeIf(String::isNotEmpty) }.distinct().sorted()
@@ -230,7 +232,12 @@ class SaleViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Panier vidé, stock rechargé, synchronisation lancée. */
     private fun afterSuccess(message: String, event: SaleEvent) {
-        _state.update { it.copy(cart = emptyList(), checkout = null, message = message, event = event) }
+        // Partage proposé pour une facture (vente avec client) ou un devis, pas pour une vente simple
+        val offer = when (event) {
+            is SaleEvent.SaleRecorded -> event.takeIf { it.openInvoice }
+            is SaleEvent.QuoteRecorded -> event
+        }
+        _state.update { it.copy(cart = emptyList(), checkout = null, message = message, event = event, shareOffer = offer) }
         reloadProducts()
         syncManager.startSynchronization()
     }
@@ -238,6 +245,10 @@ class SaleViewModel(application: Application) : AndroidViewModel(application) {
     fun consumeMessage() = _state.update { it.copy(message = null) }
 
     fun consumeEvent() = _state.update { it.copy(event = null) }
+
+    fun consumeShareOffer() = _state.update { it.copy(shareOffer = null) }
+
+    fun showMessage(message: String) = _state.update { it.copy(message = message) }
 
     /** Client d'une vente (pour la facture). */
     suspend fun clientOf(sale: SaleHeader) = repository.clientOf(sale)

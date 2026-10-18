@@ -1,8 +1,8 @@
 name: Android CI
 
 on:
+  # Toutes les PR, quelle que soit leur base (y compris une PR empilée sur une autre)
   pull_request:
-    branches: [develop, main]
   push:
     branches: [develop]
   workflow_dispatch:
@@ -18,7 +18,8 @@ permissions:
 jobs:
   build:
     name: Build, lint et tests
-    runs-on: ubuntu-latest
+    # Version fixée : ubuntu-latest passe à Ubuntu 26 le 19/10/2026 ; monter à la main, après test
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
