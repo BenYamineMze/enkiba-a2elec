@@ -257,6 +257,21 @@ begin
   if v_n = 1 then ok := ok + 1; else failures := failures || 'super-admin réactive une boutique'; end if;
   execute 'reset role';
 
+  -- ---------------------------------------------------------------- rattachement à une boutique
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin_a, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    perform public.join_shop_as_admin(v_shop_b);
+    failures := failures || 'admin se rattache à une autre boutique';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', v_super, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  perform public.join_shop_as_admin(v_shop_b);
+  if public.is_shop_admin(v_shop_b) then ok := ok + 1; else failures := failures || 'super-admin rattaché à une boutique'; end if;
+  execute 'reset role';
+
   -- ---------------------------------------------------------------- service_role (Edge Functions)
   execute 'set local role service_role';
   begin
