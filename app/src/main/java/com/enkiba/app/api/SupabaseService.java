@@ -84,6 +84,14 @@ public interface SupabaseService {
     @PATCH("rest/v1/shops")
     Call<List<Shop>> patchShop(@Query("id") String idFilter, @Body JsonObject fields);
 
+    /** Appartenances avec le nom de la boutique (vide si la boutique est suspendue). */
+    @GET("rest/v1/shop_members")
+    Call<List<JsonObject>> getMembershipsDetailed(@Query("user_id") String userIdFilter, @Query("select") String select);
+
+    /** Super-admin : se rattacher à une boutique comme admin ({"p_shop": "<uuid>"}). */
+    @POST("rest/v1/rpc/join_shop_as_admin")
+    Call<Void> joinShopAsAdmin(@Body JsonObject body);
+
     /** Super-admin : création d'une boutique et de son administrateur. */
     @POST("functions/v1/create-shop")
     Call<JsonObject> createShop(@Body JsonObject body);

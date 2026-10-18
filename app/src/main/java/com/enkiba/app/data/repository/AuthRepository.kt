@@ -1,17 +1,20 @@
 package com.enkiba.app.data.repository
 
 import android.content.Context
-import com.enkiba.app.data.local.ShopStore
 import android.util.Log
 import com.enkiba.app.api.RetrofitClient
+import com.enkiba.app.data.local.LocalShopData
+import com.enkiba.app.data.local.ShopStore
+import com.enkiba.app.models.Membership
+import com.enkiba.app.models.Shop
 import com.enkiba.app.models.User
 import com.enkiba.app.modelsDao.UserDao
 import com.enkiba.app.utils.NetworkUtils
 import com.enkiba.app.utils.SessionManager
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import retrofit2.awaitResponse
-import java.io.IOException
 
 /** Résultat d'une tentative de connexion. */
 sealed interface LoginResult {
@@ -51,21 +54,34 @@ class AuthRepository(context: Context) {
             if (!profile.isActive) return@withContext fail("Ce compte est désactivé")
 
             val memberRes = api.getMemberships("eq.$userId", "shop_id,role").awaitResponse()
-            val membership = memberRes.body()?.firstOrNull() // une seule boutique pour l'instant
-            if (!memberRes.isSuccessful || membership == null) return@withContext fail("Compte non rattaché à une boutique")
+            val memberships = memberRes.body().orEmpty()
+            if (!memberRes.isSuccessful || memberships.isEmpty()) return@withContext fail("Compte non rattaché à une boutique")
 
-            // Boutique invisible pour un membre = suspendue ou supprimée (règles du serveur)
-            val shopRes = api.getShop("eq.${membership.shopId}", "id,name,address,phone,email,updated_at").awaitResponse()
-            val shop = shopRes.body()?.firstOrNull()
-            if (shopRes.isSuccessful && shop == null) {
+            // Boutique ouverte : celle des données déjà sur le téléphone si possible, sinon la première
+            // visible. Une boutique invisible pour son membre est suspendue ou supprimée.
+            val localShop = LocalShopData.owner(appContext)
+            var membership: Membership? = null
+            var shop: Shop? = null
+            for (m in memberships.sortedByDescending { it.shopId == localShop }) {
+                val res = api.getShop("eq.${m.shopId}", "id,name,address,phone,email,updated_at").awaitResponse()
+                val found = res.body()?.firstOrNull()
+                if (res.isSuccessful && found != null) { membership = m; shop = found; break }
+            }
+            if (membership == null || shop == null) {
                 return@withContext fail("Cette boutique est suspendue. Contactez l'administrateur d'Enkiba.")
+            }
+            // Base locale : jamais deux boutiques mélangées sur le téléphone
+            if (!LocalShopData.switchTo(appContext, membership.shopId)) {
+                return@withContext fail("Ce téléphone contient des ventes non synchronisées d'une autre boutique. " +
+                    "Connectez-vous avec un compte de cette boutique pour les envoyer.")
             }
 
             // Le local garde 'admin' / 'user' : seller → user
             val localRole = if (membership.role == "admin") "admin" else "user"
             session.saveSession(userId, profile.username, profile.lastname, profile.email ?: email, localRole, membership.shopId)
             // Coordonnées de la boutique pour les PDF (la synchro les tiendra à jour)
-            shop?.let { ShopStore.save(appContext, it) }
+            ShopStore.save(appContext, shop)
+            session.setShopCount(memberships.size)
 
             // Super-administrateur : la table ne renvoie que sa propre ligne (policy platform_admins_self)
             val superRes = runCatching { api.getPlatformAdmin("eq.$userId", "user_id").awaitResponse() }.getOrNull()

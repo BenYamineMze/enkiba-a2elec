@@ -27,6 +27,8 @@ data class HomeUiState(
     val isAdmin: Boolean = false,
     /** Super-administrateur : accès à « Toutes les boutiques ». */
     val isSuperAdmin: Boolean = false,
+    /** Membre de plusieurs boutiques : menu « Changer de boutique ». */
+    val shopCount: Int = 1,
     val data: HomeData? = null,
     val syncing: Boolean = false,
     val online: Boolean = true,
@@ -53,6 +55,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             email = session.email,
             isAdmin = session.isAdmin,
             isSuperAdmin = session.isSuperAdmin,
+            shopCount = session.shopCount,
         )
     )
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
