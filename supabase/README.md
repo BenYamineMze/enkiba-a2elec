@@ -36,9 +36,16 @@ touche que sur demande explicite.
   Recréer l'admin dans Authentication → Users, puis lancer `scripts/bootstrap_shop.sql`
   (boutique + rôle admin). Les vendeurs se créent ensuite depuis l'app.
 
+## Super-administrateur
+
+Le rôle de super-admin (écran « Boutiques » : toutes les boutiques, indicateurs, création,
+suspension) est stocké dans `platform_admins`, sans aucun droit d'écriture pour l'API.
+Il s'attribue uniquement par SQL : `scripts/grant_super_admin.sql`.
+
 ## Edge Functions
 
-`functions/create-seller`, `functions/update-seller`, `functions/set-seller-status` :
+`functions/create-shop` (super-admin : boutique + son admin), `functions/create-seller`,
+`functions/update-seller`, `functions/set-seller-status` (admin d'une boutique active) :
 déployées à part (`supabase functions deploy <nom>`), non concernées par un reset de la base.
 
 ## Sauvegarde de la production

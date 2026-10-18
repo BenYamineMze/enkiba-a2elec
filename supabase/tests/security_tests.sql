@@ -11,6 +11,7 @@ declare
   v_admin_a uuid := gen_random_uuid();
   v_seller_a uuid := gen_random_uuid();
   v_admin_b uuid := gen_random_uuid();
+  v_super uuid := gen_random_uuid();
   v_shop_a uuid := gen_random_uuid();
   v_shop_b uuid := gen_random_uuid();
   v_product uuid := gen_random_uuid();
@@ -28,6 +29,9 @@ begin
   values (v_admin_a, 'admin.a@test.local', 'authenticated', 'authenticated', '{"username":"Admin","lastname":"A"}', '{}', now(), now()),
          (v_seller_a, 'seller.a@test.local', 'authenticated', 'authenticated', '{"username":"Vendeur","lastname":"A"}', '{}', now(), now()),
          (v_admin_b, 'admin.b@test.local', 'authenticated', 'authenticated', '{}', '{}', now(), now());
+  insert into auth.users (id, email, aud, role, raw_user_meta_data, raw_app_meta_data, created_at, updated_at)
+  values (v_super, 'super@test.local', 'authenticated', 'authenticated', '{}', '{}', now(), now());
+  insert into public.platform_admins (user_id) values (v_super);
   insert into public.shops (id, name) values (v_shop_a, 'Boutique A'), (v_shop_b, 'Boutique B');
   insert into public.shop_members (shop_id, user_id, role) values
     (v_shop_a, v_admin_a, 'admin'), (v_shop_a, v_seller_a, 'seller'), (v_shop_b, v_admin_b, 'admin');
@@ -191,6 +195,81 @@ begin
   execute 'set local role authenticated';
   select count(*) into v_n from public.products;
   if v_n = 0 then ok := ok + 1; else failures := failures || 'vendeur désactivé lit encore'; end if;
+  execute 'reset role';
+
+  -- ---------------------------------------------------------------- super-admin et suspension
+  update public.profiles set active = true where id = v_seller_a;
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin_a, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    insert into public.platform_admins (user_id) values (v_admin_a);
+    failures := failures || 'admin se déclare super-admin';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  begin
+    perform * from public.shop_overview();
+    failures := failures || 'admin lit la vue d''ensemble des boutiques';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  begin
+    update public.shops set suspended_at = now() where id = v_shop_a;
+    failures := failures || 'admin suspend sa boutique';
+  exception when others then
+    if sqlerrm = 'suspension_reserved_to_super_admin' then ok := ok + 1; else failures := failures || ('suspension par admin : ' || sqlerrm); end if;
+  end;
+  execute 'reset role';
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_super, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*) into v_n from public.shops where id in (v_shop_a, v_shop_b);
+  if v_n = 2 then ok := ok + 1; else failures := failures || 'super-admin voit toutes les boutiques'; end if;
+  select count(*) into v_n from public.shop_overview() o where o.shop_id = v_shop_a and o.products = 1 and o.members >= 2;
+  if v_n = 1 then ok := ok + 1; else failures := failures || 'indicateurs de la vue d''ensemble'; end if;
+  select count(*) into v_n from public.sales where shop_id = v_shop_a;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'super-admin lit le détail des ventes'; end if;
+  update public.shops set suspended_at = now(), phone = '269 111 11 11' where id = v_shop_a;
+  get diagnostics v_n = row_count;
+  if v_n = 1 then ok := ok + 1; else failures := failures || 'super-admin suspend une boutique'; end if;
+  execute 'reset role';
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_seller_a, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*) into v_n from public.products;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'membre d''une boutique suspendue lit encore'; end if;
+  execute 'reset role';
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin_a, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  update public.shops set suspended_at = null where id = v_shop_a;
+  get diagnostics v_n = row_count;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'admin réactive sa boutique suspendue'; end if;
+  begin
+    insert into public.products (shop_id, name, price) values (v_shop_a, 'Interdit', 1);
+    failures := failures || 'admin d''une boutique suspendue crée un produit';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  execute 'reset role';
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_super, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  update public.shops set suspended_at = null where id = v_shop_a;
+  get diagnostics v_n = row_count;
+  if v_n = 1 then ok := ok + 1; else failures := failures || 'super-admin réactive une boutique'; end if;
+  execute 'reset role';
+
+  -- ---------------------------------------------------------------- rattachement à une boutique
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin_a, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    perform public.join_shop_as_admin(v_shop_b);
+    failures := failures || 'admin se rattache à une autre boutique';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', v_super, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  perform public.join_shop_as_admin(v_shop_b);
+  if public.is_shop_admin(v_shop_b) then ok := ok + 1; else failures := failures || 'super-admin rattaché à une boutique'; end if;
   execute 'reset role';
 
   -- ---------------------------------------------------------------- service_role (Edge Functions)

@@ -446,3 +446,10 @@ entrypoint = "./functions/update-seller/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/update-seller/*.html" ]
+
+[functions.create-shop]
+enabled = true
+# Le JWT est vérifié dans la fonction (super-administrateur actif)
+verify_jwt = false
+import_map = "./functions/create-shop/deno.json"
+entrypoint = "./functions/create-shop/index.ts"

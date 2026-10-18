@@ -30,6 +30,9 @@ public class SessionManager {
     private static final String KEY_REFRESH_TOKEN = "refresh_token";
     private static final String KEY_EXPIRES_AT = "expires_at";
     private static final String KEY_IS_LOGGED_IN = "is_logged_in";
+    private static final String KEY_SUPER_ADMIN = "super_admin";
+    private static final String KEY_SHOP_UNAVAILABLE = "shop_unavailable";
+    private static final String KEY_SHOP_COUNT = "shop_count";
 
     private static SharedPreferences sPrefs;
 
@@ -162,6 +165,34 @@ public class SessionManager {
     /** E-mail de connexion (repli d'affichage quand le profil n'a pas de nom). */
     public String getEmail() { return readString(KEY_EMAIL, ""); }
     public boolean isAdmin() { return "admin".equalsIgnoreCase(getRole()); }
+
+    /** Super-administrateur de la plateforme (écran « Boutiques ») : lu à la connexion. */
+    public boolean isSuperAdmin() { return readBoolean(KEY_SUPER_ADMIN, false); }
+    public void setSuperAdmin(boolean value) { prefs.edit().putBoolean(KEY_SUPER_ADMIN, value).apply(); }
+
+    /** Nombre de boutiques dont l'utilisateur est membre (menu « Changer de boutique » si > 1). */
+    public int getShopCount() {
+        try {
+            return prefs.getInt(KEY_SHOP_COUNT, 1);
+        } catch (RuntimeException e) {
+            onUnreadable(e);
+            return 1;
+        }
+    }
+    public void setShopCount(int count) { prefs.edit().putInt(KEY_SHOP_COUNT, count).apply(); }
+
+    /** Bascule la session sur une autre boutique (la base locale doit avoir été préparée). */
+    public void switchShop(String shopId, String role) {
+        prefs.edit()
+                .putString(KEY_SHOP_ID, shopId)
+                .putString(KEY_ROLE, role != null ? role.toLowerCase(java.util.Locale.ROOT) : "user")
+                .putBoolean(KEY_SHOP_UNAVAILABLE, false)
+                .apply();
+    }
+
+    /** Boutique suspendue ou supprimée, constaté par la synchro : déconnexion au prochain écran. */
+    public boolean isShopUnavailable() { return readBoolean(KEY_SHOP_UNAVAILABLE, false); }
+    public void setShopUnavailable(boolean value) { prefs.edit().putBoolean(KEY_SHOP_UNAVAILABLE, value).apply(); }
 
     public String getUsername() {
         String u = readString(KEY_USER, "");

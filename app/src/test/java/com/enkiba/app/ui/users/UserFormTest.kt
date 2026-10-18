@@ -36,5 +36,7 @@ class UserFormTest {
         assertEquals("Action réservée à l'administrateur de la boutique", serverErrorMessage(403, """{"error":"forbidden"}"""))
         assertEquals("Le serveur a refusé l'opération (code 500)", serverErrorMessage(500, "<html>"))
         assertEquals("Le serveur a refusé l'opération (code 502)", serverErrorMessage(502, null))
+        assertEquals("Cette boutique est suspendue", serverErrorMessage(403, """{"error":"shop_suspended"}"""))
+        assertEquals("La boutique n'a pas pu être créée", serverErrorMessage(500, """{"error":"shop_failed","detail":"x"}"""))
     }
 }
