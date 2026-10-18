@@ -4,11 +4,13 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.enkiba.app.data.repository.PlatformRepository
+import com.enkiba.app.data.repository.ShopSwitchRepository
 import com.enkiba.app.data.repository.TeamResult
 import com.enkiba.app.models.ShopMemberOverview
 import com.enkiba.app.models.ShopOverview
 import com.enkiba.app.ui.shop.ShopForm
 import com.enkiba.app.ui.users.UserForm
+import com.enkiba.app.utils.SessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -62,10 +64,14 @@ data class ShopAdminUiState(
     val error: String? = null,
     val message: String? = null,
     val notFound: Boolean = false,
+    /** L'utilisateur connecté est déjà membre de cette boutique. */
+    val isMember: Boolean = true,
 )
 
 class ShopAdminViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = PlatformRepository(application)
+    private val switchRepository = ShopSwitchRepository(application)
+    private val myUserId = SessionManager(application).userId
     private val _state = MutableStateFlow(ShopAdminUiState())
     val state: StateFlow<ShopAdminUiState> = _state.asStateFlow()
     private var shopId: String? = null
@@ -82,7 +88,9 @@ class ShopAdminViewModel(application: Application) : AndroidViewModel(applicatio
                             form = if (s.edited || shop == null) s.form else ShopForm(shop.name.orEmpty(), shop.address.orEmpty(), shop.phone.orEmpty(), shop.email.orEmpty()),
                         )
                     }
-                    if (shop != null) (repository.members(id) as? TeamResult.Ok)?.let { m -> _state.update { it.copy(members = m.value) } }
+                    if (shop != null) (repository.members(id) as? TeamResult.Ok)?.let { m ->
+                        _state.update { it.copy(members = m.value, isMember = m.value.any { u -> u.userId == myUserId }) }
+                    }
                 }
                 is TeamResult.Failure -> _state.update { it.copy(loading = false, error = r.message) }
             }
@@ -101,6 +109,21 @@ class ShopAdminViewModel(application: Application) : AndroidViewModel(applicatio
             when (val r = repository.update(id, s.form)) {
                 is TeamResult.Ok -> { _state.update { it.copy(saving = false, edited = false, message = "Coordonnées enregistrées") }; load(id) }
                 is TeamResult.Failure -> _state.update { it.copy(saving = false, error = r.message) }
+            }
+        }
+    }
+
+    /** Se rattacher comme admin, pour pouvoir ensuite basculer sur cette boutique. */
+    fun join() {
+        val id = shopId ?: return
+        _state.update { it.copy(saving = true) }
+        viewModelScope.launch {
+            when (val r = switchRepository.join(id)) {
+                is TeamResult.Ok -> {
+                    _state.update { it.copy(saving = false, message = "Vous êtes admin de cette boutique : changez de boutique depuis le menu") }
+                    load(id)
+                }
+                is TeamResult.Failure -> _state.update { it.copy(saving = false, message = r.message) }
             }
         }
     }

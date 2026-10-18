@@ -52,6 +52,7 @@ fun ShopAdminScreen(
     onChange: ((ShopForm) -> ShopForm) -> Unit,
     onSave: () -> Unit,
     onAskSuspend: () -> Unit,
+    onJoin: () -> Unit,
     onConfirmSuspend: () -> Unit,
     onCancelSuspend: () -> Unit,
     onMessageShown: () -> Unit,
@@ -120,6 +121,13 @@ fun ShopAdminScreen(
                         }
                     }
 
+                    if (!state.isMember && !shop.isSuspended) {
+                        SecondaryButton("M'ajouter comme admin de cette boutique", onClick = onJoin, enabled = !state.saving, modifier = Modifier.fillMaxWidth())
+                        Text(
+                            "Pour y travailler (caisse, articles), puis basculer dessus avec « Changer de boutique ».",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     if (shop.isSuspended) PrimaryButton("Réactiver la boutique", onClick = onAskSuspend, enabled = !state.saving, modifier = Modifier.fillMaxWidth())
                     else SecondaryButton("Suspendre la boutique", onClick = onAskSuspend, enabled = !state.saving, modifier = Modifier.fillMaxWidth())
                     Text(

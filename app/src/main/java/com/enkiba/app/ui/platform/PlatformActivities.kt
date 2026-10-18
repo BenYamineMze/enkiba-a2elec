@@ -75,6 +75,7 @@ class ShopAdminActivity : ComponentActivity() {
                     onChange = viewModel::update,
                     onSave = viewModel::save,
                     onAskSuspend = viewModel::askSuspend,
+                    onJoin = viewModel::join,
                     onConfirmSuspend = viewModel::toggleSuspension,
                     onCancelSuspend = viewModel::cancelSuspend,
                     onMessageShown = viewModel::consumeMessage,

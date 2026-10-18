@@ -15,6 +15,7 @@ import com.enkiba.app.ui.profile.ProfileActivity
 import com.enkiba.app.ui.sale.SaleDetailActivity
 import com.enkiba.app.ui.platform.ShopsActivity
 import com.enkiba.app.ui.shop.ShopActivity
+import com.enkiba.app.ui.switchshop.ShopSwitchActivity
 import com.enkiba.app.ui.stats.StatsActivity
 import com.enkiba.app.ui.users.TeamActivity
 import com.enkiba.app.ui.navigation.AppNavigator
@@ -66,6 +67,7 @@ class HomeActivity : ComponentActivity() {
                         onProfile = { open(ProfileActivity::class.java) },
                         onShop = { open(ShopActivity::class.java) },
                         onShops = { open(ShopsActivity::class.java) },
+                        onSwitchShop = { open(ShopSwitchActivity::class.java) },
                         // Le catalogue n'existe que dans le build debug (src/debug)
                         onOpenDesignCatalog = if (BuildConfig.DEBUG) {
                             { startActivity(Intent().setClassName(this, "com.enkiba.app.ui.catalog.DesignCatalogActivity")) }

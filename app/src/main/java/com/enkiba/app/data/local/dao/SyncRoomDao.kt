@@ -19,4 +19,12 @@ interface SyncRoomDao {
             "(SELECT COUNT(*) FROM history WHERE sync_status = 'pending')"
     )
     fun countPending(): Int
+
+    /** Boutique des données locales (pour les bases créées avant le suivi de la boutique). */
+    @Query(
+        "SELECT shop_id FROM products WHERE shop_id IS NOT NULL UNION ALL " +
+            "SELECT shop_id FROM sales WHERE shop_id IS NOT NULL UNION ALL " +
+            "SELECT shop_id FROM clients WHERE shop_id IS NOT NULL LIMIT 1"
+    )
+    fun anyShopId(): String?
 }
