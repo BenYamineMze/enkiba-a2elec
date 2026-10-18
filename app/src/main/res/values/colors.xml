@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fond de l'icône adaptive (charte Enkiba) -->
+    <color name="ic_launcher_background">#F4F8F6</color>
+</resources>

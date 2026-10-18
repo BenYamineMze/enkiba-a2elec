@@ -75,7 +75,7 @@ fun LoginScreen(
                     .background(EnkibaTheme.colors.mint.container),
                 contentAlignment = Alignment.Center,
             ) {
-                Image(painterResource(R.drawable.ic_logo), contentDescription = "Logo A2 ELEC", modifier = Modifier.size(64.dp))
+                Image(painterResource(R.drawable.enkiba_logo), contentDescription = "Enkiba", modifier = Modifier.size(72.dp))
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Bienvenue", style = MaterialTheme.typography.headlineMedium)
