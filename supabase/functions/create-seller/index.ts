@@ -34,6 +34,10 @@ Deno.serve(async (req) => {
   const { data: pr } = await admin.from("profiles").select("active").eq("id", u.user.id).maybeSingle();
   if (mErr0 || !m || !pr?.active) return json({ error: "forbidden", detail: mErr0?.message }, 403);
 
+  // Boutique active : une boutique suspendue ou supprimée ne gère plus son équipe
+  const { data: shop } = await admin.from("shops").select("suspended_at, deleted_at").eq("id", shop_id).maybeSingle();
+  if (!shop || shop.suspended_at || shop.deleted_at) return json({ error: "shop_suspended" }, 403);
+
   // 3. Créer le compte (le rôle ne vient jamais des métadonnées)
   const { data: created, error: cErr } = await admin.auth.admin.createUser({
     email, password, email_confirm: true,

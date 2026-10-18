@@ -24,6 +24,10 @@ Deno.serve(async (req) => {
   const { data: myProfile } = await admin.from("profiles").select("active").eq("id", u.user.id).maybeSingle();
   if (!me || !myProfile?.active) return json({ error: "forbidden" }, 403);
 
+  // Boutique active : une boutique suspendue ou supprimée ne gère plus son équipe
+  const { data: shop } = await admin.from("shops").select("suspended_at, deleted_at").eq("id", shop_id).maybeSingle();
+  if (!shop || shop.suspended_at || shop.deleted_at) return json({ error: "shop_suspended" }, 403);
+
   const { data: target } = await admin.from("shop_members").select("role").eq("shop_id", shop_id).eq("user_id", user_id).maybeSingle();
   if (!target) return json({ error: "not_found" }, 404);
   if (target.role !== "seller") return json({ error: "only_sellers" }, 403);

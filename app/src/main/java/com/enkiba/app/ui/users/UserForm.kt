@@ -37,6 +37,8 @@ fun serverErrorMessage(code: Int, body: String?): String {
     return when {
         error == "create_failed" && ("already" in detail || "registered" in detail || "exists" in detail) ->
             "Cette adresse e-mail est déjà utilisée"
+        error == "shop_suspended" -> "Cette boutique est suspendue"
+        error == "shop_failed" -> "La boutique n'a pas pu être créée"
         error == "forbidden" || code == 403 -> "Action réservée à l'administrateur de la boutique"
         error == "unauthorized" || code == 401 -> "Session expirée : reconnectez-vous"
         error == "invalid_input" -> "Informations invalides"

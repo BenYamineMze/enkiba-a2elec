@@ -516,6 +516,11 @@ public class SynchronizationManager {
             Response<List<Shop>> res = supabaseService.getShop(shopFilter, "id,name,address,phone,email,updated_at").execute();
             if (res.isSuccessful() && res.body() != null && !res.body().isEmpty()) {
                 ShopStore.save(context, res.body().get(0));
+                sessionManager.setShopUnavailable(false);
+            } else if (res.isSuccessful()) {
+                // Réponse vide : la boutique n'est plus visible pour ce membre (suspendue ou supprimée)
+                Log.w(TAG, "Boutique suspendue ou supprimée");
+                sessionManager.setShopUnavailable(true);
             } else {
                 Log.w(TAG, "Boutique non reçue (code " + res.code() + ")");
             }

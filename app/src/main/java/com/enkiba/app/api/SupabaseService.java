@@ -7,6 +7,8 @@ import com.enkiba.app.models.Membership;
 import com.enkiba.app.models.Product;
 import com.enkiba.app.models.Profile;
 import com.enkiba.app.models.Shop;
+import com.enkiba.app.models.ShopMemberOverview;
+import com.enkiba.app.models.ShopOverview;
 import com.enkiba.app.models.Quote;
 import com.enkiba.app.models.QuoteItem;
 import com.enkiba.app.models.SaleHeader;
@@ -64,6 +66,27 @@ public interface SupabaseService {
     Call<List<ShopMember>> getShopMembers(
             @Query("shop_id") String shopIdFilter,
             @Query("select") String select);
+
+    /** Super-administrateur : renvoie sa propre ligne, ou rien. */
+    @GET("rest/v1/platform_admins")
+    Call<List<JsonObject>> getPlatformAdmin(@Query("user_id") String userIdFilter, @Query("select") String select);
+
+    /** Super-admin : toutes les boutiques avec leurs indicateurs. */
+    @POST("rest/v1/rpc/shop_overview")
+    Call<List<ShopOverview>> shopOverview(@Body JsonObject empty);
+
+    /** Super-admin : membres d'une boutique ({"p_shop": "<uuid>"}). */
+    @POST("rest/v1/rpc/shop_members_overview")
+    Call<List<ShopMemberOverview>> shopMembersOverview(@Body JsonObject body);
+
+    /** Super-admin : modification d'une boutique, dont suspended_at (null pour réactiver). */
+    @Headers({"Content-Type: application/json", "Prefer: return=representation"})
+    @PATCH("rest/v1/shops")
+    Call<List<Shop>> patchShop(@Query("id") String idFilter, @Body JsonObject fields);
+
+    /** Super-admin : création d'une boutique et de son administrateur. */
+    @POST("functions/v1/create-shop")
+    Call<JsonObject> createShop(@Body JsonObject body);
 
     @POST("functions/v1/create-seller")
     Call<JsonObject> createSeller(@Body JsonObject body);
