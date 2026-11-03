@@ -20,6 +20,8 @@ declare
   v_item uuid := gen_random_uuid();
   v_quote uuid := gen_random_uuid();
   v_qsale uuid := gen_random_uuid();
+  v_inv uuid := gen_random_uuid();
+  v_inv2 uuid := gen_random_uuid();
   v_qty int;
   v_n int;
 
@@ -146,6 +148,74 @@ begin
   select count(*) into v_n from public.sale_item_costs;
   if v_n = 0 then ok := ok + 1; else failures := failures || 'admin B lit les coûts de A'; end if;
   execute 'reset role';
+  -- ---------------------------------------------------------------- inventaire
+  -- Admin A ouvre (une seule session ouverte par boutique)
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin_a, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  insert into public.inventory_sessions (id, shop_id, created_by) values (v_inv, v_shop_a, v_admin_a);
+  begin
+    insert into public.inventory_sessions (id, shop_id, created_by) values (v_inv2, v_shop_a, v_admin_a);
+    failures := failures || 'deux inventaires ouverts';
+  exception when unique_violation then ok := ok + 1;
+  end;
+  execute 'reset role';
+
+  -- Vendeur A compte 5 câbles (7 attendus) ; ne peut ni valider ni compter au nom d'un autre
+  perform set_config('request.jwt.claims', json_build_object('sub', v_seller_a, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    insert into public.inventory_sessions (id, shop_id, created_by) values (v_inv2, v_shop_a, v_seller_a);
+    failures := failures || 'vendeur ouvre un inventaire';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  insert into public.inventory_counts (shop_id, session_id, product_id, counted, expected, counted_by)
+    values (v_shop_a, v_inv, v_product, 5, 7, v_seller_a);
+  ok := ok + 1;
+  begin
+    update public.inventory_counts set counted_by = v_admin_a where session_id = v_inv;
+    failures := failures || 'vendeur compte au nom d''un autre';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  begin
+    perform public.validate_inventory(v_inv);
+    failures := failures || 'vendeur valide l''inventaire';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  begin
+    update public.inventory_sessions set status = 'validated' where id = v_inv;
+    failures := failures || 'vendeur clôt l''inventaire directement';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  execute 'reset role';
+
+  -- Admin B : ne voit pas l'inventaire de A
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin_b, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*) into v_n from public.inventory_counts;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'admin B lit l''inventaire de A'; end if;
+  execute 'reset role';
+
+  -- Admin A valide : stock 7 → 5, une seule fois
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin_a, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  v_n := public.validate_inventory(v_inv);
+  select quantity into v_qty from public.products where id = v_product;
+  if v_n = 1 and v_qty = 5 then ok := ok + 1; else failures := failures || ('validation applique l''écart (' || v_qty || ')'); end if;
+  begin
+    perform public.validate_inventory(v_inv);
+    failures := failures || 'inventaire validé deux fois';
+  exception when raise_exception then ok := ok + 1;
+  end;
+  begin
+    insert into public.inventory_counts (shop_id, session_id, product_id, counted, expected, counted_by)
+      values (v_shop_a, v_inv, v_product, 1, 5, v_admin_a);
+    failures := failures || 'comptage dans un inventaire clos';
+  exception when raise_exception or unique_violation then ok := ok + 1;
+  end;
+  -- Remet le stock attendu par la suite des tests (7)
+  insert into public.stock_movements (shop_id, product_id, delta, reason, created_by) values (v_shop_a, v_product, 2, 'adjustment', v_admin_a);
+  execute 'reset role';
+
   -- La suite des tests reprend avec le vendeur A
   perform set_config('request.jwt.claims', json_build_object('sub', v_seller_a, 'role', 'authenticated')::text, true);
   select quantity into v_qty from public.products where id = v_product;
