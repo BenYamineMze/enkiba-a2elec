@@ -46,6 +46,14 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun migration13Vers14AjouteLaDiscussion() {
+        helper.createDatabase(DB, 13).close()
+        helper.runMigrationsAndValidate(DB, 14, true, AppDatabase.MIGRATION_13_14).use { db ->
+            db.execSQL("INSERT INTO chat_messages VALUES ('m1', 'shop', 'u1', 'Bonjour', '2026-11-03T10:00:00Z', NULL, NULL, 'pending')")
+        }
+    }
+
     private companion object {
         const val DB = "migration-test.db"
     }

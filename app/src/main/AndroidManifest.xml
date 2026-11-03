@@ -66,6 +66,9 @@
 
         <activity android:name=".ui.products.QrListActivity" />
 
+        <activity android:name=".ui.chat.ChatActivity"
+            android:windowSoftInputMode="adjustResize"/>
+
         <activity android:name=".ui.inventory.InventoryActivity"
             android:windowSoftInputMode="adjustResize"/>
 

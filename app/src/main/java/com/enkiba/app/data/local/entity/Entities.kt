@@ -216,3 +216,17 @@ data class InventoryCountEntity(
     @ColumnInfo(name = "updated_at") val updatedAt: String?,
     @ColumnInfo(name = "sync_status") val syncStatus: String,
 )
+
+// Discussion de la boutique : messages reçus et envoyés (purgés après 90 jours)
+@Entity(tableName = "chat_messages", indices = [Index("created_at")])
+data class ChatMessageEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "shop_id") val shopId: String?,
+    @ColumnInfo(name = "sender_id") val senderId: String,
+    val body: String,
+    /** Heure du serveur une fois reçu ; heure du téléphone tant que le message n'est pas envoyé. */
+    @ColumnInfo(name = "created_at") val createdAt: String,
+    @ColumnInfo(name = "updated_at") val updatedAt: String?,
+    @ColumnInfo(name = "deleted_at") val deletedAt: String?,
+    @ColumnInfo(name = "sync_status") val syncStatus: String,
+)

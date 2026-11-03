@@ -10,6 +10,7 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.enkiba.app.BuildConfig
+import com.enkiba.app.ui.chat.ChatActivity
 import com.enkiba.app.ui.history.HistoryActivity
 import com.enkiba.app.ui.lock.PinSettingsActivity
 import com.enkiba.app.ui.profile.ProfileActivity
@@ -70,6 +71,7 @@ class HomeActivity : ComponentActivity() {
                         onShops = { open(ShopsActivity::class.java) },
                         onSwitchShop = { open(ShopSwitchActivity::class.java) },
                         onPinSettings = { open(PinSettingsActivity::class.java) },
+                        onChat = { open(ChatActivity::class.java) },
                         // Le catalogue n'existe que dans le build debug (src/debug)
                         onOpenDesignCatalog = if (BuildConfig.DEBUG) {
                             { startActivity(Intent().setClassName(this, "com.enkiba.app.ui.catalog.DesignCatalogActivity")) }

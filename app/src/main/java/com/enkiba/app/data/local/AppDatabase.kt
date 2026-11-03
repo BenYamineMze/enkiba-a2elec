@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.enkiba.app.data.local.dao.ChatRoomDao
 import com.enkiba.app.data.local.dao.ClientRoomDao
 import com.enkiba.app.data.local.dao.CostRoomDao
 import com.enkiba.app.data.local.dao.ExportRoomDao
@@ -17,6 +18,7 @@ import com.enkiba.app.data.local.dao.SaleRoomDao
 import com.enkiba.app.data.local.dao.StockRoomDao
 import com.enkiba.app.data.local.dao.SyncRoomDao
 import com.enkiba.app.data.local.dao.UserRoomDao
+import com.enkiba.app.data.local.entity.ChatMessageEntity
 import com.enkiba.app.data.local.entity.ClientEntity
 import com.enkiba.app.data.local.entity.HistoryEntity
 import com.enkiba.app.data.local.entity.InventoryCountEntity
@@ -51,9 +53,9 @@ import com.enkiba.app.utils.SynchronizationManager
         SaleItemEntity::class, HistoryEntity::class, StockMovementEntity::class,
         SaleReturnEntity::class, QuoteEntity::class, QuoteItemEntity::class,
         ProductCostEntity::class, SaleItemCostEntity::class,
-        InventorySessionEntity::class, InventoryCountEntity::class,
+        InventorySessionEntity::class, InventoryCountEntity::class, ChatMessageEntity::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -69,6 +71,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun costDao(): CostRoomDao
     abstract fun exportDao(): ExportRoomDao
     abstract fun inventoryDao(): InventoryRoomDao
+    abstract fun chatDao(): ChatRoomDao
 
     companion object {
         const val DATABASE_NAME = "stock.db"
@@ -109,9 +112,22 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** 13 → 14 : discussion de la boutique. */
+        @JvmField
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `chat_messages` (`id` TEXT NOT NULL, `shop_id` TEXT, `sender_id` TEXT NOT NULL, " +
+                        "`body` TEXT NOT NULL, `created_at` TEXT NOT NULL, `updated_at` TEXT, `deleted_at` TEXT, " +
+                        "`sync_status` TEXT NOT NULL, PRIMARY KEY(`id`))"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_chat_messages_created_at` ON `chat_messages` (`created_at`)")
+            }
+        }
+
         /** Migrations du schéma, dans l'ordre. */
         @JvmField
-        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_11_12, MIGRATION_12_13)
+        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
 
         @Volatile
         private var instance: AppDatabase? = null
