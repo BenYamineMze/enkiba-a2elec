@@ -1,5 +1,6 @@
 package com.enkiba.app.ui.products
 
+import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -67,6 +68,7 @@ data class ProductsActions(
     val onCancelDelete: () -> Unit = {},
     val onAdd: () -> Unit = {},
     val onQrList: () -> Unit = {},
+    val onInventory: () -> Unit = {},
     val onNavigate: (AppTab) -> Unit = {},
     val onNewSale: () -> Unit = {},
     val onMessageShown: () -> Unit = {},
@@ -97,6 +99,7 @@ fun ProductsScreen(state: ProductsUiState, actions: ProductsActions) {
                 actions = {
                     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         SquareIconButton(Icons.Rounded.QrCode2, "Liste des codes QR", onClick = actions.onQrList)
+                        SquareIconButton(Icons.Rounded.Checklist, "Inventaire", onClick = actions.onInventory)
                         // Seul un admin crée des articles (règle du serveur)
                         if (state.isAdmin) SquareIconButton(Icons.Rounded.Add, "Ajouter un produit", onClick = actions.onAdd, filled = true)
                     }

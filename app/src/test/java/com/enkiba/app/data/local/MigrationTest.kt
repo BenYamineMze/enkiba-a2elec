@@ -37,6 +37,15 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun migration12Vers13AjouteLInventaire() {
+        helper.createDatabase(DB, 12).close()
+        helper.runMigrationsAndValidate(DB, 13, true, AppDatabase.MIGRATION_12_13).use { db ->
+            db.execSQL("INSERT INTO inventory_sessions VALUES ('i1', 'shop', 'open', 'u1', '2026-11-03T10:00', NULL, NULL, 'pending')")
+            db.execSQL("INSERT INTO inventory_counts VALUES ('c1', 'shop', 'i1', 'p1', 5, 7, 'u1', '2026-11-03T10:05', NULL, 'pending')")
+        }
+    }
+
     private companion object {
         const val DB = "migration-test.db"
     }

@@ -66,6 +66,9 @@
 
         <activity android:name=".ui.products.QrListActivity" />
 
+        <activity android:name=".ui.inventory.InventoryActivity"
+            android:windowSoftInputMode="adjustResize"/>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="com.enkiba.app.fileprovider"

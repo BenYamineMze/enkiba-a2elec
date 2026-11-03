@@ -20,6 +20,9 @@ interface CostRoomDao {
     @Upsert
     fun upsert(cost: ProductCostEntity)
 
+    @Query("SELECT * FROM product_costs")
+    fun all(): List<ProductCostEntity>
+
     @Query("SELECT * FROM product_costs WHERE sync_status = 'pending'")
     fun pending(): List<ProductCostEntity>
 
