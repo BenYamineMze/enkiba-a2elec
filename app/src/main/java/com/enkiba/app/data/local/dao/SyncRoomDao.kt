@@ -16,7 +16,8 @@ interface SyncRoomDao {
             "(SELECT COUNT(*) FROM stock_movements WHERE sync_status = 'pending') + " +
             "(SELECT COUNT(*) FROM quotes WHERE sync_status = 'pending') + " +
             "(SELECT COUNT(*) FROM quote_items WHERE sync_status = 'pending') + " +
-            "(SELECT COUNT(*) FROM history WHERE sync_status = 'pending')"
+            "(SELECT COUNT(*) FROM history WHERE sync_status = 'pending') + " +
+            "(SELECT COUNT(*) FROM product_costs WHERE sync_status = 'pending')"
     )
     fun countPending(): Int
 

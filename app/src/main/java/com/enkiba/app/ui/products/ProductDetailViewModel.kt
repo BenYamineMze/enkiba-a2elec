@@ -23,6 +23,8 @@ data class ProductDetailUiState(
     val qr: Bitmap? = null,
     val isAdmin: Boolean = false,
     val notFound: Boolean = false,
+    /** Prix d'achat (admins seulement ; null = non renseigné). */
+    val cost: Double? = null,
 )
 
 class ProductDetailViewModel(application: Application) : AndroidViewModel(application) {
@@ -36,12 +38,13 @@ class ProductDetailViewModel(application: Application) : AndroidViewModel(applic
     fun load(productId: String) {
         viewModelScope.launch {
             val p = repository.load(productId)
+            val cost = if (_state.value.isAdmin) repository.cost(productId) else null
             val qr = p?.qr_code?.takeIf { it.isNotBlank() }?.let { code ->
                 withContext(Dispatchers.Default) {
                     runCatching { QrUtils.generateQrBitmap(code) }.onFailure { Log.e("ProductDetail", "QR : ${it.message}") }.getOrNull()
                 }
             }
-            _state.update { it.copy(loading = false, product = p, qr = qr ?: it.qr, notFound = p == null || p.deletedAt != null) }
+            _state.update { it.copy(loading = false, product = p, cost = cost, qr = qr ?: it.qr, notFound = p == null || p.deletedAt != null) }
         }
     }
 }

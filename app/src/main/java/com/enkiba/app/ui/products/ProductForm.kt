@@ -10,6 +10,8 @@ data class ProductForm(
     val priceText: String = "",
     val thresholdText: String = ProductFormRules.DEFAULT_THRESHOLD.toString(),
     val description: String = "",
+    /** Prix d'achat (admin, facultatif) : dernier prix payé au fournisseur. */
+    val costText: String = "",
 )
 
 /** Erreurs par champ (null = champ valide). */
@@ -19,8 +21,9 @@ data class ProductFormErrors(
     val quantity: String? = null,
     val price: String? = null,
     val threshold: String? = null,
+    val cost: String? = null,
 ) {
-    val isValid: Boolean get() = listOf(name, category, quantity, price, threshold).all { it == null }
+    val isValid: Boolean get() = listOf(name, category, quantity, price, threshold, cost).all { it == null }
 }
 
 /** Valeurs validées, prêtes à enregistrer. */
@@ -31,6 +34,8 @@ data class ValidProduct(
     val price: Double,
     val threshold: Int,
     val description: String,
+    /** null : pas de prix d'achat (produit exclu des marges). */
+    val cost: Double? = null,
 )
 
 /** Règles du formulaire produit (sans Android : testées en unitaire). */
@@ -51,7 +56,9 @@ object ProductFormRules {
     fun parsePrice(text: String): Double? =
         text.filterNot { it == ' ' || it == '\u202F' || it == '\u00A0' }.replace(',', '.').toDoubleOrNull()
 
-    fun validate(form: ProductForm): Pair<ProductFormErrors, ValidProduct?> {
+    /** [hadCost] : le produit a déjà un prix d'achat, qui ne peut plus être effacé (seulement corrigé). */
+    fun validate(form: ProductForm, hadCost: Boolean = false): Pair<ProductFormErrors, ValidProduct?> {
+        val cost = form.costText.trim().takeIf { it.isNotEmpty() }?.let { parsePrice(it) ?: -1.0 }
         val quantity = form.quantityText.trim().toIntOrNull()
         val price = parsePrice(form.priceText.trim())
         val threshold = form.thresholdText.trim().ifEmpty { DEFAULT_THRESHOLD.toString() }.toIntOrNull()
@@ -73,6 +80,11 @@ object ProductFormRules {
                 threshold < 0 -> "Le seuil ne peut pas être négatif"
                 else -> null
             },
+            cost = when {
+                cost == null && hadCost -> "Le prix d'achat ne peut pas être effacé : corrigez-le"
+                cost != null && cost < 0 -> "Prix d'achat invalide"
+                else -> null
+            },
         )
         if (!errors.isValid) return errors to null
         return errors to ValidProduct(
@@ -82,6 +94,7 @@ object ProductFormRules {
             price = price!!,
             threshold = threshold!!,
             description = form.description.trim(),
+            cost = cost,
         )
     }
 
@@ -95,3 +108,15 @@ object ProductFormRules {
     /** Prix affiché dans le champ : « 1500 » plutôt que « 1500.0 ». */
     fun priceText(price: Double): String = if (price % 1.0 == 0.0) price.toLong().toString() else price.toString()
 }
+
+/** Marge unitaire : prix de vente moins prix d'achat ; [rate] en part du prix de vente. */
+data class UnitMargin(val amount: Double, val rate: Double?) {
+    val isLoss: Boolean get() = amount < 0
+
+    companion object {
+        fun of(price: Double, cost: Double) = UnitMargin(price - cost, if (price > 0) (price - cost) / price else null)
+    }
+}
+
+/** 0.254 → « 25 % » */
+fun percentText(rate: Double): String = "${Math.round(rate * 100)} %"

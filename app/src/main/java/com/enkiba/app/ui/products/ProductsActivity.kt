@@ -29,6 +29,7 @@ class ProductsActivity : ComponentActivity() {
         enableEdgeToEdge()
         if (savedInstanceState == null) {
             intent.getStringExtra(EXTRA_TAB)?.let { name -> StockTab.entries.firstOrNull { it.name == name }?.let(viewModel::onTabChange) }
+            if (intent.getBooleanExtra(EXTRA_MISSING_COST, false)) viewModel.showMissingCost()
         }
         setContent {
             EnkibaTheme {
@@ -38,6 +39,7 @@ class ProductsActivity : ComponentActivity() {
                     actions = ProductsActions(
                         onQueryChange = viewModel::onQueryChange,
                         onTabChange = viewModel::onTabChange,
+                        onClearMissingCost = viewModel::clearMissingCost,
                         onRefresh = viewModel::refresh,
                         onOpen = { p -> startActivity(Intent(this, ProductDetailActivity::class.java).putExtra(ProductDetailActivity.EXTRA_PRODUCT_ID, p.id)) },
                         onEdit = { p -> startActivity(Intent(this, ProductFormActivity::class.java).putExtra(ProductFormActivity.EXTRA_PRODUCT_ID, p.id)) },
@@ -64,5 +66,7 @@ class ProductsActivity : ComponentActivity() {
     companion object {
         /** Nom d'un [StockTab] (ALL, LOW, OUT). */
         const val EXTRA_TAB = "stock_tab"
+        /** Ouvre la liste filtrée sur les produits sans prix d'achat (admins). */
+        const val EXTRA_MISSING_COST = "missing_cost"
     }
 }

@@ -164,3 +164,22 @@ data class QuoteItemEntity(
     @ColumnInfo(name = "updated_at") val updatedAt: String?,
     @ColumnInfo(name = "sync_status") val syncStatus: String,
 )
+
+// Prix d'achat (admins seulement) : dernier prix payé, modifiable sur le téléphone
+@Entity(tableName = "product_costs")
+data class ProductCostEntity(
+    @PrimaryKey @ColumnInfo(name = "product_id") val productId: String,
+    @ColumnInfo(name = "shop_id") val shopId: String?,
+    @ColumnInfo(name = "cost_price") val costPrice: Double,
+    @ColumnInfo(name = "updated_at") val updatedAt: String?,
+    @ColumnInfo(name = "sync_status") val syncStatus: String,
+)
+
+// Prix d'achat figé par le serveur sur une ligne de vente : reçu seulement, jamais envoyé
+@Entity(tableName = "sale_item_costs")
+data class SaleItemCostEntity(
+    @PrimaryKey @ColumnInfo(name = "sale_item_id") val saleItemId: String,
+    @ColumnInfo(name = "shop_id") val shopId: String?,
+    @ColumnInfo(name = "cost_price") val costPrice: Double,
+    @ColumnInfo(name = "updated_at") val updatedAt: String?,
+)

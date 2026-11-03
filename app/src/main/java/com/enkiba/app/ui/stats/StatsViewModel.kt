@@ -16,6 +16,8 @@ data class StatsUiState(
     val loading: Boolean = true,
     val stats: MonthStats? = null,
     val stock: List<StockLine> = emptyList(),
+    val margin: MarginStats? = null,
+    val stockValue: StockValue? = null,
 ) {
     val lowStockCount: Int get() = stock.count { it.low }
 
@@ -35,8 +37,13 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val month = _state.value.selected
             val stats = repository.month(month)
+            val margin = repository.margin(month)
             val stock = stockLines(repository.products())
-            _state.update { s -> if (s.selected == month) s.copy(loading = false, stats = stats, stock = stock) else s.copy(stock = stock) }
+            val value = repository.stockValue()
+            _state.update { s ->
+                if (s.selected == month) s.copy(loading = false, stats = stats, margin = margin, stock = stock, stockValue = value)
+                else s.copy(stock = stock, stockValue = value)
+            }
         }
     }
 
@@ -45,7 +52,8 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(selected = month, loading = true) }
         viewModelScope.launch {
             val stats = repository.month(month)
-            _state.update { s -> if (s.selected == month) s.copy(loading = false, stats = stats) else s }
+            val margin = repository.margin(month)
+            _state.update { s -> if (s.selected == month) s.copy(loading = false, stats = stats, margin = margin) else s }
         }
     }
 }

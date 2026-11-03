@@ -6,10 +6,16 @@ import android.util.Log;
 
 import com.enkiba.app.api.RetrofitClient;
 import com.enkiba.app.api.SupabaseService;
+import com.enkiba.app.data.local.AppDatabase;
 import com.enkiba.app.data.local.ShopStore;
+import com.enkiba.app.data.local.dao.CostRoomDao;
+import com.enkiba.app.data.local.entity.ProductCostEntity;
+import com.enkiba.app.data.local.entity.SaleItemCostEntity;
 import com.enkiba.app.models.AuditLogEntry;
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Product;
+import com.enkiba.app.models.ProductCostRow;
+import com.enkiba.app.models.SaleItemCostRow;
 import com.enkiba.app.models.ProductHistory;
 import com.enkiba.app.models.Quote;
 import com.enkiba.app.models.QuoteItem;
@@ -56,6 +62,7 @@ public class SynchronizationManager {
 
     private final SupabaseService supabaseService;
     private final SyncDao syncDao;
+    private final CostRoomDao costDao;
     private final Context context;
     private final SessionManager sessionManager;
 
@@ -68,6 +75,7 @@ public class SynchronizationManager {
         this.context = context;
         this.supabaseService = RetrofitClient.getSupabaseService(context);
         this.syncDao = new SyncDao(context);
+        this.costDao = AppDatabase.get(context).costDao();
         this.sessionManager = new SessionManager(context);
     }
 
@@ -173,6 +181,13 @@ public class SynchronizationManager {
             pushProductTableSync(syncDao.getPendingProducts());
         } catch (Exception e) {
             Log.e(TAG, "Erreur PUSH produits : " + e.getMessage(), e);
+        }
+
+        // Prix d'achat (admins), avant les ventes : le serveur fige le coût à l'arrivée des lignes
+        try {
+            pushProductCostsSync(costDao.pending());
+        } catch (Exception e) {
+            Log.e(TAG, "Erreur PUSH prix d'achat : " + e.getMessage(), e);
         }
 
         // Mouvements de stock saisis localement (après les produits : clé étrangère)
@@ -324,6 +339,31 @@ public class SynchronizationManager {
                 }
             }
             syncDao.markProductAsSynced(p.getId());
+        }
+    }
+
+    /** Envoie les prix d'achat modifiés (admin) : PATCH, puis INSERT si le produit n'en avait pas. */
+    private void pushProductCostsSync(List<ProductCostEntity> costs) throws Exception {
+        for (ProductCostEntity c : costs) {
+            Map<String, Object> fields = new HashMap<>();
+            fields.put("cost_price", c.getCostPrice());
+            Response<List<ProductCostRow>> patch = supabaseService
+                    .patchProductCost("return=representation", "eq." + c.getProductId(), fields).execute();
+            if (!patch.isSuccessful()) {
+                logFailure("prix d'achat " + c.getProductId(), patch);
+                continue;
+            }
+            if (patch.body() == null || patch.body().isEmpty()) {
+                Map<String, Object> row = new HashMap<>(fields);
+                row.put("product_id", c.getProductId());
+                row.put("shop_id", c.getShopId() != null ? c.getShopId() : sessionManager.getShopId());
+                Response<Void> insert = supabaseService.insertProductCost(PREFER_IGNORE_DUPLICATES, row).execute();
+                if (!insert.isSuccessful()) {
+                    logFailure("création prix d'achat " + c.getProductId(), insert);
+                    continue;
+                }
+            }
+            costDao.markSynced(c.getProductId(), c.getCostPrice());
         }
     }
 
@@ -504,10 +544,36 @@ public class SynchronizationManager {
         pullTable(shop, "quote_items",
                 since -> supabaseService.pullQuoteItems(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
                 QuoteItem::getUpdatedAt, syncDao::upsertQuoteItem);
+        pullCosts(shop, shopFilter);
         // audit_log n'a pas de updated_at (lignes jamais modifiées) : curseur sur created_at
         pullTable(shop, "audit_log",
                 since -> supabaseService.pullProductAuditLog(shopFilter, since, "created_at.asc,id.asc", PULL_PAGE_SIZE),
                 AuditLogEntry::getCreatedAt, e -> syncDao.upsertHistory(e.toProductHistory()));
+    }
+
+    /**
+     * Prix d'achat et coûts figés : réservés aux admins. Un utilisateur qui n'est plus admin
+     * n'en garde aucun sur son téléphone (les curseurs repartent de zéro s'il le redevient).
+     */
+    private void pullCosts(String shop, String shopFilter) {
+        if (!sessionManager.isAdmin()) {
+            costDao.clearAll();
+            setPullCursor(shop, "product_costs", EPOCH);
+            setPullCursor(shop, "sale_item_costs", EPOCH);
+            return;
+        }
+        pullTable(shop, "product_costs",
+                since -> supabaseService.pullProductCosts(shopFilter, since, "updated_at.asc,product_id.asc", PULL_PAGE_SIZE),
+                ProductCostRow::getUpdatedAt, r -> {
+                    if (r.getProductId() == null || r.getCostPrice() == null) return;
+                    costDao.applyRemote(new ProductCostEntity(r.getProductId(), r.getShopId(), r.getCostPrice(), r.getUpdatedAt(), "synced"));
+                });
+        pullTable(shop, "sale_item_costs",
+                since -> supabaseService.pullSaleItemCosts(shopFilter, since, "updated_at.asc,sale_item_id.asc", PULL_PAGE_SIZE),
+                SaleItemCostRow::getUpdatedAt, r -> {
+                    if (r.getSaleItemId() == null || r.getCostPrice() == null) return;
+                    costDao.upsertSaleItemCost(new SaleItemCostEntity(r.getSaleItemId(), r.getShopId(), r.getCostPrice(), r.getUpdatedAt()));
+                });
     }
 
     /** Nom et coordonnées de la boutique (factures et devis hors ligne). Une seule ligne : pas de curseur. */

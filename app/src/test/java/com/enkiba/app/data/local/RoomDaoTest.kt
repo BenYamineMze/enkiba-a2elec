@@ -2,11 +2,13 @@ package com.enkiba.app.data.local
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.enkiba.app.data.local.entity.ProductCostEntity
 import com.enkiba.app.data.local.entity.ProductEntity
 import com.enkiba.app.data.local.entity.QuoteEntity
 import com.enkiba.app.data.local.entity.SYNC_PENDING
 import com.enkiba.app.data.local.entity.SYNC_SYNCED
 import com.enkiba.app.data.local.entity.SaleEntity
+import com.enkiba.app.data.local.entity.SaleItemCostEntity
 import com.enkiba.app.data.local.entity.SaleItemEntity
 import com.enkiba.app.data.local.entity.SaleReturnEntity
 import com.enkiba.app.data.local.entity.StockMovementEntity
@@ -133,5 +135,45 @@ class RoomDaoTest {
         assertEquals(0, db.productDao().getActive().size)
         assertNull(db.productDao().getByQr("QR-p1"))
         assertEquals(SYNC_PENDING, db.productDao().getSyncStatus("p1"))
+    }
+
+    // ---------------------------------------------------------------- prix d'achat et marge
+
+    private fun cost(productId: String, price: Double, sync: String = SYNC_SYNCED) =
+        ProductCostEntity(productId, "s", price, "2026-10-16T10:00:00+00:00", sync)
+
+    @Test
+    fun valeurDuStockAuPrixDAchatEtProduitsSansPrix() {
+        db.productDao().insert(product("p1", 10))
+        db.productDao().insert(product("p2", 4))
+        db.costDao().upsert(cost("p1", 60.0))
+        assertEquals(600.0, db.costDao().stockValueAtCost(), 0.001)
+        assertEquals(listOf("p2"), db.costDao().productIdsWithoutCost())
+    }
+
+    @Test
+    fun prixRecuDuServeurNEcrasePasUneModificationLocale() {
+        db.costDao().upsert(cost("p1", 70.0, SYNC_PENDING))
+        db.costDao().applyRemote(cost("p1", 60.0))
+        assertEquals(70.0, db.costDao().get("p1")!!.costPrice, 0.001)
+        db.costDao().markSynced("p1", 70.0)
+        db.costDao().applyRemote(cost("p1", 65.0))
+        assertEquals(65.0, db.costDao().get("p1")!!.costPrice, 0.001)
+    }
+
+    @Test
+    fun lignesDeMargeNettesDesRetoursAvecCoutFige() {
+        db.productDao().insert(product("p1", 10))
+        db.saleDao().insertSale(sale("s1"))
+        db.saleDao().insertItem(item("i1", "s1", "p1", 3))   // 300 encaissés
+        db.saleDao().insertItem(item("i2", "s1", "p1", 2))   // sans coût figé
+        db.stockDao().insertReturn(ret("r1", "s1", "i1", "p1", 1))
+        db.costDao().upsertSaleItemCost(SaleItemCostEntity("i1", "s", 60.0, null))
+        val rows = db.costDao().marginRowsBetween("2026-10-01T00:00", "2026-11-01T00:00").sortedBy { it.sold }
+        assertEquals(2, rows.size)
+        val withCost = rows.single { it.costPrice != null }
+        assertEquals(200.0, withCost.revenue, 0.001)
+        assertEquals(2, withCost.sold)
+        assertEquals(60.0, withCost.costPrice!!, 0.001)
     }
 }

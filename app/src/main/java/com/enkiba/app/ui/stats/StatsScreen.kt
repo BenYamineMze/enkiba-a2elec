@@ -58,6 +58,8 @@ data class StatsActions(
     val onProduct: (Product) -> Unit = {},
     val onNavigate: (AppTab) -> Unit = {},
     val onNewSale: () -> Unit = {},
+    /** Liste des produits sans prix d'achat. */
+    val onMissingCost: () -> Unit = {},
 )
 
 @Composable
@@ -71,7 +73,9 @@ fun StatsScreen(state: StatsUiState, actions: StatsActions) {
             verticalArrangement = Arrangement.spacedBy(Spacing.lg),
           ) {
             item { MonthCard(state, actions) }
+            state.margin?.takeIf { !state.loading }?.let { m -> item { MarginCard(m, state.selected.longLabel, actions) } }
             item { DaysCard(state) }
+            state.stockValue?.let { v -> item { StockValueCard(v, actions) } }
             item {
                 SectionHeader(if (state.lowStockCount > 0) "État du stock · ${state.lowStockCount} en alerte" else "État du stock")
             }
@@ -238,5 +242,94 @@ private fun StockRow(line: StockLine, onClick: () -> Unit) {
         ProgressBar(progress = line.percent / 100f, color = color, trackColor = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth())
         Text("Restant ${line.product.quantity} / ${line.total} · vendu ${line.product.soldQuantity}",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** Marge brute du mois et produits qui rapportent le plus (prix d'achat figé à la vente). */
+@Composable
+private fun MarginCard(m: MarginStats, monthLabel: String, actions: StatsActions) {
+    val colors = EnkibaTheme.colors
+    StatsCard {
+        Text("Marge brute", style = MaterialTheme.typography.titleMedium)
+        if (!m.hasData) {
+            Text(
+                if (m.uncoveredLines > 0) "Aucune vente de $monthLabel n'a de prix d'achat : saisissez-les dans les fiches produit."
+                else "Aucune vente en $monthLabel.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Text(
+                    formatKmfCompact(m.margin),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = if (m.margin < 0) colors.danger.content else MaterialTheme.colorScheme.onSurface,
+                )
+                Text("KMF", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp))
+                Box(Modifier.weight(1f))
+                m.rate?.let { Text("${Math.round(it * 100)} % du chiffre", style = MaterialTheme.typography.titleSmall, color = colors.link) }
+            }
+            if (m.top.isNotEmpty()) {
+                Text("Ceux qui rapportent le plus", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                m.top.forEach { p ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        Text(p.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Text("× ${p.sold}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${formatKmf(p.margin)} KMF", style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.End, modifier = Modifier.width(96.dp))
+                    }
+                }
+            }
+        }
+        if (m.uncoveredLines > 0) {
+            MissingCostNote(
+                "${m.uncoveredLines} ligne${if (m.uncoveredLines > 1) "s" else ""} de vente sans prix d'achat " +
+                    "(${formatKmf(m.uncoveredRevenue)} KMF) non comptée${if (m.uncoveredLines > 1) "s" else ""}",
+                actions.onMissingCost,
+            )
+        }
+    }
+}
+
+/** Valeur du stock au prix de vente et au prix d'achat. */
+@Composable
+private fun StockValueCard(v: StockValue, actions: StatsActions) {
+    StatsCard {
+        Text("Valeur du stock", style = MaterialTheme.typography.titleMedium)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            ValueColumn("Au prix de vente", v.atSalePrice, Modifier.weight(1f))
+            ValueColumn("Au prix d'achat", v.atCost, Modifier.weight(1f))
+        }
+        if (v.missingCost > 0) {
+            MissingCostNote(
+                "${v.missingCost} produit${if (v.missingCost > 1) "s" else ""} sans prix d'achat, non compté${if (v.missingCost > 1) "s" else ""} au prix d'achat",
+                actions.onMissingCost,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ValueColumn(label: String, amount: Double, modifier: Modifier) {
+    Column(modifier) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("${formatKmfCompact(amount)} KMF", style = MaterialTheme.typography.titleLarge)
+    }
+}
+
+/** Avertissement orange qui mène à la liste des produits sans prix d'achat. */
+@Composable
+private fun MissingCostNote(text: String, onClick: () -> Unit) {
+    val colors = EnkibaTheme.colors
+    Row(
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(colors.peach.container)
+            .clickable(role = Role.Button, onClickLabel = "Voir les produits sans prix d'achat", onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Icon(Icons.Rounded.WarningAmber, contentDescription = null, tint = colors.peach.content, modifier = Modifier.size(18.dp))
+        Text(text, style = MaterialTheme.typography.bodySmall, color = colors.peach.content, modifier = Modifier.weight(1f))
     }
 }

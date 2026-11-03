@@ -39,6 +39,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.enkiba.app.ui.components.EnkibaCard
 import com.enkiba.app.ui.components.EnkibaTextField
+import com.enkiba.app.ui.components.formatKmf
 import com.enkiba.app.ui.components.PrimaryButton
 import com.enkiba.app.ui.components.ScreenHeader
 import com.enkiba.app.ui.components.StatusChip
@@ -112,6 +113,25 @@ fun ProductFormScreen(
                             StatusChip(
                                 if (d > 0) "Réassort : +$d (mouvement de stock)" else "Ajustement : $d (mouvement de stock)",
                                 if (d > 0) colors.mint else colors.peach,
+                            )
+                        }
+                        // Prix d'achat : formulaire réservé aux admins ; jamais montré aux vendeurs
+                        FieldWithError(e.cost) {
+                            EnkibaTextField(f.costText, { v -> onChange { it.copy(costText = v.filter { c -> c.isDigit() || c == ',' || c == '.' }) } },
+                                "Prix d'achat (KMF)", isError = e.cost != null, enabled = !state.saving,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                        }
+                        Text(
+                            if ((state.stockDelta ?: 0) > 0) "Réassort : saisissez le prix payé pour ce lot, il remplace l'ancien prix d'achat."
+                            else "Dernier prix payé au fournisseur. Visible seulement par les admins.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        state.margin?.let { m ->
+                            StatusChip(
+                                if (m.isLoss) "Vente à perte : ${formatKmf(m.amount)} KMF par unité"
+                                else "Marge : ${formatKmf(m.amount)} KMF par unité" + (m.rate?.let { " (${percentText(it)})" } ?: ""),
+                                if (m.isLoss) colors.peach else colors.mint,
                             )
                         }
                         FieldWithError(e.threshold) {

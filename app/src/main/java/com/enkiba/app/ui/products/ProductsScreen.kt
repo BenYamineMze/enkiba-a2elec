@@ -44,6 +44,7 @@ import com.enkiba.app.ui.components.EmptyState
 import com.enkiba.app.ui.components.ListRow
 import com.enkiba.app.ui.components.ProgressRing
 import com.enkiba.app.ui.components.ScreenHeader
+import com.enkiba.app.ui.components.FilterPill
 import com.enkiba.app.ui.components.SearchField
 import com.enkiba.app.ui.components.SegmentedTabs
 import com.enkiba.app.ui.components.SquareIconButton
@@ -57,6 +58,7 @@ import com.enkiba.app.ui.theme.Spacing
 data class ProductsActions(
     val onQueryChange: (String) -> Unit = {},
     val onTabChange: (StockTab) -> Unit = {},
+    val onClearMissingCost: () -> Unit = {},
     val onRefresh: () -> Unit = {},
     val onOpen: (Product) -> Unit = {},
     val onEdit: (Product) -> Unit = {},
@@ -112,6 +114,14 @@ fun ProductsScreen(state: ProductsUiState, actions: ProductsActions) {
                 onSelect = { actions.onTabChange(StockTab.entries[it]) },
                 modifier = Modifier.padding(horizontal = Spacing.screen, vertical = Spacing.md),
             )
+            state.missingCostIds?.let { ids ->
+                FilterPill(
+                    "Sans prix d'achat · ${ids.size}  ✕",
+                    selected = true,
+                    onClick = actions.onClearMissingCost,
+                    modifier = Modifier.padding(start = Spacing.screen, bottom = Spacing.md),
+                )
+            }
 
             PullToRefreshBox(
                 isRefreshing = state.refreshing,
