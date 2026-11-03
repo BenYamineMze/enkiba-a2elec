@@ -22,6 +22,7 @@ declare
   v_qsale uuid := gen_random_uuid();
   v_inv uuid := gen_random_uuid();
   v_inv2 uuid := gen_random_uuid();
+  v_msg uuid := gen_random_uuid();
   v_qty int;
   v_n int;
 
@@ -214,6 +215,42 @@ begin
   end;
   -- Remet le stock attendu par la suite des tests (7)
   insert into public.stock_movements (shop_id, product_id, delta, reason, created_by) values (v_shop_a, v_product, 2, 'adjustment', v_admin_a);
+  execute 'reset role';
+
+  -- ---------------------------------------------------------------- discussion
+  perform set_config('request.jwt.claims', json_build_object('sub', v_seller_a, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  insert into public.chat_messages (id, shop_id, sender_id, body) values (v_msg, v_shop_a, v_seller_a, 'Bonjour');
+  ok := ok + 1;
+  begin
+    insert into public.chat_messages (shop_id, sender_id, body) values (v_shop_a, v_admin_a, 'Usurpé');
+    failures := failures || 'message au nom d''un autre';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  begin
+    insert into public.chat_messages (shop_id, sender_id, body) values (v_shop_b, v_seller_a, 'Intrus');
+    failures := failures || 'message dans une autre boutique';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  begin
+    update public.chat_messages set body = 'Modifié' where id = v_msg;
+    failures := failures || 'texte d''un message modifiable';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  execute 'reset role';
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin_b, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*) into v_n from public.chat_messages;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'admin B lit la discussion de A'; end if;
+  execute 'reset role';
+
+  -- Admin A peut retirer le message d'un vendeur
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin_a, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  update public.chat_messages set deleted_at = now() where id = v_msg;
+  get diagnostics v_n = row_count;
+  if v_n = 1 then ok := ok + 1; else failures := failures || 'admin retire un message'; end if;
   execute 'reset role';
 
   -- La suite des tests reprend avec le vendeur A

@@ -2,6 +2,7 @@ package com.enkiba.app.data.local
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.enkiba.app.data.local.entity.ChatMessageEntity
 import com.enkiba.app.data.local.entity.InventoryCountEntity
 import com.enkiba.app.data.local.entity.ProductCostEntity
 import com.enkiba.app.data.local.entity.ProductEntity
@@ -194,6 +195,29 @@ class RoomDaoTest {
         dao.applyRemoteCount(count("c-server", "p1", 9))
         assertEquals(1, dao.counts("inv").size)
         assertEquals(9, dao.count("inv", "p1")!!.counted)
+    }
+
+    // ---------------------------------------------------------------- discussion
+
+    private fun message(id: String, sender: String, at: String, sync: String = SYNC_SYNCED, deletedAt: String? = null) =
+        ChatMessageEntity(id, "s", sender, "Bonjour", at, null, deletedAt, sync)
+
+    @Test
+    fun nonLusPurgeEtRetraitLocal() {
+        val dao = db.chatDao()
+        dao.upsert(message("m1", "awa", "2026-07-01T10:00:00Z"))
+        dao.upsert(message("m2", "awa", "2026-11-01T10:00:00Z"))
+        dao.upsert(message("m3", "moi", "2026-11-02T10:00:00Z"))
+        dao.upsert(message("m4", "moi", "2026-07-01T09:00:00Z", SYNC_PENDING))
+        assertEquals(2, dao.unread("moi", null))
+        assertEquals(1, dao.unread("moi", "2026-10-01T00:00:00Z"))
+        // Purge à 90 jours : jamais un message pas encore envoyé
+        dao.purgeBefore("2026-08-01T00:00:00")
+        assertEquals(listOf("m4", "m2", "m3"), dao.visible().map { it.id })
+        // Retrait local en attente : le serveur ne le fait pas réapparaître
+        dao.markDeleted("m2", "2026-11-03T10:00:00Z")
+        dao.applyRemote(message("m2", "awa", "2026-11-01T10:00:00Z"))
+        assertEquals(listOf("m4", "m3"), dao.visible().map { it.id })
     }
 }
 

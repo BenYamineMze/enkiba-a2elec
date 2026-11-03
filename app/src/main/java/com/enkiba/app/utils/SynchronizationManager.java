@@ -8,7 +8,9 @@ import com.enkiba.app.api.RetrofitClient;
 import com.enkiba.app.api.SupabaseService;
 import com.enkiba.app.data.local.AppDatabase;
 import com.enkiba.app.data.local.ShopStore;
+import com.enkiba.app.data.local.dao.ChatRoomDao;
 import com.enkiba.app.data.local.dao.CostRoomDao;
+import com.enkiba.app.data.local.entity.ChatMessageEntity;
 import com.enkiba.app.data.local.dao.InventoryRoomDao;
 import com.enkiba.app.data.local.entity.InventoryCountEntity;
 import com.enkiba.app.data.local.entity.InventorySessionEntity;
@@ -16,6 +18,7 @@ import com.enkiba.app.data.local.entity.ProductCostEntity;
 import com.enkiba.app.data.local.entity.SaleItemCostEntity;
 import com.enkiba.app.models.AuditLogEntry;
 import com.enkiba.app.models.Client;
+import com.enkiba.app.models.ChatMessageRow;
 import com.enkiba.app.models.InventoryCountRow;
 import com.enkiba.app.models.InventorySessionRow;
 import com.enkiba.app.models.Product;
@@ -69,6 +72,7 @@ public class SynchronizationManager {
     private final SyncDao syncDao;
     private final CostRoomDao costDao;
     private final InventoryRoomDao inventoryDao;
+    private final ChatRoomDao chatDao;
     private final Context context;
     private final SessionManager sessionManager;
 
@@ -83,6 +87,7 @@ public class SynchronizationManager {
         this.syncDao = new SyncDao(context);
         this.costDao = AppDatabase.get(context).costDao();
         this.inventoryDao = AppDatabase.get(context).inventoryDao();
+        this.chatDao = AppDatabase.get(context).chatDao();
         this.sessionManager = new SessionManager(context);
     }
 
@@ -235,6 +240,13 @@ public class SynchronizationManager {
             Log.e(TAG, "Erreur PUSH inventaire : " + e.getMessage(), e);
         }
 
+        // Discussion
+        try {
+            pushChatSync();
+        } catch (Exception e) {
+            Log.e(TAG, "Erreur PUSH discussion : " + e.getMessage(), e);
+        }
+
         // Historique des produits
         try {
             pushHistoryTableSync(syncDao.getPendingHistory());
@@ -354,6 +366,63 @@ public class SynchronizationManager {
             }
             syncDao.markProductAsSynced(p.getId());
         }
+    }
+
+    /**
+     * Discussion seule (écran du chat ouvert, toutes les quelques secondes) : envoi puis
+     * réception des messages, sur le thread appelant. Ne lève jamais d'exception.
+     */
+    public void syncChatNow() {
+        if (!NetworkUtils.isOnline(context) || !sessionManager.isLoggedIn()) return;
+        try {
+            pushChatSync();
+        } catch (Exception e) {
+            Log.e(TAG, "Erreur PUSH discussion : " + e.getMessage(), e);
+        }
+        String shop = sessionManager.getShopId();
+        if (shop != null) pullChat(shop, "eq." + shop);
+    }
+
+    /** Envoie les messages écrits ici, puis les retraits (un message est créé avant d'être retiré). */
+    private void pushChatSync() throws Exception {
+        for (ChatMessageEntity m : chatDao.pending()) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("id", m.getId());
+            row.put("shop_id", m.getShopId() != null ? m.getShopId() : sessionManager.getShopId());
+            row.put("sender_id", m.getSenderId());
+            row.put("body", m.getBody());
+            Response<Void> insert = supabaseService.insertChatMessage(PREFER_IGNORE_DUPLICATES, row).execute();
+            if (!insert.isSuccessful()) {
+                logFailure("message " + m.getId(), insert);
+                continue;
+            }
+            if (m.getDeletedAt() != null) {
+                Map<String, Object> fields = new HashMap<>();
+                fields.put("deleted_at", m.getDeletedAt());
+                Response<Void> patch = supabaseService.patchChatMessage("eq." + m.getId(), fields).execute();
+                if (!patch.isSuccessful()) {
+                    logFailure("retrait du message " + m.getId(), patch);
+                    continue;
+                }
+            }
+            chatDao.markSynced(m.getId());
+        }
+    }
+
+    private static final long CHAT_RETENTION_MS = 90L * 24 * 3600 * 1000;
+
+    private void pullChat(String shop, String shopFilter) {
+        pullTable(shop, "chat_messages",
+                since -> supabaseService.pullChatMessages(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
+                ChatMessageRow::getUpdatedAt, r -> {
+                    if (r.getId() == null || r.getSenderId() == null || r.getBody() == null || r.getCreatedAt() == null) return;
+                    chatDao.applyRemote(new ChatMessageEntity(r.getId(), r.getShopId(), r.getSenderId(), r.getBody(),
+                            r.getCreatedAt(), r.getUpdatedAt(), r.getDeletedAt(), "synced"));
+                });
+        // Même durée de conservation que le serveur
+        java.text.SimpleDateFormat iso = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US);
+        iso.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        chatDao.purgeBefore(iso.format(new java.util.Date(System.currentTimeMillis() - CHAT_RETENTION_MS)));
     }
 
     /** Envoie les inventaires ouverts sur ce téléphone, puis les comptages (dernier compte par article). */
@@ -606,6 +675,7 @@ public class SynchronizationManager {
                 since -> supabaseService.pullQuoteItems(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
                 QuoteItem::getUpdatedAt, syncDao::upsertQuoteItem);
         pullCosts(shop, shopFilter);
+        pullChat(shop, shopFilter);
         pullTable(shop, "inventory_sessions",
                 since -> supabaseService.pullInventorySessions(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
                 InventorySessionRow::getUpdatedAt, r -> {

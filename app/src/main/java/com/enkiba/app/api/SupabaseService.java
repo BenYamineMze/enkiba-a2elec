@@ -2,6 +2,7 @@ package com.enkiba.app.api;
 
 import com.enkiba.app.models.AuditLogEntry;
 import com.enkiba.app.models.AuthResponse;
+import com.enkiba.app.models.ChatMessageRow;
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.InventoryCountRow;
 import com.enkiba.app.models.InventorySessionRow;
@@ -130,6 +131,24 @@ public interface SupabaseService {
     @GET("rest/v1/sale_items")
     Call<List<SaleItem>> pullSaleItems(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
                                        @Query("order") String order, @Query("limit") int limit);
+
+    // Discussion de la boutique
+    @GET("rest/v1/chat_messages")
+    Call<List<ChatMessageRow>> pullChatMessages(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
+                                                @Query("order") String order, @Query("limit") int limit);
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/chat_messages")
+    Call<Void> insertChatMessage(@Header("Prefer") String prefer, @Body Map<String, Object> message);
+
+    /** Retrait d'un message (deleted_at seul modifiable). */
+    @Headers("Content-Type: application/json")
+    @PATCH("rest/v1/chat_messages")
+    Call<Void> patchChatMessage(@Query("id") String idFilter, @Body Map<String, Object> fields);
+
+    /** Prénom et nom de membres de la boutique (expéditeurs des messages). */
+    @GET("rest/v1/profiles")
+    Call<List<Profile>> getProfiles(@Query("id") String idsFilter, @Query("select") String select);
 
     // Inventaire : sessions et comptages de la boutique (tous les membres)
     @GET("rest/v1/inventory_sessions")
