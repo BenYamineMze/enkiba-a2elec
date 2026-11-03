@@ -5,6 +5,16 @@ updates:
     target-branch: "develop"
     schedule:
       interval: "monthly"
+    ignore:
+      # Gradle 8.13 et AGP 8.x : la migration vers AGP 9 (Kotlin intégré, Gradle 9)
+      # se fera dans une PR dédiée, pas par une mise à jour automatique.
+      - dependency-name: "gradle-wrapper"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "com.android.application"
+        update-types: ["version-update:semver-major"]
+      # BOM 2026.08 et plus : exige compileSdk 37, non pris en charge par AGP 8.13
+      - dependency-name: "androidx.compose:compose-bom"
+        versions: [">= 2026.08.00"]
   - package-ecosystem: "github-actions"
     directory: "/"
     target-branch: "develop"
