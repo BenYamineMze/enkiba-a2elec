@@ -118,7 +118,7 @@ dependencies {
 
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.security:security-crypto:1.1.0")
     // Déverrouillage par empreinte ou visage (écran de code PIN)
     implementation(libs.biometric)
     implementation(libs.fragment)
