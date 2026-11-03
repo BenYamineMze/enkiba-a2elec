@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.enkiba.app.ui.navigation.AppNavigator
 import com.enkiba.app.ui.products.ProductDetailActivity
+import com.enkiba.app.ui.products.ProductsActivity
 import com.enkiba.app.ui.theme.EnkibaTheme
 import com.enkiba.app.utils.SessionManager
 
@@ -41,6 +42,9 @@ class StatsActivity : ComponentActivity() {
                         },
                         onNavigate = { tab -> AppNavigator.open(this, tab, isAdmin = true) },
                         onNewSale = { AppNavigator.newSale(this) },
+                        onMissingCost = {
+                            startActivity(Intent(this, ProductsActivity::class.java).putExtra(ProductsActivity.EXTRA_MISSING_COST, true))
+                        },
                     ),
                 )
             }

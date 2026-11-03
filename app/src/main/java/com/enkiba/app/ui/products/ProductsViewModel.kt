@@ -23,8 +23,13 @@ data class ProductsUiState(
     val refreshing: Boolean = false,
     val pendingDelete: Product? = null,
     val message: String? = null,
+    /** Filtre « sans prix d'achat » (ouvert depuis les statistiques) ; null = pas de filtre. */
+    val missingCostIds: Set<String>? = null,
 ) {
-    val visible: List<Product> get() = ProductFilters.filter(products, tab, query)
+    val visible: List<Product>
+        get() = ProductFilters.filter(products, tab, query).let { list ->
+            missingCostIds?.let { ids -> list.filter { it.id in ids } } ?: list
+        }
     fun count(t: StockTab): Int = ProductFilters.count(products, t)
 }
 
@@ -40,9 +45,22 @@ class ProductsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             val products = repository.load()
             val value = repository.stockValue()
-            _state.update { it.copy(loading = false, products = products, stockValue = value) }
+            // Le filtre se met à jour : un produit complété disparaît de la liste au retour
+            val missing = if (_state.value.missingCostIds != null) repository.missingCostIds() else null
+            _state.update { it.copy(loading = false, products = products, stockValue = value, missingCostIds = missing) }
         }
     }
+
+    /** Affiche seulement les produits sans prix d'achat (admins). */
+    fun showMissingCost() {
+        if (!_state.value.isAdmin) return
+        viewModelScope.launch {
+            val ids = repository.missingCostIds()
+            _state.update { it.copy(missingCostIds = ids, tab = StockTab.ALL) }
+        }
+    }
+
+    fun clearMissingCost() = _state.update { it.copy(missingCostIds = null) }
 
     fun onQueryChange(v: String) = _state.update { it.copy(query = v) }
 

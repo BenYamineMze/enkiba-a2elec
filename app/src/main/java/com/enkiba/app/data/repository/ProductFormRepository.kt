@@ -1,6 +1,9 @@
 package com.enkiba.app.data.repository
 
 import android.content.Context
+import com.enkiba.app.data.local.AppDatabase
+import com.enkiba.app.data.local.entity.ProductCostEntity
+import com.enkiba.app.data.local.entity.SYNC_PENDING
 import com.enkiba.app.models.Product
 import com.enkiba.app.models.StockMovement
 import com.enkiba.app.modelsDao.HistoryDao
@@ -21,8 +24,21 @@ class ProductFormRepository(context: Context) {
     private val productDao = ProductDao(appContext)
     private val historyDao = HistoryDao(appContext)
     private val session = SessionManager(appContext)
+    private val costDao = AppDatabase.get(appContext).costDao()
 
     suspend fun load(id: String): Product? = withContext(Dispatchers.IO) { productDao.getProductById(id) }
+
+    /** Prix d'achat actuel (admin), ou null s'il n'a jamais été saisi. */
+    suspend fun cost(productId: String): Double? = withContext(Dispatchers.IO) { costDao.get(productId)?.costPrice }
+
+    /**
+     * Enregistre le prix d'achat s'il a changé (envoyé à la prochaine synchro).
+     * Jamais dans l'historique du produit : celui-ci est visible des vendeurs.
+     */
+    private fun saveCost(productId: String, cost: Double?) {
+        if (cost == null || costDao.get(productId)?.costPrice == cost) return
+        costDao.upsert(ProductCostEntity(productId, session.shopId, cost, null, SYNC_PENDING))
+    }
 
     /** Catégories proposées : celles par défaut puis celles déjà utilisées. */
     suspend fun categories(): List<String> = withContext(Dispatchers.IO) {
@@ -35,6 +51,7 @@ class ProductFormRepository(context: Context) {
         val p = Product(v.name, v.category, v.quantity, v.price, v.description, v.threshold, v.quantity)
         p.qr_code = ProductFormRules.newQrCode()
         productDao.createProduct(p, v.quantity, session.userId) ?: return@withContext null
+        saveCost(p.id, v.cost)
         historyDao.insertHistory(p.id, session.userId, "Ajout", "-", "Stock initial : ${v.quantity}")
         p
     }
@@ -52,6 +69,7 @@ class ProductFormRepository(context: Context) {
             initial_stock = ProductFormRules.newInitialStock(current.initial_stock, current.quantity, v.quantity)
         }
         if (!productDao.updateProduct(updated)) return@withContext false
+        saveCost(current.id, v.cost)
         if (delta != 0) {
             val reason = if (delta > 0) StockMovement.REASON_RESTOCK else StockMovement.REASON_ADJUSTMENT
             if (!productDao.applyStockMovement(current.id, delta, reason, session.userId)) return@withContext false

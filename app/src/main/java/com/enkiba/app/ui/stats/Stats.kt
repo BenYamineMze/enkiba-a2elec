@@ -1,6 +1,7 @@
 package com.enkiba.app.ui.stats
 
 import com.enkiba.app.data.local.entity.SaleNetRow
+import com.enkiba.app.data.local.entity.MarginRow
 import com.enkiba.app.models.Product
 import com.enkiba.app.ui.components.localDateString
 import com.enkiba.app.ui.components.parseIsoDate
@@ -103,3 +104,42 @@ fun stockLines(products: List<Product>): List<StockLine> = products.map { p ->
     val percent = if (total > 0) (p.quantity * 100 / total).coerceIn(0, 100) else 0
     StockLine(p, total, percent)
 }.sortedWith(compareBy<StockLine> { it.percent }.thenBy { it.product.name.orEmpty() })
+
+/** Marge d'un produit sur la période. */
+data class ProductMargin(val productId: String, val name: String, val margin: Double, val sold: Int)
+
+/**
+ * Marge brute de la période : chiffre net des retours moins le prix d'achat figé à la vente.
+ * Les lignes sans prix d'achat sont exclues (et comptées pour l'avertissement).
+ */
+data class MarginStats(
+    val margin: Double,
+    /** Chiffre des lignes qui ont un prix d'achat (base du taux). */
+    val coveredRevenue: Double,
+    val uncoveredLines: Int,
+    val uncoveredRevenue: Double,
+    /** Produits qui rapportent le plus, du premier au cinquième. */
+    val top: List<ProductMargin>,
+) {
+    val rate: Double? get() = if (coveredRevenue > 0) margin / coveredRevenue else null
+    val hasData: Boolean get() = coveredRevenue > 0 || margin != 0.0
+}
+
+fun marginStats(rows: List<MarginRow>, topCount: Int = 5): MarginStats {
+    val covered = rows.filter { it.costPrice != null && it.sold > 0 }
+    val uncovered = rows.filter { it.costPrice == null && it.sold > 0 }
+    fun MarginRow.margin() = revenue - costPrice!! * sold
+    return MarginStats(
+        margin = covered.sumOf { it.margin() },
+        coveredRevenue = covered.sumOf { it.revenue },
+        uncoveredLines = uncovered.size,
+        uncoveredRevenue = uncovered.sumOf { it.revenue },
+        top = covered.groupBy { it.productId }
+            .map { (id, list) -> ProductMargin(id, list.first().productName, list.sumOf { it.margin() }, list.sumOf { it.sold }) }
+            .sortedByDescending { it.margin }
+            .take(topCount),
+    )
+}
+
+/** Valeur du stock aux deux prix (admin) ; [missingCost] produits sans prix d'achat. */
+data class StockValue(val atSalePrice: Double, val atCost: Double, val missingCost: Int)
