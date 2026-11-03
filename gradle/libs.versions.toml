@@ -9,7 +9,7 @@ room = "2.8.5"
 robolectric = "4.17"
 testCore = "1.7.0"
 # Compose : la BOM 2026.08+ exige compileSdk 37 (non pris en charge par AGP 8.13)
-composeBom = "2026.09.00"
+composeBom = "2026.06.01"
 activityCompose = "1.12.4"
 lifecycle = "2.10.0"
 biometric = "1.1.0"
