@@ -5,6 +5,8 @@ import com.enkiba.app.models.AuthResponse;
 import com.enkiba.app.models.Client;
 import com.enkiba.app.models.Membership;
 import com.enkiba.app.models.Product;
+import com.enkiba.app.models.ProductCostRow;
+import com.enkiba.app.models.SaleItemCostRow;
 import com.enkiba.app.models.Profile;
 import com.enkiba.app.models.Shop;
 import com.enkiba.app.models.ShopMemberOverview;
@@ -127,6 +129,15 @@ public interface SupabaseService {
     Call<List<SaleItem>> pullSaleItems(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
                                        @Query("order") String order, @Query("limit") int limit);
 
+    // Prix d'achat : la RLS ne renvoie rien à un vendeur (l'app ne les demande qu'aux admins)
+    @GET("rest/v1/product_costs")
+    Call<List<ProductCostRow>> pullProductCosts(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
+                                                @Query("order") String order, @Query("limit") int limit);
+
+    @GET("rest/v1/sale_item_costs")
+    Call<List<SaleItemCostRow>> pullSaleItemCosts(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
+                                                  @Query("order") String order, @Query("limit") int limit);
+
     @GET("rest/v1/sale_returns")
     Call<List<SaleReturn>> pullSaleReturns(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
                                            @Query("order") String order, @Query("limit") int limit);
@@ -165,6 +176,16 @@ public interface SupabaseService {
     @Headers("Content-Type: application/json")
     @POST("rest/v1/products")
     Call<Void> insertProduct(@Header("Prefer") String prefer, @Body Map<String, Object> product);
+
+    // Prix d'achat : PATCH (cost_price seul modifiable), puis INSERT si la ligne n'existe pas
+    @Headers("Content-Type: application/json")
+    @PATCH("rest/v1/product_costs")
+    Call<List<ProductCostRow>> patchProductCost(@Header("Prefer") String prefer, @Query("product_id") String idFilter,
+                                                @Body Map<String, Object> cost);
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/product_costs")
+    Call<Void> insertProductCost(@Header("Prefer") String prefer, @Body Map<String, Object> cost);
 
     @Headers("Content-Type: application/json")
     @POST("rest/v1/stock_movements")

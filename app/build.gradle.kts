@@ -82,6 +82,12 @@ android {
         unitTests.isIncludeAndroidResources = true
     }
 
+    // Schémas Room exportés, lus par MigrationTestHelper : Robolectric ne voit que les
+    // assets de la variante debug (jamais embarqués en release)
+    sourceSets {
+        getByName("debug").assets.srcDir("$projectDir/schemas")
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11

@@ -43,3 +43,12 @@ data class SaleNetRow(
     @ColumnInfo(name = "payment_method") val paymentMethod: String?,
     @ColumnInfo(name = "net") val net: Double,
 )
+
+/** Une ligne de vente de la période, nette des retours, avec son prix d'achat figé (ou null). */
+data class MarginRow(
+    @ColumnInfo(name = "product_id") val productId: String,
+    @ColumnInfo(name = "product_name") val productName: String,
+    @ColumnInfo(name = "revenue") val revenue: Double,
+    @ColumnInfo(name = "sold") val sold: Int,
+    @ColumnInfo(name = "cost_price") val costPrice: Double?,
+)
