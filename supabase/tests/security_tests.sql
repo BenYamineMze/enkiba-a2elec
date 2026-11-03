@@ -59,6 +59,11 @@ begin
   select quantity into v_qty from public.products where id = v_product;
   if v_qty = 10 then ok := ok + 1; else failures := failures || 'mouvement initial appliqué'; end if;
 
+  -- Prix d'achat : saisi et relu par l'admin
+  insert into public.product_costs (product_id, shop_id, cost_price) values (v_product, v_shop_a, 1000);
+  select count(*) into v_n from public.product_costs where product_id = v_product;
+  if v_n = 1 then ok := ok + 1; else failures := failures || 'admin enregistre un prix d''achat'; end if;
+
   -- Coordonnées de la boutique : modifiables par son admin
   update public.shops set address = 'Moroni', phone = '269 000 00 00', email = 'contact@a.km' where id = v_shop_a;
   get diagnostics v_n = row_count;
@@ -93,12 +98,56 @@ begin
   exception when insufficient_privilege then ok := ok + 1;
   end;
 
+  -- Prix d'achat : invisible et non modifiable pour un vendeur
+  select count(*) into v_n from public.product_costs;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'vendeur lit les prix d''achat'; end if;
+  update public.product_costs set cost_price = 1 where product_id = v_product;
+  get diagnostics v_n = row_count;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'vendeur modifie un prix d''achat'; end if;
+  begin
+    insert into public.product_costs (product_id, shop_id, cost_price) values (v_product, v_shop_a, 1);
+    failures := failures || 'vendeur crée un prix d''achat';
+  exception when insufficient_privilege or unique_violation then ok := ok + 1;
+  end;
+
   -- Vente : 3 unités
   insert into public.sales (id, shop_id, seller_id, total_price, payment_method)
     values (v_sale, v_shop_a, v_seller_a, 4500, 'espece');
   insert into public.sale_items (id, shop_id, sale_id, product_id, product_name, quantity, list_price, unit_price, total_price)
     values (v_item, v_shop_a, v_sale, v_product, 'Câble', 3, 1500, 1500, 4500);
+  -- Le prix d'achat est figé sur la ligne, mais le vendeur ne le voit pas
+  select count(*) into v_n from public.sale_item_costs;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'vendeur lit le coût des lignes de vente'; end if;
+  begin
+    insert into public.sale_item_costs (sale_item_id, shop_id, cost_price) values (v_item, v_shop_a, 0);
+    failures := failures || 'vendeur écrit le coût d''une ligne';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
   execute 'reset role';
+
+  -- Admin A : coût figé à 1000, puis un nouveau prix ne change pas la ligne passée
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin_a, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  update public.product_costs set cost_price = 1200 where product_id = v_product;
+  select count(*) into v_n from public.sale_item_costs where sale_item_id = v_item and cost_price = 1000;
+  if v_n = 1 then ok := ok + 1; else failures := failures || 'coût figé à la vente (1000)'; end if;
+  begin
+    update public.sale_item_costs set cost_price = 0 where sale_item_id = v_item;
+    failures := failures || 'admin modifie un coût figé';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  execute 'reset role';
+
+  -- Admin B : ne voit pas les prix d'achat de la boutique A
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin_b, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*) into v_n from public.product_costs;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'admin B lit les prix d''achat de A'; end if;
+  select count(*) into v_n from public.sale_item_costs;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'admin B lit les coûts de A'; end if;
+  execute 'reset role';
+  -- La suite des tests reprend avec le vendeur A
+  perform set_config('request.jwt.claims', json_build_object('sub', v_seller_a, 'role', 'authenticated')::text, true);
   select quantity into v_qty from public.products where id = v_product;
   if v_qty = 7 then ok := ok + 1; else failures := failures || 'vente décrémente le stock (' || v_qty || ')'; end if;
   execute 'set local role authenticated';
