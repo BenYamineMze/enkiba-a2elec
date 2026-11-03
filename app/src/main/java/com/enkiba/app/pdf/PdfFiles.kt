@@ -10,6 +10,8 @@ enum class PdfFolder(val dirName: String) {
     QUOTES("Devis"),
     REPORTS("Rapports"),
     LABELS("Etiquettes"),
+    /** Exports comptables (.xlsx), pas des PDF, mais rangés au même endroit. */
+    EXPORTS("Exports"),
     ;
 
     fun file(context: Context, fileName: String): File {

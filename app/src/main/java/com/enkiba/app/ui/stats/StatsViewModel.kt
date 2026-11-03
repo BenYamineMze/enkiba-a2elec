@@ -3,7 +3,9 @@ package com.enkiba.app.ui.stats
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.enkiba.app.data.repository.ExportRepository
 import com.enkiba.app.data.repository.StatsRepository
+import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,6 +20,11 @@ data class StatsUiState(
     val stock: List<StockLine> = emptyList(),
     val margin: MarginStats? = null,
     val stockValue: StockValue? = null,
+    /** Export comptable en cours de création. */
+    val exporting: Boolean = false,
+    /** Fichier prêt à partager (consommé par l'écran). */
+    val exportedFile: File? = null,
+    val exportError: String? = null,
 ) {
     val lowStockCount: Int get() = stock.count { it.low }
 
@@ -29,6 +36,7 @@ data class StatsUiState(
 class StatsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = StatsRepository(application)
+    private val exportRepository = ExportRepository(application)
     private val _state = MutableStateFlow(StatsUiState())
     val state: StateFlow<StatsUiState> = _state.asStateFlow()
 
@@ -56,4 +64,20 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
             _state.update { s -> if (s.selected == month) s.copy(loading = false, stats = stats, margin = margin) else s }
         }
     }
+
+    /** Crée le classeur Excel du mois choisi. */
+    fun export(month: MonthKey) {
+        if (_state.value.exporting) return
+        _state.update { it.copy(exporting = true, exportError = null) }
+        viewModelScope.launch {
+            val file = runCatching { exportRepository.export(month) }
+                .onFailure { android.util.Log.e("StatsViewModel", "Export : ${it.message}", it) }
+                .getOrNull()
+            _state.update {
+                it.copy(exporting = false, exportedFile = file, exportError = if (file == null) "L'export a échoué. Réessayez." else null)
+            }
+        }
+    }
+
+    fun exportHandled() = _state.update { it.copy(exportedFile = null, exportError = null) }
 }

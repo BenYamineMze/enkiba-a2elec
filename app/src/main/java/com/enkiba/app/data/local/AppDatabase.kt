@@ -8,6 +8,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.enkiba.app.data.local.dao.ClientRoomDao
 import com.enkiba.app.data.local.dao.CostRoomDao
+import com.enkiba.app.data.local.dao.ExportRoomDao
 import com.enkiba.app.data.local.dao.HistoryRoomDao
 import com.enkiba.app.data.local.dao.ProductRoomDao
 import com.enkiba.app.data.local.dao.QuoteRoomDao
@@ -62,6 +63,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun quoteDao(): QuoteRoomDao
     abstract fun syncDao(): SyncRoomDao
     abstract fun costDao(): CostRoomDao
+    abstract fun exportDao(): ExportRoomDao
 
     companion object {
         const val DATABASE_NAME = "stock.db"

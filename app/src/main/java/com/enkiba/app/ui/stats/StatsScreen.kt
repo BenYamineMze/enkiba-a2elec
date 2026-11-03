@@ -1,5 +1,18 @@
 package com.enkiba.app.ui.stats
 
+import com.enkiba.app.ui.components.SquareIconButton
+import androidx.compose.material.icons.rounded.FileDownload
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -60,13 +73,32 @@ data class StatsActions(
     val onNewSale: () -> Unit = {},
     /** Liste des produits sans prix d'achat. */
     val onMissingCost: () -> Unit = {},
+    /** Export comptable (Excel) du mois choisi. */
+    val onExport: (MonthKey) -> Unit = {},
 )
 
 @Composable
 fun StatsScreen(state: StatsUiState, actions: StatsActions) {
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding()) {
         Column(Modifier.fillMaxSize()) {
-          ScreenHeader(title = "Statistiques", subtitle = "Toute la boutique")
+          var exportDialog by rememberSaveable { mutableStateOf(false) }
+          if (exportDialog) {
+              ExportDialog(state.months, state.selected, onDismiss = { exportDialog = false }) { m ->
+                  exportDialog = false
+                  actions.onExport(m)
+              }
+          }
+          ScreenHeader(
+              title = "Statistiques",
+              subtitle = "Toute la boutique",
+              actions = {
+                  if (state.exporting) {
+                      CircularProgressIndicator(Modifier.size(28.dp), color = MaterialTheme.colorScheme.primary, strokeWidth = 3.dp)
+                  } else {
+                      SquareIconButton(Icons.Rounded.FileDownload, "Export comptable (Excel)", onClick = { exportDialog = true })
+                  }
+              },
+          )
           LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(start = Spacing.screen, end = Spacing.screen, bottom = 112.dp),
@@ -332,4 +364,37 @@ private fun MissingCostNote(text: String, onClick: () -> Unit) {
         Icon(Icons.Rounded.WarningAmber, contentDescription = null, tint = colors.peach.content, modifier = Modifier.size(18.dp))
         Text(text, style = MaterialTheme.typography.bodySmall, color = colors.peach.content, modifier = Modifier.weight(1f))
     }
+}
+
+/** Choix du mois à exporter ; le classeur contient ventes, lignes, retours, stock et marge. */
+@Composable
+private fun ExportDialog(months: List<MonthKey>, selected: MonthKey, onDismiss: () -> Unit, onExport: (MonthKey) -> Unit) {
+    var choice by remember { mutableStateOf(selected) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Export comptable") },
+        text = {
+            Column(Modifier.selectableGroup()) {
+                Text(
+                    "Classeur Excel : synthèse, ventes, lignes, retours, stock et marge.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = Spacing.sm),
+                )
+                months.asReversed().forEach { m ->
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = Spacing.touch)
+                            .selectable(selected = m == choice, role = Role.RadioButton) { choice = m },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                    ) {
+                        RadioButton(selected = m == choice, onClick = null)
+                        Text("${m.longLabel.replaceFirstChar { it.uppercase() }} ${m.year}", style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onExport(choice) }) { Text("Créer et partager") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Annuler") } },
+    )
 }
