@@ -1,6 +1,7 @@
 package com.enkiba.app.data.repository
 
 import android.content.Context
+import androidx.core.content.edit
 import com.enkiba.app.api.RetrofitClient
 import com.enkiba.app.data.local.AppDatabase
 import com.enkiba.app.data.local.entity.ChatMessageEntity
@@ -74,7 +75,7 @@ class ChatRepository(context: Context) {
 
     fun markAllRead(lastCreatedAt: String?) {
         if (lastCreatedAt == null) return
-        prefs().edit().putString(key(), lastCreatedAt).apply()
+        prefs().edit { putString(key(), lastCreatedAt) }
     }
 
     private fun lastRead(): String? = prefs().getString(key(), null)
