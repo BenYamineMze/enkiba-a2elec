@@ -43,3 +43,56 @@ data class SaleNetRow(
     @ColumnInfo(name = "payment_method") val paymentMethod: String?,
     @ColumnInfo(name = "net") val net: Double,
 )
+
+/** Une ligne de vente de la période, nette des retours, avec son prix d'achat figé (ou null). */
+data class MarginRow(
+    @ColumnInfo(name = "product_id") val productId: String,
+    @ColumnInfo(name = "product_name") val productName: String,
+    @ColumnInfo(name = "revenue") val revenue: Double,
+    @ColumnInfo(name = "sold") val sold: Int,
+    @ColumnInfo(name = "cost_price") val costPrice: Double?,
+)
+
+// ---------------------------------------------------------------- export comptable
+
+data class ExportSaleRow(
+    val id: String,
+    @ColumnInfo(name = "sale_date") val saleDate: String,
+    @ColumnInfo(name = "seller_name") val sellerName: String?,
+    @ColumnInfo(name = "client_name") val clientName: String?,
+    @ColumnInfo(name = "payment_method") val paymentMethod: String,
+    @ColumnInfo(name = "total_price") val totalPrice: Double,
+    val refunded: Double,
+    @ColumnInfo(name = "has_negotiation") val hasNegotiation: Boolean,
+    @ColumnInfo(name = "deleted_at") val deletedAt: String?,
+)
+
+data class ExportItemRow(
+    @ColumnInfo(name = "sale_id") val saleId: String,
+    @ColumnInfo(name = "sale_date") val saleDate: String,
+    @ColumnInfo(name = "product_name") val productName: String,
+    val quantity: Int,
+    @ColumnInfo(name = "list_price") val listPrice: Double,
+    @ColumnInfo(name = "unit_price") val unitPrice: Double,
+    @ColumnInfo(name = "total_price") val totalPrice: Double,
+    val returned: Int,
+    val refunded: Double,
+    @ColumnInfo(name = "cost_price") val costPrice: Double?,
+)
+
+data class ExportReturnRow(
+    @ColumnInfo(name = "created_at") val createdAt: String?,
+    @ColumnInfo(name = "sale_id") val saleId: String,
+    @ColumnInfo(name = "product_name") val productName: String?,
+    val quantity: Int,
+    @ColumnInfo(name = "refund_amount") val refundAmount: Double,
+    @ColumnInfo(name = "by_name") val byName: String?,
+)
+
+data class ExportStockRow(
+    val name: String,
+    val category: String?,
+    val quantity: Int,
+    val price: Double,
+    @ColumnInfo(name = "cost_price") val costPrice: Double?,
+)

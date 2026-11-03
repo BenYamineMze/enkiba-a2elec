@@ -1,6 +1,7 @@
 package com.enkiba.app.data.repository
 
 import android.content.Context
+import com.enkiba.app.data.local.AppDatabase
 import com.enkiba.app.models.Product
 import com.enkiba.app.modelsDao.HistoryDao
 import com.enkiba.app.modelsDao.ProductDao
@@ -19,6 +20,10 @@ class ProductsRepository(context: Context) {
     suspend fun load(): List<Product> = withContext(Dispatchers.IO) { productDao.allProducts }
 
     suspend fun stockValue(): Double = withContext(Dispatchers.IO) { productDao.totalStockValue }
+
+    /** Produits sans prix d'achat (admin) : à compléter pour le calcul des marges. */
+    suspend fun missingCostIds(): Set<String> =
+        withContext(Dispatchers.IO) { AppDatabase.get(appContext).costDao().productIdsWithoutCost().toSet() }
 
     /** Suppression logique (deleted_at, envoyée à la synchro) + entrée d'historique. */
     suspend fun delete(product: Product): Boolean = withContext(Dispatchers.IO) {

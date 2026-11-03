@@ -42,8 +42,8 @@ android {
         targetSdk = 36
         // versionCode : toujours supérieur à la version publiée (v1 = 10).
         // versionName : doit correspondre au tag de release (vX.Y.Z), vérifié par la CI.
-        versionCode = 13
-        versionName = "2.2.0"
+        versionCode = 14
+        versionName = "2.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -82,6 +82,12 @@ android {
         unitTests.isIncludeAndroidResources = true
     }
 
+    // Schémas Room exportés, lus par MigrationTestHelper : Robolectric ne voit que les
+    // assets de la variante debug (jamais embarqués en release)
+    sourceSets {
+        getByName("debug").assets.srcDir("$projectDir/schemas")
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -112,13 +118,16 @@ dependencies {
     implementation ("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation ("com.google.zxing:core:3.5.1")
 
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.retrofit2:retrofit:3.0.0")
+    implementation("com.squareup.retrofit2:converter-gson:3.0.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.security:security-crypto:1.1.0")
+    // Déverrouillage par empreinte ou visage (écran de code PIN)
+    implementation(libs.biometric)
+    implementation(libs.fragment)
 
     // Interface : Jetpack Compose (Material 3)
     val composeBom = platform(libs.compose.bom)

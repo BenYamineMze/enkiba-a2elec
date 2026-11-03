@@ -49,4 +49,23 @@ class ProductFormRulesTest {
         val code = ProductFormRules.newQrCode()
         assertTrue(code.matches(Regex("PROD-[0-9A-F]{8}")))
     }
+
+    @Test
+    fun prixDAchatFacultatifMaisNonEffacable() {
+        val base = ProductForm(name = "Câble", category = "Élec", quantityText = "3", priceText = "2000")
+        assertEquals(null, ProductFormRules.validate(base).second!!.cost)
+        assertEquals(1500.0, ProductFormRules.validate(base.copy(costText = "1 500")).second!!.cost!!, 0.001)
+        assertEquals("Prix d'achat invalide", ProductFormRules.validate(base.copy(costText = "abc")).first.cost)
+        // Déjà saisi : on peut le corriger, pas l'effacer
+        assertNotNull(ProductFormRules.validate(base, hadCost = true).first.cost)
+    }
+
+    @Test
+    fun margeUnitaire() {
+        val m = UnitMargin.of(price = 2000.0, cost = 1500.0)
+        assertEquals(500.0, m.amount, 0.001)
+        assertEquals("25 %", percentText(m.rate!!))
+        assertTrue(UnitMargin.of(1000.0, 1200.0).isLoss)
+        assertNull(UnitMargin.of(0.0, 10.0).rate)
+    }
 }

@@ -29,6 +29,10 @@ data class HomeUiState(
     val isSuperAdmin: Boolean = false,
     /** Membre de plusieurs boutiques : menu « Changer de boutique ». */
     val shopCount: Int = 1,
+    /** Verrouillage par code PIN activé (menu de l'avatar). */
+    val pinEnabled: Boolean = false,
+    /** Messages de l'équipe pas encore lus. */
+    val unreadChat: Int = 0,
     val data: HomeData? = null,
     val syncing: Boolean = false,
     val online: Boolean = true,
@@ -47,6 +51,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val session = SessionManager(application)
     private val repository = HomeRepository(application)
     private val syncManager = SynchronizationManager(application)
+    private val chat = com.enkiba.app.data.repository.ChatRepository(application)
 
     private val _state = MutableStateFlow(
         HomeUiState(
@@ -56,6 +61,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             isAdmin = session.isAdmin,
             isSuperAdmin = session.isSuperAdmin,
             shopCount = session.shopCount,
+            pinEnabled = session.pinHash != null,
         )
     )
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
@@ -66,6 +72,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 // Un vendeur ne voit que ses propres ventes et devis
                 val data = repository.load(sellerId = if (session.isAdmin) null else session.userId)
+                val unread = chat.unread()
                 // Session ouverte avant l'enregistrement de l'e-mail : repli sur le cache local
                 val email = _state.value.email.ifEmpty {
                     withContext(Dispatchers.IO) { UserDao(getApplication()).getUserById(session.userId)?.email }.orEmpty()
@@ -74,6 +81,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     it.copy(
                         data = data, email = email, online = NetworkUtils.isOnline(getApplication()),
                         firstName = session.firstName, lastName = session.lastName,
+                        pinEnabled = session.pinHash != null,
+                        unreadChat = unread,
                     )
                 }
             } catch (e: Exception) {

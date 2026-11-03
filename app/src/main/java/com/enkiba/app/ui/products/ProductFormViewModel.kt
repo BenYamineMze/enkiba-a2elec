@@ -16,6 +16,8 @@ data class ProductFormUiState(
     val loading: Boolean = true,
     /** null = ajout ; sinon l'article modifié. */
     val original: Product? = null,
+    /** Prix d'achat enregistré avant la modification (null : jamais saisi). */
+    val originalCost: Double? = null,
     val form: ProductForm = ProductForm(),
     val errors: ProductFormErrors = ProductFormErrors(),
     val categories: List<String> = ProductFormRules.DEFAULT_CATEGORIES,
@@ -30,6 +32,14 @@ data class ProductFormUiState(
     /** Écart de stock saisi en modification (mouvement de stock qui sera créé). */
     val stockDelta: Int?
         get() = original?.let { o -> form.quantityText.trim().toIntOrNull()?.minus(o.quantity) }?.takeIf { it != 0 }
+
+    /** Aperçu de la marge unitaire, dès que le prix et le prix d'achat sont lisibles. */
+    val margin: UnitMargin?
+        get() {
+            val price = ProductFormRules.parsePrice(form.priceText.trim()) ?: return null
+            val cost = form.costText.trim().takeIf { it.isNotEmpty() }?.let(ProductFormRules::parsePrice) ?: return null
+            return UnitMargin.of(price, cost)
+        }
 }
 
 class ProductFormViewModel(application: Application) : AndroidViewModel(application) {
@@ -46,10 +56,12 @@ class ProductFormViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch {
             val categories = repository.categories()
             val product = productId?.let { repository.load(it) }
+            val cost = productId?.let { repository.cost(it) }
             _state.update {
                 it.copy(
                     loading = false,
                     original = product,
+                    originalCost = cost,
                     categories = categories,
                     failure = if (productId != null && product == null) "Produit introuvable" else null,
                     form = product?.let { p ->
@@ -60,6 +72,7 @@ class ProductFormViewModel(application: Application) : AndroidViewModel(applicat
                             priceText = ProductFormRules.priceText(p.price),
                             thresholdText = p.lowStockThreshold.toString(),
                             description = p.description.orEmpty(),
+                            costText = cost?.let(ProductFormRules::priceText).orEmpty(),
                         )
                     } ?: ProductForm(category = categories.firstOrNull().orEmpty()),
                 )
@@ -73,7 +86,7 @@ class ProductFormViewModel(application: Application) : AndroidViewModel(applicat
     fun save() {
         val s = _state.value
         if (s.saving) return
-        val (errors, valid) = ProductFormRules.validate(s.form)
+        val (errors, valid) = ProductFormRules.validate(s.form, hadCost = s.originalCost != null)
         if (valid == null) {
             _state.update { it.copy(errors = errors) }
             return

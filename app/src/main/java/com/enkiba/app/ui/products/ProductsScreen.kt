@@ -1,5 +1,6 @@
 package com.enkiba.app.ui.products
 
+import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,6 +45,7 @@ import com.enkiba.app.ui.components.EmptyState
 import com.enkiba.app.ui.components.ListRow
 import com.enkiba.app.ui.components.ProgressRing
 import com.enkiba.app.ui.components.ScreenHeader
+import com.enkiba.app.ui.components.FilterPill
 import com.enkiba.app.ui.components.SearchField
 import com.enkiba.app.ui.components.SegmentedTabs
 import com.enkiba.app.ui.components.SquareIconButton
@@ -57,6 +59,7 @@ import com.enkiba.app.ui.theme.Spacing
 data class ProductsActions(
     val onQueryChange: (String) -> Unit = {},
     val onTabChange: (StockTab) -> Unit = {},
+    val onClearMissingCost: () -> Unit = {},
     val onRefresh: () -> Unit = {},
     val onOpen: (Product) -> Unit = {},
     val onEdit: (Product) -> Unit = {},
@@ -65,6 +68,7 @@ data class ProductsActions(
     val onCancelDelete: () -> Unit = {},
     val onAdd: () -> Unit = {},
     val onQrList: () -> Unit = {},
+    val onInventory: () -> Unit = {},
     val onNavigate: (AppTab) -> Unit = {},
     val onNewSale: () -> Unit = {},
     val onMessageShown: () -> Unit = {},
@@ -95,6 +99,7 @@ fun ProductsScreen(state: ProductsUiState, actions: ProductsActions) {
                 actions = {
                     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         SquareIconButton(Icons.Rounded.QrCode2, "Liste des codes QR", onClick = actions.onQrList)
+                        SquareIconButton(Icons.Rounded.Checklist, "Inventaire", onClick = actions.onInventory)
                         // Seul un admin crée des articles (règle du serveur)
                         if (state.isAdmin) SquareIconButton(Icons.Rounded.Add, "Ajouter un produit", onClick = actions.onAdd, filled = true)
                     }
@@ -112,6 +117,14 @@ fun ProductsScreen(state: ProductsUiState, actions: ProductsActions) {
                 onSelect = { actions.onTabChange(StockTab.entries[it]) },
                 modifier = Modifier.padding(horizontal = Spacing.screen, vertical = Spacing.md),
             )
+            state.missingCostIds?.let { ids ->
+                FilterPill(
+                    "Sans prix d'achat · ${ids.size}  ✕",
+                    selected = true,
+                    onClick = actions.onClearMissingCost,
+                    modifier = Modifier.padding(start = Spacing.screen, bottom = Spacing.md),
+                )
+            }
 
             PullToRefreshBox(
                 isRefreshing = state.refreshing,

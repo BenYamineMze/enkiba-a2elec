@@ -2,11 +2,15 @@ package com.enkiba.app.data.local
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.enkiba.app.data.local.entity.ChatMessageEntity
+import com.enkiba.app.data.local.entity.InventoryCountEntity
+import com.enkiba.app.data.local.entity.ProductCostEntity
 import com.enkiba.app.data.local.entity.ProductEntity
 import com.enkiba.app.data.local.entity.QuoteEntity
 import com.enkiba.app.data.local.entity.SYNC_PENDING
 import com.enkiba.app.data.local.entity.SYNC_SYNCED
 import com.enkiba.app.data.local.entity.SaleEntity
+import com.enkiba.app.data.local.entity.SaleItemCostEntity
 import com.enkiba.app.data.local.entity.SaleItemEntity
 import com.enkiba.app.data.local.entity.SaleReturnEntity
 import com.enkiba.app.data.local.entity.StockMovementEntity
@@ -134,4 +138,86 @@ class RoomDaoTest {
         assertNull(db.productDao().getByQr("QR-p1"))
         assertEquals(SYNC_PENDING, db.productDao().getSyncStatus("p1"))
     }
+
+    // ---------------------------------------------------------------- prix d'achat et marge
+
+    private fun cost(productId: String, price: Double, sync: String = SYNC_SYNCED) =
+        ProductCostEntity(productId, "s", price, "2026-10-16T10:00:00+00:00", sync)
+
+    @Test
+    fun valeurDuStockAuPrixDAchatEtProduitsSansPrix() {
+        db.productDao().insert(product("p1", 10))
+        db.productDao().insert(product("p2", 4))
+        db.costDao().upsert(cost("p1", 60.0))
+        assertEquals(600.0, db.costDao().stockValueAtCost(), 0.001)
+        assertEquals(listOf("p2"), db.costDao().productIdsWithoutCost())
+    }
+
+    @Test
+    fun prixRecuDuServeurNEcrasePasUneModificationLocale() {
+        db.costDao().upsert(cost("p1", 70.0, SYNC_PENDING))
+        db.costDao().applyRemote(cost("p1", 60.0))
+        assertEquals(70.0, db.costDao().get("p1")!!.costPrice, 0.001)
+        db.costDao().markSynced("p1", 70.0)
+        db.costDao().applyRemote(cost("p1", 65.0))
+        assertEquals(65.0, db.costDao().get("p1")!!.costPrice, 0.001)
+    }
+
+    @Test
+    fun lignesDeMargeNettesDesRetoursAvecCoutFige() {
+        db.productDao().insert(product("p1", 10))
+        db.saleDao().insertSale(sale("s1"))
+        db.saleDao().insertItem(item("i1", "s1", "p1", 3))   // 300 encaissés
+        db.saleDao().insertItem(item("i2", "s1", "p1", 2))   // sans coût figé
+        db.stockDao().insertReturn(ret("r1", "s1", "i1", "p1", 1))
+        db.costDao().upsertSaleItemCost(SaleItemCostEntity("i1", "s", 60.0, null))
+        val rows = db.costDao().marginRowsBetween("2026-10-01T00:00", "2026-11-01T00:00").sortedBy { it.sold }
+        assertEquals(2, rows.size)
+        val withCost = rows.single { it.costPrice != null }
+        assertEquals(200.0, withCost.revenue, 0.001)
+        assertEquals(2, withCost.sold)
+        assertEquals(60.0, withCost.costPrice!!, 0.001)
+    }
+
+    // ---------------------------------------------------------------- inventaire
+
+    private fun count(id: String, productId: String, counted: Int, sync: String = SYNC_SYNCED) =
+        InventoryCountEntity(id, "s", "inv", productId, counted, 7, "u1", "2026-11-03T10:00:00Z", null, sync)
+
+    @Test
+    fun unSeulComptageParArticleEtPrioriteAuComptageLocal() {
+        val dao = db.inventoryDao()
+        dao.upsertCount(count("c1", "p1", 5, SYNC_PENDING))
+        // Le serveur a un autre id pour le même article : le comptage local en attente reste
+        dao.applyRemoteCount(count("c-server", "p1", 9))
+        assertEquals(5, dao.count("inv", "p1")!!.counted)
+        dao.markCountSynced("c1", 5)
+        dao.applyRemoteCount(count("c-server", "p1", 9))
+        assertEquals(1, dao.counts("inv").size)
+        assertEquals(9, dao.count("inv", "p1")!!.counted)
+    }
+
+    // ---------------------------------------------------------------- discussion
+
+    private fun message(id: String, sender: String, at: String, sync: String = SYNC_SYNCED, deletedAt: String? = null) =
+        ChatMessageEntity(id, "s", sender, "Bonjour", at, null, deletedAt, sync)
+
+    @Test
+    fun nonLusPurgeEtRetraitLocal() {
+        val dao = db.chatDao()
+        dao.upsert(message("m1", "awa", "2026-07-01T10:00:00Z"))
+        dao.upsert(message("m2", "awa", "2026-11-01T10:00:00Z"))
+        dao.upsert(message("m3", "moi", "2026-11-02T10:00:00Z"))
+        dao.upsert(message("m4", "moi", "2026-07-01T09:00:00Z", SYNC_PENDING))
+        assertEquals(2, dao.unread("moi", null))
+        assertEquals(1, dao.unread("moi", "2026-10-01T00:00:00Z"))
+        // Purge à 90 jours : jamais un message pas encore envoyé
+        dao.purgeBefore("2026-08-01T00:00:00")
+        assertEquals(listOf("m4", "m2", "m3"), dao.visible().map { it.id })
+        // Retrait local en attente : le serveur ne le fait pas réapparaître
+        dao.markDeleted("m2", "2026-11-03T10:00:00Z")
+        dao.applyRemote(message("m2", "awa", "2026-11-01T10:00:00Z"))
+        assertEquals(listOf("m4", "m3"), dao.visible().map { it.id })
+    }
 }
+

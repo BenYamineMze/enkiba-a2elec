@@ -1,5 +1,7 @@
 package com.enkiba.app.ui.home
 
+import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -78,6 +80,8 @@ data class HomeActions(
     val onShop: () -> Unit = {},
     val onShops: () -> Unit = {},
     val onSwitchShop: () -> Unit = {},
+    val onPinSettings: () -> Unit = {},
+    val onChat: () -> Unit = {},
     /** Build debug seulement (null en release) : ouvre le catalogue du système de design. */
     val onOpenDesignCatalog: (() -> Unit)? = null,
     val onLogout: () -> Unit = {},
@@ -97,6 +101,7 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions) {
             verticalArrangement = Arrangement.spacedBy(Spacing.lg),
         ) {
             item { Header(state, actions) }
+            item { ChatEntry(state.unreadChat, actions.onChat, Modifier.padding(horizontal = Spacing.screen)) }
             val data = state.data
             if (data == null) {
                 item {
@@ -154,6 +159,10 @@ private fun Header(state: HomeUiState, actions: HomeActions) {
         Box(Modifier.align(Alignment.TopEnd).padding(end = Spacing.screen, top = 56.dp)) {
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 DropdownMenuItem(text = { Text("Mon profil") }, onClick = { menuOpen = false; actions.onProfile() })
+                DropdownMenuItem(
+                    text = { Text(if (state.pinEnabled) "Code PIN : activé" else "Code PIN") },
+                    onClick = { menuOpen = false; actions.onPinSettings() },
+                )
                 DropdownMenuItem(
                     text = { Text("Thème : ${themeMode.label}") },
                     onClick = { menuOpen = false; themeDialog = true },
@@ -261,4 +270,32 @@ private fun HomePreview() {
             HomeActions(),
         )
     }
+}
+
+/** Accès à la discussion de l'équipe, avec le nombre de messages non lus. */
+@Composable
+private fun ChatEntry(unread: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = EnkibaTheme.colors
+    ListRow(
+        title = "Discussion de l'équipe",
+        subtitle = when (unread) {
+            0 -> "Aucun nouveau message"
+            1 -> "1 nouveau message"
+            else -> "$unread nouveaux messages"
+        },
+        modifier = modifier,
+        onClick = onClick,
+        leading = { IconBadge(Icons.Rounded.Forum, colors.sky.container, colors.sky.content) },
+        trailing = {
+            if (unread > 0) {
+                Text(
+                    if (unread > 99) "99+" else unread.toString(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.primary)
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                )
+            }
+        },
+    )
 }

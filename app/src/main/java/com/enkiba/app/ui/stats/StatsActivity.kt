@@ -6,10 +6,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import android.widget.Toast
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import com.enkiba.app.utils.FileShare
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.enkiba.app.ui.navigation.AppNavigator
 import com.enkiba.app.ui.products.ProductDetailActivity
+import com.enkiba.app.ui.products.ProductsActivity
 import com.enkiba.app.ui.theme.EnkibaTheme
 import com.enkiba.app.utils.SessionManager
 
@@ -32,6 +36,15 @@ class StatsActivity : ComponentActivity() {
         setContent {
             EnkibaTheme {
                 val state by viewModel.state.collectAsStateWithLifecycle()
+                LaunchedEffect(state.exportedFile, state.exportError) {
+                    state.exportedFile?.let { file ->
+                        if (!FileShare.share(this@StatsActivity, file, FileShare.MIME_XLSX, "Envoyer l'export", file.nameWithoutExtension)) {
+                            Toast.makeText(this@StatsActivity, "Export enregistré dans Documents/Enkiba/Exports", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    state.exportError?.let { Toast.makeText(this@StatsActivity, it, Toast.LENGTH_LONG).show() }
+                    if (state.exportedFile != null || state.exportError != null) viewModel.exportHandled()
+                }
                 StatsScreen(
                     state = state,
                     actions = StatsActions(
@@ -41,6 +54,10 @@ class StatsActivity : ComponentActivity() {
                         },
                         onNavigate = { tab -> AppNavigator.open(this, tab, isAdmin = true) },
                         onNewSale = { AppNavigator.newSale(this) },
+                        onExport = viewModel::export,
+                        onMissingCost = {
+                            startActivity(Intent(this, ProductsActivity::class.java).putExtra(ProductsActivity.EXTRA_MISSING_COST, true))
+                        },
                     ),
                 )
             }

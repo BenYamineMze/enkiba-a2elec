@@ -20,6 +20,9 @@ declare
   v_item uuid := gen_random_uuid();
   v_quote uuid := gen_random_uuid();
   v_qsale uuid := gen_random_uuid();
+  v_inv uuid := gen_random_uuid();
+  v_inv2 uuid := gen_random_uuid();
+  v_msg uuid := gen_random_uuid();
   v_qty int;
   v_n int;
 
@@ -59,6 +62,11 @@ begin
   select quantity into v_qty from public.products where id = v_product;
   if v_qty = 10 then ok := ok + 1; else failures := failures || 'mouvement initial appliqué'; end if;
 
+  -- Prix d'achat : saisi et relu par l'admin
+  insert into public.product_costs (product_id, shop_id, cost_price) values (v_product, v_shop_a, 1000);
+  select count(*) into v_n from public.product_costs where product_id = v_product;
+  if v_n = 1 then ok := ok + 1; else failures := failures || 'admin enregistre un prix d''achat'; end if;
+
   -- Coordonnées de la boutique : modifiables par son admin
   update public.shops set address = 'Moroni', phone = '269 000 00 00', email = 'contact@a.km' where id = v_shop_a;
   get diagnostics v_n = row_count;
@@ -93,12 +101,160 @@ begin
   exception when insufficient_privilege then ok := ok + 1;
   end;
 
+  -- Prix d'achat : invisible et non modifiable pour un vendeur
+  select count(*) into v_n from public.product_costs;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'vendeur lit les prix d''achat'; end if;
+  update public.product_costs set cost_price = 1 where product_id = v_product;
+  get diagnostics v_n = row_count;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'vendeur modifie un prix d''achat'; end if;
+  begin
+    insert into public.product_costs (product_id, shop_id, cost_price) values (v_product, v_shop_a, 1);
+    failures := failures || 'vendeur crée un prix d''achat';
+  exception when insufficient_privilege or unique_violation then ok := ok + 1;
+  end;
+
   -- Vente : 3 unités
   insert into public.sales (id, shop_id, seller_id, total_price, payment_method)
     values (v_sale, v_shop_a, v_seller_a, 4500, 'espece');
   insert into public.sale_items (id, shop_id, sale_id, product_id, product_name, quantity, list_price, unit_price, total_price)
     values (v_item, v_shop_a, v_sale, v_product, 'Câble', 3, 1500, 1500, 4500);
+  -- Le prix d'achat est figé sur la ligne, mais le vendeur ne le voit pas
+  select count(*) into v_n from public.sale_item_costs;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'vendeur lit le coût des lignes de vente'; end if;
+  begin
+    insert into public.sale_item_costs (sale_item_id, shop_id, cost_price) values (v_item, v_shop_a, 0);
+    failures := failures || 'vendeur écrit le coût d''une ligne';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
   execute 'reset role';
+
+  -- Admin A : coût figé à 1000, puis un nouveau prix ne change pas la ligne passée
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin_a, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  update public.product_costs set cost_price = 1200 where product_id = v_product;
+  select count(*) into v_n from public.sale_item_costs where sale_item_id = v_item and cost_price = 1000;
+  if v_n = 1 then ok := ok + 1; else failures := failures || 'coût figé à la vente (1000)'; end if;
+  begin
+    update public.sale_item_costs set cost_price = 0 where sale_item_id = v_item;
+    failures := failures || 'admin modifie un coût figé';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  execute 'reset role';
+
+  -- Admin B : ne voit pas les prix d'achat de la boutique A
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin_b, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*) into v_n from public.product_costs;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'admin B lit les prix d''achat de A'; end if;
+  select count(*) into v_n from public.sale_item_costs;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'admin B lit les coûts de A'; end if;
+  execute 'reset role';
+  -- ---------------------------------------------------------------- inventaire
+  -- Admin A ouvre (une seule session ouverte par boutique)
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin_a, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  insert into public.inventory_sessions (id, shop_id, created_by) values (v_inv, v_shop_a, v_admin_a);
+  begin
+    insert into public.inventory_sessions (id, shop_id, created_by) values (v_inv2, v_shop_a, v_admin_a);
+    failures := failures || 'deux inventaires ouverts';
+  exception when unique_violation then ok := ok + 1;
+  end;
+  execute 'reset role';
+
+  -- Vendeur A compte 5 câbles (7 attendus) ; ne peut ni valider ni compter au nom d'un autre
+  perform set_config('request.jwt.claims', json_build_object('sub', v_seller_a, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    insert into public.inventory_sessions (id, shop_id, created_by) values (v_inv2, v_shop_a, v_seller_a);
+    failures := failures || 'vendeur ouvre un inventaire';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  insert into public.inventory_counts (shop_id, session_id, product_id, counted, expected, counted_by)
+    values (v_shop_a, v_inv, v_product, 5, 7, v_seller_a);
+  ok := ok + 1;
+  begin
+    update public.inventory_counts set counted_by = v_admin_a where session_id = v_inv;
+    failures := failures || 'vendeur compte au nom d''un autre';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  begin
+    perform public.validate_inventory(v_inv);
+    failures := failures || 'vendeur valide l''inventaire';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  begin
+    update public.inventory_sessions set status = 'validated' where id = v_inv;
+    failures := failures || 'vendeur clôt l''inventaire directement';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  execute 'reset role';
+
+  -- Admin B : ne voit pas l'inventaire de A
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin_b, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*) into v_n from public.inventory_counts;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'admin B lit l''inventaire de A'; end if;
+  execute 'reset role';
+
+  -- Admin A valide : stock 7 → 5, une seule fois
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin_a, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  v_n := public.validate_inventory(v_inv);
+  select quantity into v_qty from public.products where id = v_product;
+  if v_n = 1 and v_qty = 5 then ok := ok + 1; else failures := failures || ('validation applique l''écart (' || v_qty || ')'); end if;
+  begin
+    perform public.validate_inventory(v_inv);
+    failures := failures || 'inventaire validé deux fois';
+  exception when raise_exception then ok := ok + 1;
+  end;
+  begin
+    insert into public.inventory_counts (shop_id, session_id, product_id, counted, expected, counted_by)
+      values (v_shop_a, v_inv, v_product, 1, 5, v_admin_a);
+    failures := failures || 'comptage dans un inventaire clos';
+  exception when raise_exception or unique_violation then ok := ok + 1;
+  end;
+  -- Remet le stock attendu par la suite des tests (7)
+  insert into public.stock_movements (shop_id, product_id, delta, reason, created_by) values (v_shop_a, v_product, 2, 'adjustment', v_admin_a);
+  execute 'reset role';
+
+  -- ---------------------------------------------------------------- discussion
+  perform set_config('request.jwt.claims', json_build_object('sub', v_seller_a, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  insert into public.chat_messages (id, shop_id, sender_id, body) values (v_msg, v_shop_a, v_seller_a, 'Bonjour');
+  ok := ok + 1;
+  begin
+    insert into public.chat_messages (shop_id, sender_id, body) values (v_shop_a, v_admin_a, 'Usurpé');
+    failures := failures || 'message au nom d''un autre';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  begin
+    insert into public.chat_messages (shop_id, sender_id, body) values (v_shop_b, v_seller_a, 'Intrus');
+    failures := failures || 'message dans une autre boutique';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  begin
+    update public.chat_messages set body = 'Modifié' where id = v_msg;
+    failures := failures || 'texte d''un message modifiable';
+  exception when insufficient_privilege then ok := ok + 1;
+  end;
+  execute 'reset role';
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin_b, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*) into v_n from public.chat_messages;
+  if v_n = 0 then ok := ok + 1; else failures := failures || 'admin B lit la discussion de A'; end if;
+  execute 'reset role';
+
+  -- Admin A peut retirer le message d'un vendeur
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin_a, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  update public.chat_messages set deleted_at = now() where id = v_msg;
+  get diagnostics v_n = row_count;
+  if v_n = 1 then ok := ok + 1; else failures := failures || 'admin retire un message'; end if;
+  execute 'reset role';
+
+  -- La suite des tests reprend avec le vendeur A
+  perform set_config('request.jwt.claims', json_build_object('sub', v_seller_a, 'role', 'authenticated')::text, true);
   select quantity into v_qty from public.products where id = v_product;
   if v_qty = 7 then ok := ok + 1; else failures := failures || 'vente décrémente le stock (' || v_qty || ')'; end if;
   execute 'set local role authenticated';

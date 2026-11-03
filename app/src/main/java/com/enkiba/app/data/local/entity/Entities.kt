@@ -164,3 +164,69 @@ data class QuoteItemEntity(
     @ColumnInfo(name = "updated_at") val updatedAt: String?,
     @ColumnInfo(name = "sync_status") val syncStatus: String,
 )
+
+// Prix d'achat (admins seulement) : dernier prix payé, modifiable sur le téléphone
+@Entity(tableName = "product_costs")
+data class ProductCostEntity(
+    @PrimaryKey @ColumnInfo(name = "product_id") val productId: String,
+    @ColumnInfo(name = "shop_id") val shopId: String?,
+    @ColumnInfo(name = "cost_price") val costPrice: Double,
+    @ColumnInfo(name = "updated_at") val updatedAt: String?,
+    @ColumnInfo(name = "sync_status") val syncStatus: String,
+)
+
+// Prix d'achat figé par le serveur sur une ligne de vente : reçu seulement, jamais envoyé
+@Entity(tableName = "sale_item_costs")
+data class SaleItemCostEntity(
+    @PrimaryKey @ColumnInfo(name = "sale_item_id") val saleItemId: String,
+    @ColumnInfo(name = "shop_id") val shopId: String?,
+    @ColumnInfo(name = "cost_price") val costPrice: Double,
+    @ColumnInfo(name = "updated_at") val updatedAt: String?,
+)
+
+// Inventaire : session ouverte par un admin (une seule à la fois par boutique)
+@Entity(tableName = "inventory_sessions")
+data class InventorySessionEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "shop_id") val shopId: String?,
+    /** open, validated ou cancelled */
+    val status: String,
+    @ColumnInfo(name = "created_by") val createdBy: String,
+    @ColumnInfo(name = "created_at") val createdAt: String,
+    @ColumnInfo(name = "closed_at") val closedAt: String?,
+    @ColumnInfo(name = "updated_at") val updatedAt: String?,
+    @ColumnInfo(name = "sync_status") val syncStatus: String,
+)
+
+// Comptage d'un article : le dernier compte remplace le précédent (un par article et par session)
+@Entity(
+    tableName = "inventory_counts",
+    indices = [Index(value = ["session_id", "product_id"], unique = true)],
+)
+data class InventoryCountEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "shop_id") val shopId: String?,
+    @ColumnInfo(name = "session_id") val sessionId: String,
+    @ColumnInfo(name = "product_id") val productId: String,
+    val counted: Int,
+    /** Stock vu par le téléphone au moment du comptage : l'écart est compté - attendu. */
+    val expected: Int,
+    @ColumnInfo(name = "counted_by") val countedBy: String,
+    @ColumnInfo(name = "counted_at") val countedAt: String,
+    @ColumnInfo(name = "updated_at") val updatedAt: String?,
+    @ColumnInfo(name = "sync_status") val syncStatus: String,
+)
+
+// Discussion de la boutique : messages reçus et envoyés (purgés après 90 jours)
+@Entity(tableName = "chat_messages", indices = [Index("created_at")])
+data class ChatMessageEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "shop_id") val shopId: String?,
+    @ColumnInfo(name = "sender_id") val senderId: String,
+    val body: String,
+    /** Heure du serveur une fois reçu ; heure du téléphone tant que le message n'est pas envoyé. */
+    @ColumnInfo(name = "created_at") val createdAt: String,
+    @ColumnInfo(name = "updated_at") val updatedAt: String?,
+    @ColumnInfo(name = "deleted_at") val deletedAt: String?,
+    @ColumnInfo(name = "sync_status") val syncStatus: String,
+)

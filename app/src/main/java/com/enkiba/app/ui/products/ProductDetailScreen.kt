@@ -1,5 +1,7 @@
 package com.enkiba.app.ui.products
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -106,6 +108,8 @@ fun ProductDetailScreen(
                             StatTile(colors.lavender, Icons.Rounded.Payments, formatKmfCompact(p.price * p.quantity), "Valeur du stock (KMF)", Modifier.weight(1f))
                         }
                     }
+                    // Prix d'achat et marge : admins seulement
+                    if (state.isAdmin) CostCard(p.price, p.quantity, state.cost, onEdit = { onEdit(p) })
                     if (!p.description.isNullOrBlank()) {
                         EnkibaCard(Modifier.fillMaxWidth()) {
                             Text("Description", style = MaterialTheme.typography.titleMedium)
@@ -137,5 +141,41 @@ fun ProductDetailScreen(
                 }
             }
         }
+    }
+}
+
+/** Prix d'achat, marge unitaire et valeur du stock au prix d'achat (admin). */
+@Composable
+private fun CostCard(price: Double, quantity: Int, cost: Double?, onEdit: () -> Unit) {
+    val colors = EnkibaTheme.colors
+    EnkibaCard(Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Text("Prix d'achat et marge", style = MaterialTheme.typography.titleMedium)
+            if (cost == null) {
+                Text(
+                    "Prix d'achat non renseigné : ce produit n'est pas compté dans les marges.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                TextButton(onClick = onEdit, contentPadding = PaddingValues(0.dp)) { Text("Saisir le prix d'achat") }
+            } else {
+                val m = UnitMargin.of(price, cost)
+                InfoLine("Prix d'achat", "${formatKmf(cost)} KMF")
+                InfoLine(
+                    "Marge par unité",
+                    "${formatKmf(m.amount)} KMF" + (m.rate?.let { " · ${percentText(it)}" } ?: ""),
+                    if (m.isLoss) colors.danger.content else null,
+                )
+                InfoLine("Stock au prix d'achat", "${formatKmf(cost * quantity)} KMF")
+            }
+        }
+    }
+}
+
+@Composable
+private fun InfoLine(label: String, value: String, valueColor: Color? = null) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.titleSmall, color = valueColor ?: MaterialTheme.colorScheme.onSurface)
     }
 }

@@ -6,20 +6,29 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.enkiba.app.data.local.dao.ChatRoomDao
 import com.enkiba.app.data.local.dao.ClientRoomDao
+import com.enkiba.app.data.local.dao.CostRoomDao
+import com.enkiba.app.data.local.dao.ExportRoomDao
 import com.enkiba.app.data.local.dao.HistoryRoomDao
+import com.enkiba.app.data.local.dao.InventoryRoomDao
 import com.enkiba.app.data.local.dao.ProductRoomDao
 import com.enkiba.app.data.local.dao.QuoteRoomDao
 import com.enkiba.app.data.local.dao.SaleRoomDao
 import com.enkiba.app.data.local.dao.StockRoomDao
 import com.enkiba.app.data.local.dao.SyncRoomDao
 import com.enkiba.app.data.local.dao.UserRoomDao
+import com.enkiba.app.data.local.entity.ChatMessageEntity
 import com.enkiba.app.data.local.entity.ClientEntity
 import com.enkiba.app.data.local.entity.HistoryEntity
+import com.enkiba.app.data.local.entity.InventoryCountEntity
+import com.enkiba.app.data.local.entity.InventorySessionEntity
+import com.enkiba.app.data.local.entity.ProductCostEntity
 import com.enkiba.app.data.local.entity.ProductEntity
 import com.enkiba.app.data.local.entity.QuoteEntity
 import com.enkiba.app.data.local.entity.QuoteItemEntity
 import com.enkiba.app.data.local.entity.SaleEntity
+import com.enkiba.app.data.local.entity.SaleItemCostEntity
 import com.enkiba.app.data.local.entity.SaleItemEntity
 import com.enkiba.app.data.local.entity.SaleReturnEntity
 import com.enkiba.app.data.local.entity.StockMovementEntity
@@ -43,8 +52,10 @@ import com.enkiba.app.utils.SynchronizationManager
         ProductEntity::class, UserEntity::class, ClientEntity::class, SaleEntity::class,
         SaleItemEntity::class, HistoryEntity::class, StockMovementEntity::class,
         SaleReturnEntity::class, QuoteEntity::class, QuoteItemEntity::class,
+        ProductCostEntity::class, SaleItemCostEntity::class,
+        InventorySessionEntity::class, InventoryCountEntity::class, ChatMessageEntity::class,
     ],
-    version = 11,
+    version = 14,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -57,13 +68,66 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun stockDao(): StockRoomDao
     abstract fun quoteDao(): QuoteRoomDao
     abstract fun syncDao(): SyncRoomDao
+    abstract fun costDao(): CostRoomDao
+    abstract fun exportDao(): ExportRoomDao
+    abstract fun inventoryDao(): InventoryRoomDao
+    abstract fun chatDao(): ChatRoomDao
 
     companion object {
         const val DATABASE_NAME = "stock.db"
 
-        /** Migrations du schéma, dans l'ordre (aucune pour l'instant : version 11 = première). */
+        /** 11 → 12 : prix d'achat des produits et coût figé des lignes de vente (admins). */
         @JvmField
-        val MIGRATIONS: Array<Migration> = arrayOf()
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `product_costs` (`product_id` TEXT NOT NULL, `shop_id` TEXT, " +
+                        "`cost_price` REAL NOT NULL, `updated_at` TEXT, `sync_status` TEXT NOT NULL, PRIMARY KEY(`product_id`))"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `sale_item_costs` (`sale_item_id` TEXT NOT NULL, `shop_id` TEXT, " +
+                        "`cost_price` REAL NOT NULL, `updated_at` TEXT, PRIMARY KEY(`sale_item_id`))"
+                )
+            }
+        }
+
+        /** 12 → 13 : inventaire (sessions et comptages). */
+        @JvmField
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `inventory_sessions` (`id` TEXT NOT NULL, `shop_id` TEXT, `status` TEXT NOT NULL, " +
+                        "`created_by` TEXT NOT NULL, `created_at` TEXT NOT NULL, `closed_at` TEXT, `updated_at` TEXT, " +
+                        "`sync_status` TEXT NOT NULL, PRIMARY KEY(`id`))"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `inventory_counts` (`id` TEXT NOT NULL, `shop_id` TEXT, `session_id` TEXT NOT NULL, " +
+                        "`product_id` TEXT NOT NULL, `counted` INTEGER NOT NULL, `expected` INTEGER NOT NULL, `counted_by` TEXT NOT NULL, " +
+                        "`counted_at` TEXT NOT NULL, `updated_at` TEXT, `sync_status` TEXT NOT NULL, PRIMARY KEY(`id`))"
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_inventory_counts_session_id_product_id` " +
+                        "ON `inventory_counts` (`session_id`, `product_id`)"
+                )
+            }
+        }
+
+        /** 13 → 14 : discussion de la boutique. */
+        @JvmField
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `chat_messages` (`id` TEXT NOT NULL, `shop_id` TEXT, `sender_id` TEXT NOT NULL, " +
+                        "`body` TEXT NOT NULL, `created_at` TEXT NOT NULL, `updated_at` TEXT, `deleted_at` TEXT, " +
+                        "`sync_status` TEXT NOT NULL, PRIMARY KEY(`id`))"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_chat_messages_created_at` ON `chat_messages` (`created_at`)")
+            }
+        }
+
+        /** Migrations du schéma, dans l'ordre. */
+        @JvmField
+        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
 
         @Volatile
         private var instance: AppDatabase? = null

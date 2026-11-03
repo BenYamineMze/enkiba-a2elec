@@ -16,4 +16,8 @@ interface UserRoomDao {
 
     @Query("SELECT * FROM users")
     fun getAll(): List<UserEntity>
+
+    /** Ajoute un membre inconnu (nom des expéditeurs du chat) sans toucher aux fiches existantes. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    fun insertIfMissing(user: UserEntity)
 }
