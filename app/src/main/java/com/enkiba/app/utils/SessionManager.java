@@ -33,6 +33,11 @@ public class SessionManager {
     private static final String KEY_SUPER_ADMIN = "super_admin";
     private static final String KEY_SHOP_UNAVAILABLE = "shop_unavailable";
     private static final String KEY_SHOP_COUNT = "shop_count";
+    // Code PIN : seulement un hachage salé, effacé avec la session (déconnexion = nouveau code)
+    private static final String KEY_PIN_HASH = "pin_hash";
+    private static final String KEY_PIN_SALT = "pin_salt";
+    private static final String KEY_PIN_FAILURES = "pin_failures";
+    private static final String KEY_BIOMETRIC = "pin_biometric";
 
     private static SharedPreferences sPrefs;
 
@@ -193,6 +198,41 @@ public class SessionManager {
     /** Boutique suspendue ou supprimée, constaté par la synchro : déconnexion au prochain écran. */
     public boolean isShopUnavailable() { return readBoolean(KEY_SHOP_UNAVAILABLE, false); }
     public void setShopUnavailable(boolean value) { prefs.edit().putBoolean(KEY_SHOP_UNAVAILABLE, value).apply(); }
+
+    /** Hachage du code PIN (null si le verrouillage est désactivé). */
+    public String getPinHash() { return readString(KEY_PIN_HASH, null); }
+    public String getPinSalt() { return readString(KEY_PIN_SALT, null); }
+
+    public void savePin(String hash, String salt) {
+        prefs.edit()
+                .putString(KEY_PIN_HASH, hash)
+                .putString(KEY_PIN_SALT, salt)
+                .putInt(KEY_PIN_FAILURES, 0)
+                .apply();
+    }
+
+    public void clearPin() {
+        prefs.edit()
+                .remove(KEY_PIN_HASH)
+                .remove(KEY_PIN_SALT)
+                .remove(KEY_PIN_FAILURES)
+                .remove(KEY_BIOMETRIC)
+                .apply();
+    }
+
+    /** Essais ratés d'affilée : conservés si l'app est fermée pendant la saisie. */
+    public int getPinFailures() {
+        try {
+            return prefs.getInt(KEY_PIN_FAILURES, 0);
+        } catch (RuntimeException e) {
+            onUnreadable(e);
+            return 0;
+        }
+    }
+    public void setPinFailures(int count) { prefs.edit().putInt(KEY_PIN_FAILURES, count).apply(); }
+
+    public boolean isBiometricEnabled() { return readBoolean(KEY_BIOMETRIC, false); }
+    public void setBiometricEnabled(boolean value) { prefs.edit().putBoolean(KEY_BIOMETRIC, value).apply(); }
 
     public String getUsername() {
         String u = readString(KEY_USER, "");

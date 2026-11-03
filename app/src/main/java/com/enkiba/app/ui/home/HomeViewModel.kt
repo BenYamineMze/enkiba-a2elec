@@ -29,6 +29,8 @@ data class HomeUiState(
     val isSuperAdmin: Boolean = false,
     /** Membre de plusieurs boutiques : menu « Changer de boutique ». */
     val shopCount: Int = 1,
+    /** Verrouillage par code PIN activé (menu de l'avatar). */
+    val pinEnabled: Boolean = false,
     val data: HomeData? = null,
     val syncing: Boolean = false,
     val online: Boolean = true,
@@ -56,6 +58,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             isAdmin = session.isAdmin,
             isSuperAdmin = session.isSuperAdmin,
             shopCount = session.shopCount,
+            pinEnabled = session.pinHash != null,
         )
     )
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
@@ -74,6 +77,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     it.copy(
                         data = data, email = email, online = NetworkUtils.isOnline(getApplication()),
                         firstName = session.firstName, lastName = session.lastName,
+                        pinEnabled = session.pinHash != null,
                     )
                 }
             } catch (e: Exception) {

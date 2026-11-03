@@ -13,6 +13,7 @@
     </queries>
 
     <application
+        android:name=".EnkibaApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -33,6 +34,10 @@
         </activity>
 
         <activity android:name=".ui.home.HomeActivity"/>
+        <!-- Verrouillage par code PIN : absent des écrans récents, pour ne pas s'y retrouver seul -->
+        <activity android:name=".ui.lock.LockActivity"
+            android:excludeFromRecents="true"/>
+        <activity android:name=".ui.lock.PinSettingsActivity"/>
         <activity android:name=".ui.profile.ProfileActivity"
             android:windowSoftInputMode="adjustResize"/>
         <activity android:name=".ui.products.ProductsActivity"/>

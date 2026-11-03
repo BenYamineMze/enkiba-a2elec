@@ -78,6 +78,7 @@ data class HomeActions(
     val onShop: () -> Unit = {},
     val onShops: () -> Unit = {},
     val onSwitchShop: () -> Unit = {},
+    val onPinSettings: () -> Unit = {},
     /** Build debug seulement (null en release) : ouvre le catalogue du système de design. */
     val onOpenDesignCatalog: (() -> Unit)? = null,
     val onLogout: () -> Unit = {},
@@ -154,6 +155,10 @@ private fun Header(state: HomeUiState, actions: HomeActions) {
         Box(Modifier.align(Alignment.TopEnd).padding(end = Spacing.screen, top = 56.dp)) {
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 DropdownMenuItem(text = { Text("Mon profil") }, onClick = { menuOpen = false; actions.onProfile() })
+                DropdownMenuItem(
+                    text = { Text(if (state.pinEnabled) "Code PIN : activé" else "Code PIN") },
+                    onClick = { menuOpen = false; actions.onPinSettings() },
+                )
                 DropdownMenuItem(
                     text = { Text("Thème : ${themeMode.label}") },
                     onClick = { menuOpen = false; themeDialog = true },
