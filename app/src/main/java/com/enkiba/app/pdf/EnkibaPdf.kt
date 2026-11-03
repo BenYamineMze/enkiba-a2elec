@@ -12,6 +12,7 @@ import com.enkiba.app.models.SaleHeader
 import com.enkiba.app.models.SaleItemRow
 import com.enkiba.app.pdf.PdfBuilder.Weight
 import com.enkiba.app.ui.components.formatKmf
+import com.enkiba.app.ui.inventory.InventoryReview
 import com.enkiba.app.ui.components.paymentLabel
 import com.enkiba.app.ui.components.parseIsoDate
 import com.enkiba.app.utils.PDFUtils
@@ -142,6 +143,56 @@ object EnkibaPdf {
         val total = sales.sumOf { it.netTotal }
         b.totals(byPayment, "Total encaissé", kmf(total), eur(total), listOf("Montants nets des retours."))
         val file = PdfFolder.REPORTS.file(context, PdfText.reportFileName("Ventes", Date()))
+        file.takeIf { b.writeTo(it) }
+    }.getOrNull()
+
+    /** Rapport d'inventaire : écarts (manquants, surplus) chiffrés, puis articles non comptés. */
+    fun inventoryReport(context: Context, review: InventoryReview, shop: ShopDetails, startedAt: String?): File? = runCatching {
+        val b = PdfBuilder(context, shop)
+        b.shopHeader(
+            shop, "Inventaire",
+            listOfNotNull(startedAt?.let { "Ouvert le ${moment(it)}" }, "Validé le ${PdfText.longDateTime(Date())}",
+                "${review.counted.size} article${if (review.counted.size > 1) "s" else ""} compté${if (review.counted.size > 1) "s" else ""}"),
+        )
+        if (review.gaps.isNotEmpty()) {
+            b.table(
+                listOf(
+                    PdfColumn("Article", 36f), PdfColumn("Attendu", 12f, Paint.Align.RIGHT), PdfColumn("Compté", 12f, Paint.Align.RIGHT),
+                    PdfColumn("Écart", 12f, Paint.Align.RIGHT), PdfColumn("Valeur", 18f, Paint.Align.RIGHT),
+                ),
+                review.gaps.map { l ->
+                    val d = l.diff ?: 0
+                    listOf(
+                        PdfCell(l.product.name.orEmpty(), note = l.product.category?.ifBlank { null }),
+                        PdfCell(l.count!!.expected.toString()),
+                        PdfCell(l.count.counted.toString()),
+                        PdfCell(if (d > 0) "+$d" else d.toString()),
+                        PdfCell(formatKmf(l.gapValue), note = if (l.valueIsCost) "prix d'achat" else "prix de vente"),
+                    )
+                },
+                fontSize = 8.5f,
+            )
+        }
+        b.totals(
+            listOf(
+                "Manquants (${review.missingUnits} unité${if (review.missingUnits > 1) "s" else ""})" to "− ${kmf(review.missingValue)}",
+                "Surplus (${review.surplusUnits} unité${if (review.surplusUnits > 1) "s" else ""})" to "+ ${kmf(review.surplusValue)}",
+            ),
+            "Écart net", kmf(review.netValue), null,
+            listOfNotNull(
+                if (review.gaps.isEmpty()) "Aucun écart : le stock compté correspond au stock attendu." else null,
+                "Valeur au prix d'achat quand il est connu, sinon au prix de vente.",
+                if (review.uncounted.isNotEmpty()) "${review.uncounted.size} article(s) non compté(s) : stock inchangé (liste ci-dessous)." else null,
+            ),
+        )
+        if (review.uncounted.isNotEmpty()) {
+            b.table(
+                listOf(PdfColumn("Non compté", 60f), PdfColumn("Catégorie", 25f), PdfColumn("Stock", 15f, Paint.Align.RIGHT)),
+                review.uncounted.map { l -> listOf(PdfCell(l.product.name.orEmpty()), PdfCell(l.product.category.orEmpty()), PdfCell(l.product.quantity.toString())) },
+                fontSize = 8f,
+            )
+        }
+        val file = PdfFolder.REPORTS.file(context, PdfText.reportFileName("Inventaire", Date()))
         file.takeIf { b.writeTo(it) }
     }.getOrNull()
 

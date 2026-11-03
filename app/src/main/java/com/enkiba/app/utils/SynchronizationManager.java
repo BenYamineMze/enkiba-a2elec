@@ -9,10 +9,15 @@ import com.enkiba.app.api.SupabaseService;
 import com.enkiba.app.data.local.AppDatabase;
 import com.enkiba.app.data.local.ShopStore;
 import com.enkiba.app.data.local.dao.CostRoomDao;
+import com.enkiba.app.data.local.dao.InventoryRoomDao;
+import com.enkiba.app.data.local.entity.InventoryCountEntity;
+import com.enkiba.app.data.local.entity.InventorySessionEntity;
 import com.enkiba.app.data.local.entity.ProductCostEntity;
 import com.enkiba.app.data.local.entity.SaleItemCostEntity;
 import com.enkiba.app.models.AuditLogEntry;
 import com.enkiba.app.models.Client;
+import com.enkiba.app.models.InventoryCountRow;
+import com.enkiba.app.models.InventorySessionRow;
 import com.enkiba.app.models.Product;
 import com.enkiba.app.models.ProductCostRow;
 import com.enkiba.app.models.SaleItemCostRow;
@@ -63,6 +68,7 @@ public class SynchronizationManager {
     private final SupabaseService supabaseService;
     private final SyncDao syncDao;
     private final CostRoomDao costDao;
+    private final InventoryRoomDao inventoryDao;
     private final Context context;
     private final SessionManager sessionManager;
 
@@ -76,6 +82,7 @@ public class SynchronizationManager {
         this.supabaseService = RetrofitClient.getSupabaseService(context);
         this.syncDao = new SyncDao(context);
         this.costDao = AppDatabase.get(context).costDao();
+        this.inventoryDao = AppDatabase.get(context).inventoryDao();
         this.sessionManager = new SessionManager(context);
     }
 
@@ -221,6 +228,13 @@ public class SynchronizationManager {
             Log.e(TAG, "Erreur PUSH devis : " + e.getMessage(), e);
         }
 
+        // Inventaire : la session (admin) puis les comptages
+        try {
+            pushInventorySync();
+        } catch (Exception e) {
+            Log.e(TAG, "Erreur PUSH inventaire : " + e.getMessage(), e);
+        }
+
         // Historique des produits
         try {
             pushHistoryTableSync(syncDao.getPendingHistory());
@@ -339,6 +353,53 @@ public class SynchronizationManager {
                 }
             }
             syncDao.markProductAsSynced(p.getId());
+        }
+    }
+
+    /** Envoie les inventaires ouverts sur ce téléphone, puis les comptages (dernier compte par article). */
+    private void pushInventorySync() throws Exception {
+        for (InventorySessionEntity s : inventoryDao.pendingSessions()) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("id", s.getId());
+            row.put("shop_id", s.getShopId() != null ? s.getShopId() : sessionManager.getShopId());
+            row.put("created_by", s.getCreatedBy());
+            Response<Void> res = supabaseService.insertInventorySession(PREFER_IGNORE_DUPLICATES, row).execute();
+            if (res.isSuccessful()) {
+                inventoryDao.markSessionSynced(s.getId());
+            } else if (res.code() == 409) {
+                // Un autre admin a ouvert un inventaire entre-temps : celui-ci est abandonné
+                Log.w(TAG, "Inventaire " + s.getId() + " refusé (déjà un inventaire ouvert)");
+                inventoryDao.close(s.getId(), "cancelled", s.getCreatedAt());
+                inventoryDao.markSessionSynced(s.getId());
+            } else {
+                logFailure("inventaire " + s.getId(), res);
+            }
+        }
+        for (InventoryCountEntity c : inventoryDao.pendingCounts()) {
+            Map<String, Object> fields = new HashMap<>();
+            fields.put("counted", c.getCounted());
+            fields.put("expected", c.getExpected());
+            fields.put("counted_by", c.getCountedBy());
+            fields.put("counted_at", c.getCountedAt());
+            Response<List<InventoryCountRow>> patch = supabaseService.patchInventoryCount(
+                    "return=representation", "eq." + c.getSessionId(), "eq." + c.getProductId(), fields).execute();
+            if (!patch.isSuccessful()) {
+                logFailure("comptage " + c.getId(), patch);
+                continue;
+            }
+            if (patch.body() == null || patch.body().isEmpty()) {
+                Map<String, Object> row = new HashMap<>(fields);
+                row.put("id", c.getId());
+                row.put("shop_id", c.getShopId() != null ? c.getShopId() : sessionManager.getShopId());
+                row.put("session_id", c.getSessionId());
+                row.put("product_id", c.getProductId());
+                Response<Void> insert = supabaseService.insertInventoryCount(PREFER_IGNORE_DUPLICATES, row).execute();
+                if (!insert.isSuccessful()) {
+                    logFailure("création comptage " + c.getId(), insert);
+                    continue;
+                }
+            }
+            inventoryDao.markCountSynced(c.getId(), c.getCounted());
         }
     }
 
@@ -545,6 +606,22 @@ public class SynchronizationManager {
                 since -> supabaseService.pullQuoteItems(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
                 QuoteItem::getUpdatedAt, syncDao::upsertQuoteItem);
         pullCosts(shop, shopFilter);
+        pullTable(shop, "inventory_sessions",
+                since -> supabaseService.pullInventorySessions(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
+                InventorySessionRow::getUpdatedAt, r -> {
+                    if (r.getId() == null || r.getStatus() == null || r.getCreatedBy() == null) return;
+                    inventoryDao.applyRemoteSession(new InventorySessionEntity(r.getId(), r.getShopId(), r.getStatus(),
+                            r.getCreatedBy(), r.getCreatedAt() != null ? r.getCreatedAt() : "", r.getClosedAt(), r.getUpdatedAt(), "synced"));
+                });
+        pullTable(shop, "inventory_counts",
+                since -> supabaseService.pullInventoryCounts(shopFilter, since, PULL_ORDER, PULL_PAGE_SIZE),
+                InventoryCountRow::getUpdatedAt, r -> {
+                    if (r.getId() == null || r.getSessionId() == null || r.getProductId() == null
+                            || r.getCounted() == null || r.getExpected() == null || r.getCountedBy() == null) return;
+                    inventoryDao.applyRemoteCount(new InventoryCountEntity(r.getId(), r.getShopId(), r.getSessionId(), r.getProductId(),
+                            r.getCounted(), r.getExpected(), r.getCountedBy(), r.getCountedAt() != null ? r.getCountedAt() : "",
+                            r.getUpdatedAt(), "synced"));
+                });
         // audit_log n'a pas de updated_at (lignes jamais modifiées) : curseur sur created_at
         pullTable(shop, "audit_log",
                 since -> supabaseService.pullProductAuditLog(shopFilter, since, "created_at.asc,id.asc", PULL_PAGE_SIZE),

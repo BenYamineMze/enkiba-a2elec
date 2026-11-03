@@ -2,6 +2,7 @@ package com.enkiba.app.data.local
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.enkiba.app.data.local.entity.InventoryCountEntity
 import com.enkiba.app.data.local.entity.ProductCostEntity
 import com.enkiba.app.data.local.entity.ProductEntity
 import com.enkiba.app.data.local.entity.QuoteEntity
@@ -176,4 +177,23 @@ class RoomDaoTest {
         assertEquals(2, withCost.sold)
         assertEquals(60.0, withCost.costPrice!!, 0.001)
     }
+
+    // ---------------------------------------------------------------- inventaire
+
+    private fun count(id: String, productId: String, counted: Int, sync: String = SYNC_SYNCED) =
+        InventoryCountEntity(id, "s", "inv", productId, counted, 7, "u1", "2026-11-03T10:00:00Z", null, sync)
+
+    @Test
+    fun unSeulComptageParArticleEtPrioriteAuComptageLocal() {
+        val dao = db.inventoryDao()
+        dao.upsertCount(count("c1", "p1", 5, SYNC_PENDING))
+        // Le serveur a un autre id pour le même article : le comptage local en attente reste
+        dao.applyRemoteCount(count("c-server", "p1", 9))
+        assertEquals(5, dao.count("inv", "p1")!!.counted)
+        dao.markCountSynced("c1", 5)
+        dao.applyRemoteCount(count("c-server", "p1", 9))
+        assertEquals(1, dao.counts("inv").size)
+        assertEquals(9, dao.count("inv", "p1")!!.counted)
+    }
 }
+

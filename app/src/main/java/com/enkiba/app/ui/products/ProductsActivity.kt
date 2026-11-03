@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.enkiba.app.ui.inventory.InventoryActivity
 import com.enkiba.app.ui.navigation.AppNavigator
 import com.enkiba.app.ui.theme.EnkibaTheme
 import com.enkiba.app.utils.SessionManager
@@ -48,6 +49,7 @@ class ProductsActivity : ComponentActivity() {
                         onCancelDelete = viewModel::cancelDelete,
                         onAdd = { startActivity(Intent(this, ProductFormActivity::class.java)) },
                         onQrList = { startActivity(Intent(this, QrListActivity::class.java)) },
+                        onInventory = { startActivity(Intent(this, InventoryActivity::class.java)) },
                         onNavigate = { tab -> AppNavigator.open(this, tab, session.isAdmin) },
                         onNewSale = { AppNavigator.newSale(this) },
                         onMessageShown = viewModel::consumeMessage,

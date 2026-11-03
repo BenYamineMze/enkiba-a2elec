@@ -3,6 +3,8 @@ package com.enkiba.app.api;
 import com.enkiba.app.models.AuditLogEntry;
 import com.enkiba.app.models.AuthResponse;
 import com.enkiba.app.models.Client;
+import com.enkiba.app.models.InventoryCountRow;
+import com.enkiba.app.models.InventorySessionRow;
 import com.enkiba.app.models.Membership;
 import com.enkiba.app.models.Product;
 import com.enkiba.app.models.ProductCostRow;
@@ -129,6 +131,15 @@ public interface SupabaseService {
     Call<List<SaleItem>> pullSaleItems(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
                                        @Query("order") String order, @Query("limit") int limit);
 
+    // Inventaire : sessions et comptages de la boutique (tous les membres)
+    @GET("rest/v1/inventory_sessions")
+    Call<List<InventorySessionRow>> pullInventorySessions(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
+                                                          @Query("order") String order, @Query("limit") int limit);
+
+    @GET("rest/v1/inventory_counts")
+    Call<List<InventoryCountRow>> pullInventoryCounts(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
+                                                      @Query("order") String order, @Query("limit") int limit);
+
     // Prix d'achat : la RLS ne renvoie rien à un vendeur (l'app ne les demande qu'aux admins)
     @GET("rest/v1/product_costs")
     Call<List<ProductCostRow>> pullProductCosts(@Query("shop_id") String shopFilter, @Query("updated_at") String since,
@@ -176,6 +187,28 @@ public interface SupabaseService {
     @Headers("Content-Type: application/json")
     @POST("rest/v1/products")
     Call<Void> insertProduct(@Header("Prefer") String prefer, @Body Map<String, Object> product);
+
+    // Inventaire : ouverture (admin), comptage (PATCH du dernier compte, sinon INSERT)
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/inventory_sessions")
+    Call<Void> insertInventorySession(@Header("Prefer") String prefer, @Body Map<String, Object> session);
+
+    @Headers("Content-Type: application/json")
+    @PATCH("rest/v1/inventory_counts")
+    Call<List<InventoryCountRow>> patchInventoryCount(@Header("Prefer") String prefer, @Query("session_id") String sessionFilter,
+                                                      @Query("product_id") String productFilter, @Body Map<String, Object> count);
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/inventory_counts")
+    Call<Void> insertInventoryCount(@Header("Prefer") String prefer, @Body Map<String, Object> count);
+
+    /** Admin : applique les écarts et clôt l'inventaire ({"p_session": "<uuid>"}) ; renvoie le nombre d'ajustements. */
+    @POST("rest/v1/rpc/validate_inventory")
+    Call<Integer> validateInventory(@Body JsonObject body);
+
+    /** Admin : abandonne l'inventaire sans toucher au stock. */
+    @POST("rest/v1/rpc/cancel_inventory")
+    Call<Void> cancelInventory(@Body JsonObject body);
 
     // Prix d'achat : PATCH (cost_price seul modifiable), puis INSERT si la ligne n'existe pas
     @Headers("Content-Type: application/json")

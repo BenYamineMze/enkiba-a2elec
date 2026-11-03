@@ -17,7 +17,7 @@ object WhatsAppShare {
     /** Indicatif par défaut : numéros locaux à 7 chiffres des Comores. */
     const val DEFAULT_COUNTRY_CODE = "269"
 
-    private const val FILE_PROVIDER_AUTHORITY = "com.enkiba.app.fileprovider"
+    const val FILE_PROVIDER_AUTHORITY = "com.enkiba.app.fileprovider"
     private val WHATSAPP_PACKAGES = listOf("com.whatsapp", "com.whatsapp.w4b") // WhatsApp, puis WhatsApp Business
 
     /**
